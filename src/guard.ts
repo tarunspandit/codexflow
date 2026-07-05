@@ -194,10 +194,15 @@ export class PathGuard {
     if (stat.size === 0) return;
     const handle = await fsp.open(absPath, "r");
     try {
-      const sample = Buffer.alloc(stat.size);
-      const { bytesRead } = await handle.read(sample, 0, sample.length, 0);
-      if (sample.subarray(0, bytesRead).includes(0)) {
-        throw new CodexProError("Refusing to read binary file.");
+      const sample = Buffer.alloc(Math.min(64 * 1024, stat.size));
+      let offset = 0;
+      while (offset < stat.size) {
+        const { bytesRead } = await handle.read(sample, 0, sample.length, offset);
+        if (bytesRead === 0) break;
+        if (sample.subarray(0, bytesRead).includes(0)) {
+          throw new CodexProError("Refusing to read binary file.");
+        }
+        offset += bytesRead;
       }
     } finally {
       await handle.close();

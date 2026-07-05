@@ -290,6 +290,12 @@ codexpro setup</code>
             <p>Use your own domain, such as <code>codexpro.example.com</code>, and keep one ChatGPT URL.</p>
             <pre><code>codexpro stable --hostname codexpro.example.com --tunnel-name codexpro</code></pre>
           </article>
+          <article>
+            <span class="tag">Tailnet</span>
+            <h3>Tailscale Funnel</h3>
+            <p>Use your device's <code>.ts.net</code> hostname when your tailnet already allows public Funnel HTTPS.</p>
+            <pre><code>codexpro tailscale --hostname your-device.your-tailnet.ts.net</code></pre>
+          </article>
         </div>
       </section>
 
@@ -507,7 +513,7 @@ codexpro settings delete --yes</code></pre>
           <article>
             <small>Stable URL rule</small>
             <h3>One URL needs one reserved hostname</h3>
-            <p>Cloudflare quick tunnels change on restart. Use an ngrok free dev domain or Cloudflare named tunnel when you want one ChatGPT app URL.</p>
+            <p>Cloudflare quick tunnels change on restart. Use an ngrok free dev domain, Cloudflare named tunnel, or Tailscale Funnel when you want one ChatGPT app URL.</p>
           </article>
           <article>
             <small>Local web admin</small>
@@ -551,7 +557,7 @@ codexpro settings delete --yes</code></pre>
           </article>
           <article>
             <h3>What URL should I use?</h3>
-            <p>Use Cloudflare quick tunnel for demos. Use an ngrok free dev domain or Cloudflare named tunnel when you want one ChatGPT app URL that survives restarts.</p>
+            <p>Use Cloudflare quick tunnel for demos. Use an ngrok free dev domain, Cloudflare named tunnel, or Tailscale Funnel when you want one ChatGPT app URL that survives restarts.</p>
           </article>
           <article>
             <h3>Can ChatGPT see my Codex context?</h3>

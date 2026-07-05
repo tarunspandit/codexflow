@@ -253,6 +253,12 @@ codexpro start</code></pre>
             <p>适合已有域名的用户。把 DNS 路由到 <code>codexpro.example.com</code> 这样的 hostname，之后 URL 保持不变。</p>
             <pre><code>codexpro stable --hostname codexpro.example.com --tunnel-name codexpro</code></pre>
           </article>
+          <article>
+            <span class="tag">Tailnet</span>
+            <h3>Tailscale Funnel</h3>
+            <p>适合已经允许 Funnel HTTPS 的 tailnet。使用这台设备的 <code>.ts.net</code> hostname。</p>
+            <pre><code>codexpro tailscale --hostname your-device.your-tailnet.ts.net</code></pre>
+          </article>
         </div>
       </section>
 

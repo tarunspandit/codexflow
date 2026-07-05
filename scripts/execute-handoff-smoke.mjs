@@ -109,7 +109,7 @@ const diff = await fs.readFile(path.join(root, '.ai-bridge', 'implementation-dif
 const log = await fs.readFile(path.join(root, '.ai-bridge', 'execution-log.jsonl'), 'utf8');
 const app = await fs.readFile(path.join(root, 'app.txt'), 'utf8');
 
-for (const expected of ['Agent Execution Status', 'Agent: custom', 'Exit code: 0', 'fake agent completed']) {
+for (const expected of ['Agent Execution Status', 'Agent: custom', 'Exit code: 0', 'Git status excerpt', 'app.txt', 'fake agent completed']) {
   if (!status.includes(expected)) throw new Error(`status missing ${expected}\n${status}`);
 }
 if (!diff.includes('implemented with local/test-model')) {
@@ -132,6 +132,88 @@ if (runState.exit_code !== 0 || runState.timed_out !== false || runState.executo
 }
 if (!runState.plan_hash || !runState.started_at || !runState.finished_at || runState.status_file !== '.ai-bridge/agent-status.md') {
   throw new Error(`handoff-run-state missing lifecycle fields\n${runStateRaw}`);
+}
+
+const fakeCodexBin = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-fake-codex-bin-'));
+const fakeCodexLog = path.join(root, 'fake-codex-args.json');
+const fakeCodexScript = path.join(root, 'fake-codex.mjs');
+await fs.writeFile(fakeCodexScript, `
+import fs from 'node:fs';
+
+const args = process.argv.slice(2);
+fs.writeFileSync(process.env.CODEXPRO_FAKE_CODEX_LOG, JSON.stringify(args, null, 2));
+if (args[0] !== 'exec') throw new Error('expected codex exec');
+if (!args.includes('--ephemeral')) throw new Error('missing --ephemeral');
+if (!args.includes('workspace-write')) throw new Error('missing workspace-write sandbox');
+if (!args.includes('approval_policy="never"')) throw new Error('missing approval_policy never');
+const outputIndex = args.indexOf('--output-last-message');
+if (outputIndex < 0) throw new Error('missing --output-last-message');
+if (!args.at(-1)?.includes('current-plan.md')) throw new Error('missing plan file prompt');
+fs.writeFileSync(args[outputIndex + 1], 'fake codex last message\\n');
+fs.appendFileSync('app.txt', 'codex adapter executed\\n');
+console.log('fake codex completed');
+`, 'utf8');
+
+if (process.platform === 'win32') {
+  await fs.writeFile(
+    path.join(fakeCodexBin, 'codex.cmd'),
+    `@echo off\r\n"${process.execPath}" "${fakeCodexScript}" %*\r\n`,
+    'utf8'
+  );
+} else {
+  const fakeCodexPath = path.join(fakeCodexBin, 'codex');
+  await fs.writeFile(fakeCodexPath, `#!/usr/bin/env sh\nexec "${process.execPath}" "${fakeCodexScript}" "$@"\n`, 'utf8');
+  await fs.chmod(fakeCodexPath, 0o755);
+}
+
+const fakeCodexEnv = {
+  ...process.env,
+  NO_COLOR: '1',
+  CODEXPRO_FAKE_CODEX_LOG: fakeCodexLog,
+  PATH: `${fakeCodexBin}${path.delimiter}${process.env.PATH ?? process.env.Path ?? ''}`,
+  Path: `${fakeCodexBin}${path.delimiter}${process.env.Path ?? process.env.PATH ?? ''}`
+};
+
+const codexDryRun = run([
+  'execute-handoff',
+  '--root',
+  root,
+  '--agent',
+  'codex',
+  '--model',
+  'gpt-test',
+  '--dry-run'
+], { env: fakeCodexEnv });
+requireSuccess(codexDryRun, 'execute-handoff codex dry-run');
+for (const expected of ['codex', 'exec', '--ephemeral', 'workspace-write', 'approval_policy="never"', 'codex-last-message.md', 'current-plan.md']) {
+  if (!codexDryRun.stdout.includes(expected)) {
+    throw new Error(`codex dry-run missing ${expected}\n${codexDryRun.stdout}`);
+  }
+}
+
+const codexExecuted = run([
+  'execute-handoff',
+  '--root',
+  root,
+  '--agent',
+  'codex',
+  '--model',
+  'gpt-test',
+  '--yes'
+], { env: fakeCodexEnv });
+requireSuccess(codexExecuted, 'execute-handoff codex');
+
+const fakeCodexArgs = JSON.parse(await fs.readFile(fakeCodexLog, 'utf8'));
+const codexLastMessage = await fs.readFile(path.join(root, '.ai-bridge', 'codex-last-message.md'), 'utf8');
+const codexApp = await fs.readFile(path.join(root, 'app.txt'), 'utf8');
+if (!fakeCodexArgs.includes('gpt-test')) {
+  throw new Error(`codex adapter did not pass model\n${JSON.stringify(fakeCodexArgs)}`);
+}
+if (!codexLastMessage.includes('fake codex last message')) {
+  throw new Error(`codex adapter did not write last message\n${codexLastMessage}`);
+}
+if (!codexApp.includes('codex adapter executed')) {
+  throw new Error(`codex adapter did not execute fake codex\n${codexApp}`);
 }
 
 const executeStagedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-execute-staged-untracked-'));

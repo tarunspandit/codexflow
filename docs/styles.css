@@ -306,7 +306,7 @@ dt,
 }
 
 .compare-grid {
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.18fr) minmax(0, 0.98fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .reference-grid {
@@ -1061,7 +1061,7 @@ p {
 
 .compare-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -1513,7 +1513,7 @@ pre {
 }
 
 .compare-grid {
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.18fr) minmax(0, 0.98fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .reference-grid {

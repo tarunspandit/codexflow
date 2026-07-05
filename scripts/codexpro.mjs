@@ -36,6 +36,7 @@ Usage:
   codexpro loop-handoff --agent opencode --model provider/model --review-command "node ./reviewer.js --status {{status_file}} --diff {{diff_file}} --plan-file {{plan_file}}"
   codexpro --root /path/to/repo
   codexpro ngrok --hostname your-domain.ngrok-free.dev
+  codexpro tailscale --hostname your-device.your-tailnet.ts.net
   codexpro stable --hostname codexpro.example.com --tunnel-name codexpro
   codexpro pro-bundle --root /path/to/repo --copy
   codexpro pro-apply --root /path/to/repo --file plan.md
@@ -50,7 +51,7 @@ Options:
   --allow-home              Allow opening any workspace under your home directory.
   --mode <agent|handoff|pro>
                              Default: agent.
-                             agent = ChatGPT can read, write/edit files, search, and run safe bash.
+                             agent = ChatGPT can read, write/edit/apply_patch files, search, and run safe bash.
                              handoff = ChatGPT writes .ai-bridge plans for a local implementation agent.
                              pro = export context for models that cannot call MCP tools.
   --agent                   Shortcut for --mode agent.
@@ -72,22 +73,23 @@ Options:
   --codex-dir <dir>          Codex config/session directory. Default: ~/.codex.
   --write <off|handoff|workspace>
                              Write mode. Default: workspace in agent mode, handoff otherwise.
-                             handoff = no generic write/edit tools; handoff tools write bounded .ai-bridge files.
+                             handoff = no generic write/edit/apply_patch tools; handoff tools write bounded .ai-bridge files.
   --tool-mode <minimal|standard|full>
                              Tool surface exposed to ChatGPT. Default: standard.
-                             minimal = config/self-test plus open/read/write/edit/bash/show_changes.
+                             minimal = config/self-test plus open/read/write/edit/apply_patch/bash/show_changes.
                              full = expose every compatibility and advanced tool.
   --widget-domain <origin>   Dedicated HTTPS origin for ChatGPT widget iframes.
                              Required for app submission. Default: https://rebel0789.github.io.
   --tool-cards <on|off>      Opt in to ChatGPT widget metadata on tool descriptors. Default: off.
-  --tunnel <none|cloudflare|cloudflare-named|ngrok>
+  --tunnel <none|cloudflare|cloudflare-named|ngrok|tailscale>
                              Expose local MCP. Default: cloudflare.
                              cloudflare = quick tunnel with a new URL each restart.
                              cloudflare-named = stable hostname using a named tunnel.
                              ngrok = stable ngrok dev-domain endpoint using --hostname/--url.
+                             tailscale = Tailscale Funnel using --hostname/--url.
   --stable                  Shortcut for --tunnel cloudflare-named.
-  --hostname <host>          Stable public hostname for cloudflare-named or ngrok.
-  --url <url>                Alias for --hostname in ngrok/stable URL modes.
+  --hostname <host>          Stable public hostname for cloudflare-named, ngrok, or tailscale.
+  --url <url>                Alias for --hostname in stable URL modes.
   --tunnel-name <name>       Existing Cloudflare named tunnel to run.
   --cloudflare-token <token> Cloudflare Tunnel token for this launch only; not saved by settings set.
   --cloudflare-token-file <path>
@@ -97,6 +99,7 @@ Options:
   --cloudflared <path>      cloudflared executable. Default: PATH, then ~/.codexpro/bin.
   --ngrok <path>            ngrok executable. Default: PATH.
   --ngrok-config <path>     Optional ngrok config file path.
+  --tailscale <path>        tailscale executable. Default: PATH.
   --no-profile              Do not load a saved ~/.codexpro workspace profile.
   --save-config             Save setup choices for this workspace when using setup.
   --no-save-config          Do not save setup choices when using setup.
@@ -175,6 +178,9 @@ Preflight diagnostics:
 
 Ngrok stable URL mode:
   codexpro ngrok --root /path/to/repo --hostname your-domain.ngrok-free.dev
+
+Tailscale Funnel mode:
+  codexpro tailscale --root /path/to/repo --hostname your-device.your-tailnet.ts.net
 
 Planning-only handoff mode:
   codexpro start --root /path/to/repo --mode handoff
@@ -264,6 +270,7 @@ function profileSummary(profile) {
   if (!profile?.tunnel) return '';
   if (profile.tunnel === 'ngrok' && profile.hostname) return `Saved ngrok URL: ${profile.hostname}`;
   if (profile.tunnel === 'cloudflare-named' && profile.hostname) return `Saved Cloudflare URL: ${profile.hostname}`;
+  if (profile.tunnel === 'tailscale' && profile.hostname) return `Saved Tailscale Funnel URL: ${profile.hostname}`;
   if (profile.tunnel === 'cloudflare') return 'Saved Cloudflare quick-tunnel setup';
   if (profile.tunnel === 'none') return 'Saved local-only setup';
   return '';
@@ -411,6 +418,17 @@ function commandExists(command) {
   return result.status === 0;
 }
 
+function commandPaths(command) {
+  if (process.platform === 'win32') {
+    const result = spawnSync('where', [command], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    if (result.status !== 0) return [];
+    return String(result.stdout).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  }
+  const result = spawnSync('command', ['-v', command], { encoding: 'utf8', shell: true, stdio: ['ignore', 'pipe', 'ignore'] });
+  if (result.status !== 0) return [];
+  return String(result.stdout).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
 function isPathLike(command) {
   return command.includes('/') || command.includes('\\') || command.startsWith('.');
 }
@@ -418,6 +436,26 @@ function isPathLike(command) {
 function resolveExecutablePath(command) {
   const expanded = expandHome(command);
   return path.resolve(expanded);
+}
+
+function isWindowsBatchFile(command) {
+  return process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
+}
+
+function isWindowsCommandCandidate(command) {
+  return process.platform === 'win32' && /\.(cmd|bat|exe)$/i.test(command);
+}
+
+function resolveCodexCommand() {
+  const explicit = String(process.env.CODEXPRO_CODEX_BIN ?? '').trim();
+  if (explicit) {
+    if (isPathLike(explicit)) return resolveExecutablePath(explicit);
+    const candidates = commandPaths(explicit);
+    if (process.platform !== 'win32') return candidates[0] || explicit;
+    return candidates.find(isWindowsCommandCandidate) || explicit;
+  }
+  if (process.platform !== 'win32') return 'codex';
+  return commandPaths('codex').find(isWindowsCommandCandidate) || 'codex';
 }
 
 function executableFileExists(filePath) {
@@ -830,6 +868,36 @@ function resolveNgrok(args) {
   throw new Error('ngrok was not found on PATH. Install it with Homebrew, winget, apt, or from https://ngrok.com/download, then run ngrok config add-authtoken <token>.');
 }
 
+function verifyTailscale(binaryPath) {
+  const result = spawnSync(binaryPath, ['version'], {
+    stdio: 'ignore',
+    shell: false,
+    timeout: 15000
+  });
+  if (result.status !== 0) {
+    throw new Error(`tailscale was found, but ${binaryPath} version failed. Run tailscale version to inspect it.`);
+  }
+}
+
+function resolveTailscale(args) {
+  const explicit = args.tailscale ?? process.env.TAILSCALE_BIN ?? '';
+  if (explicit) {
+    const resolved = isPathLike(explicit) ? resolveExecutablePath(explicit) : explicit;
+    if (commandAvailable(resolved)) {
+      verifyTailscale(resolved);
+      return resolved;
+    }
+    throw new Error(`tailscale was not found at ${explicit}. Install Tailscale, add it to PATH, or pass --tailscale <path>.`);
+  }
+
+  if (commandExists('tailscale')) {
+    verifyTailscale('tailscale');
+    return 'tailscale';
+  }
+
+  throw new Error('tailscale was not found on PATH. Install Tailscale and enable Funnel, then run codexpro tailscale --hostname your-device.your-tailnet.ts.net.');
+}
+
 function ngrokConfigPath(root, args, profile = {}) {
   const configPath = optionValue(args, profile, 'ngrokConfig', ['NGROK_CONFIG', 'CODEXPRO_NGROK_CONFIG'], '');
   return resolveConfigPath(root, configPath);
@@ -879,7 +947,7 @@ function portInUseHelp(host, port) {
     'For quick tunnels you can also start the second repo with:',
     '  codexpro start --port 8788',
     '',
-    'Stable ngrok or Cloudflare hostnames also cannot be shared by two running repositories at once.'
+    'Stable public hostnames also cannot be shared by two running repositories at once.'
   ].join('\n');
 }
 
@@ -935,6 +1003,13 @@ function spawnLogged(name, command, args, options = {}) {
 function waitForCloudflareUrl(child, timeoutMs = 45000) {
   const re = /https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/g;
   let buffer = '';
+  const isQuickTunnelUrl = (value) => {
+    try {
+      return new URL(value).hostname !== 'api.trycloudflare.com';
+    } catch {
+      return false;
+    }
+  };
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Timed out waiting for cloudflared public URL.')), timeoutMs);
     timer.unref();
@@ -942,13 +1017,7 @@ function waitForCloudflareUrl(child, timeoutMs = 45000) {
       const text = String(chunk);
       buffer += text;
       const match = buffer.match(re);
-      const tunnelUrl = match?.find((url) => {
-        try {
-          return new URL(url).hostname !== 'api.trycloudflare.com';
-        } catch {
-          return false;
-        }
-      });
+      const tunnelUrl = match?.find(isQuickTunnelUrl);
       if (tunnelUrl) {
         clearTimeout(timer);
         resolve(tunnelUrl);
@@ -961,6 +1030,87 @@ function waitForCloudflareUrl(child, timeoutMs = 45000) {
       reject(new Error(`cloudflared exited before a URL was found, code=${code}`));
     });
   });
+}
+
+function waitForTunnelStartup(child, label, timeoutMs = 1000) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timer;
+    const cleanup = () => {
+      clearTimeout(timer);
+      child.off('exit', onExit);
+      child.off('error', onError);
+    };
+    const settle = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn(value);
+    };
+    const outputTail = () => {
+      const tail = typeof child.codexproLogTail === 'function' ? child.codexproLogTail() : '';
+      return tail ? `\n\nRecent ${label} output:\n${tail}` : '';
+    };
+    const onExit = (code, signal) => {
+      settle(reject, new Error(`${label} exited before startup completed, code=${code} signal=${signal}${outputTail()}`));
+    };
+    const onError = (error) => {
+      settle(reject, new Error(`${label} failed before startup completed: ${error instanceof Error ? error.message : String(error)}${outputTail()}`));
+    };
+    timer = setTimeout(() => settle(resolve), timeoutMs);
+    timer.unref();
+    child.once('exit', onExit);
+    child.once('error', onError);
+  });
+}
+
+function outboundProxyFromEnv(env = process.env) {
+  return env.HTTPS_PROXY || env.https_proxy || env.ALL_PROXY || env.all_proxy || env.HTTP_PROXY || env.http_proxy || '';
+}
+
+function requestQuickTunnelViaCurl(proxyUrl) {
+  const args = ['--silent', '--show-error', '--fail', '--max-time', '30'];
+  if (proxyUrl) args.push('--proxy', proxyUrl);
+  args.push('-X', 'POST', 'https://api.trycloudflare.com/tunnel');
+  const result = spawnSync('curl', args, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    shell: false
+  });
+  if (result.status !== 0) {
+    throw new Error(redactForLog(`Failed to request Cloudflare quick tunnel via curl: ${result.stderr || result.stdout || `exit ${result.status}`}`));
+  }
+
+  let body;
+  try {
+    body = JSON.parse(result.stdout);
+  } catch {
+    throw new Error('Cloudflare quick tunnel API returned invalid JSON.');
+  }
+
+  const tunnel = body?.result;
+  if (!body?.success || !tunnel?.id || !tunnel?.hostname || !tunnel?.account_tag || !tunnel?.secret) {
+    const errors = Array.isArray(body?.errors) && body.errors.length ? ` ${JSON.stringify(body.errors)}` : '';
+    throw new Error(redactForLog(`Cloudflare quick tunnel API did not return usable tunnel credentials.${errors}`));
+  }
+
+  return {
+    id: String(tunnel.id),
+    hostname: normalizePublicHostname(tunnel.hostname),
+    accountTag: String(tunnel.account_tag),
+    secret: String(tunnel.secret)
+  };
+}
+
+function writeQuickTunnelCredentials(tunnel) {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'codexpro-cloudflare-quick-'));
+  const credentialsPath = path.join(tmpRoot, 'credentials.json');
+  fs.writeFileSync(credentialsPath, JSON.stringify({
+    AccountTag: tunnel.accountTag,
+    TunnelSecret: tunnel.secret,
+    TunnelID: tunnel.id
+  }, null, 2), { mode: 0o600 });
+  return { tmpRoot, credentialsPath };
 }
 
 function killProcess(child) {
@@ -996,6 +1146,14 @@ function normalizePublicHostname(value) {
 
 function publicBaseFromHostname(hostname) {
   return `https://${normalizePublicHostname(hostname)}`;
+}
+
+function tailscaleFunnelHttpsPort(publicBase) {
+  const port = new URL(publicBase).port || '443';
+  if (!['443', '8443', '10000'].includes(port)) {
+    throw new Error('Tailscale Funnel HTTPS port must be 443, 8443, or 10000.');
+  }
+  return port;
 }
 
 function readTokenFile(filePath) {
@@ -1233,12 +1391,42 @@ function buildExecutorCommand(args, root, planPath, planText) {
     };
   }
   if (agent === 'codex') {
+    const codexLastMessagePath = path.join(path.dirname(planPath), 'codex-last-message.md');
+    const relativePlanPath = path.relative(root, planPath) || planPath;
+    const codexPrompt = [
+      `Read the handoff plan at ${relativePlanPath} and execute it in this workspace.`,
+      'Keep changes scoped to that plan.',
+      'Do not modify .ai-bridge/current-plan.md.',
+      'When finished, summarize changed files and verification.'
+    ].join(' ');
     return {
       agent,
       model,
-      command: 'codex',
-      args: ['exec', ...(model ? ['--model', model] : []), planText],
-      displayArgs: ['exec', ...(model ? ['--model', model] : []), '<plan_text>'],
+      command: resolveCodexCommand(),
+      args: [
+        'exec',
+        '--ephemeral',
+        '--sandbox',
+        'workspace-write',
+        '-c',
+        'approval_policy="never"',
+        '--output-last-message',
+        codexLastMessagePath,
+        ...(model ? ['--model', model] : []),
+        codexPrompt
+      ],
+      displayArgs: [
+        'exec',
+        '--ephemeral',
+        '--sandbox',
+        'workspace-write',
+        '-c',
+        'approval_policy="never"',
+        '--output-last-message',
+        path.relative(root, codexLastMessagePath),
+        ...(model ? ['--model', model] : []),
+        `<read ${relativePlanPath}>`
+      ],
       custom: false
     };
   }
@@ -1252,17 +1440,35 @@ function executorCommandPreview(commandInfo) {
   return shellCommandPreview([commandInfo.command, ...(commandInfo.displayArgs ?? commandInfo.args)]);
 }
 
+function quoteWindowsCmdArg(value) {
+  const text = String(value).replace(/\r?\n/g, ' ');
+  if (!text) return '""';
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function processInvocation(command, args) {
+  if (!isWindowsBatchFile(command)) return { command, args };
+  const commandLine = ['call', quoteWindowsCmdArg(command), ...args.map(quoteWindowsCmdArg)].join(' ');
+  return {
+    command: process.env.ComSpec || 'cmd.exe',
+    args: ['/d', '/s', '/c', commandLine],
+    windowsVerbatimArguments: true
+  };
+}
+
 function runProcessCaptured(command, args, options) {
   const timeoutMs = options.timeoutMs;
   const maxOutputBytes = options.maxOutputBytes;
   const retainedOutputBytes = maxOutputBytes + 1;
   const started = Date.now();
   return new Promise((resolve) => {
-    const child = spawn(command, args, {
+    const invocation = processInvocation(command, args);
+    const child = spawn(invocation.command, invocation.args, {
       cwd: options.cwd,
       env: { ...process.env, NO_COLOR: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false
+      shell: false,
+      windowsVerbatimArguments: invocation.windowsVerbatimArguments
     });
     let stdout = '';
     let stderr = '';
@@ -1338,11 +1544,26 @@ function readGitDiff(root, maxBytes) {
   return trimBytes(diff, maxBytes).text;
 }
 
+function readGitStatus(root, maxBytes) {
+  const result = spawnSync('git', ['status', '--short'], {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: Math.max(maxBytes * 2, 1_000_000),
+    shell: false
+  });
+  if (result.status !== 0) {
+    const reason = result.stderr || result.stdout || `git status exited ${result.status}`;
+    return `# git status unavailable\n\n${redactForLog(reason).trim()}\n`;
+  }
+  const status = result.stdout || '';
+  return status.trim() ? trimBytes(status, maxBytes).text : '';
+}
+
 function codeBlock(label, value) {
   return `## ${label}\n\n\`\`\`text\n${String(value || '').replace(/```/g, '`\\`\\`') || '(empty)'}\n\`\`\`\n`;
 }
 
-function writeExecutionOutputs(root, contextDir, commandInfo, result, diffText) {
+function writeExecutionOutputs(root, contextDir, commandInfo, result, diffText, gitStatusText) {
   const bridgeDir = resolveWorkspaceFile(root, contextDir);
   fs.mkdirSync(bridgeDir, { recursive: true, mode: 0o700 });
   const statusPath = path.join(bridgeDir, 'agent-status.md');
@@ -1363,6 +1584,8 @@ function writeExecutionOutputs(root, contextDir, commandInfo, result, diffText) 
     `Diff path: ${path.posix.join(contextDir, 'implementation-diff.patch')}`,
     `Execution log: ${path.posix.join(contextDir, 'execution-log.jsonl')}`,
     '',
+    codeBlock('Git status excerpt', gitStatusText),
+    '',
     codeBlock('Stdout excerpt', result.stdout),
     codeBlock('Stderr excerpt', result.stderr)
   ].filter(Boolean).join('\n');
@@ -1380,6 +1603,7 @@ function writeExecutionOutputs(root, contextDir, commandInfo, result, diffText) 
     duration_ms: result.durationMs,
     stdout_excerpt: result.stdout,
     stderr_excerpt: result.stderr,
+    git_status_excerpt: gitStatusText || undefined,
     diff_path: path.posix.join(contextDir, 'implementation-diff.patch'),
     status_path: path.posix.join(contextDir, 'agent-status.md')
   };
@@ -1478,7 +1702,8 @@ async function executeHandoffRequest(request, args, options = {}) {
     maxOutputBytes: request.maxOutputBytes
   });
   const diffText = readGitDiffExcludingContext(request.root, request.contextDir, request.maxOutputBytes);
-  const outputs = writeExecutionOutputs(request.root, request.contextDir, request.commandInfo, result, diffText);
+  const gitStatusText = readGitStatus(request.root, request.maxOutputBytes);
+  const outputs = writeExecutionOutputs(request.root, request.contextDir, request.commandInfo, result, diffText, gitStatusText);
 
   const runState = result.timedOut ? 'timed_out' : (result.exitCode === 0 ? 'completed' : 'failed');
   const testsAbsPath = path.join(request.bridgeDir, 'loop-tests.txt');
@@ -2418,6 +2643,7 @@ function printConnectorBlock(endpoint, token, options = {}) {
   console.log(`  Connector  ${publicHttps ? 'public HTTPS' : 'local HTTP'}`);
   if (copied.ok) {
     console.log(`  URL        copied with ${copied.command}`);
+    console.log(`  Server URL ${serverUrl}`);
   } else if (shouldCopy) {
     console.log('  URL        copy failed; copy manually:');
     console.log(serverUrl);
@@ -2453,7 +2679,7 @@ function printControlHelp() {
 function printModeHelp() {
   console.log('');
   console.log('Modes');
-  console.log('  codexpro start                 agent mode: read/write/edit/search/bash');
+  console.log('  codexpro start                 agent mode: read/write/edit/apply_patch/search/bash');
   console.log('  codexpro start --no-bash       agent mode without ChatGPT-triggered shell commands');
   console.log('  codexpro start --bash-session main --require-bash-session');
   console.log('  codexpro start --mode handoff  planning-only .ai-bridge handoff');
@@ -2481,6 +2707,10 @@ function printStableUrlHelp() {
   console.log('Ngrok alternative with a reserved domain:');
   console.log('  ngrok config add-authtoken <your-ngrok-token>');
   console.log('  codexpro ngrok --hostname your-domain.ngrok-free.dev --token keep-this-stable-token');
+  console.log('');
+  console.log('Tailscale Funnel alternative:');
+  console.log('  tailscale funnel 8787');
+  console.log('  codexpro tailscale --hostname your-device.your-tailnet.ts.net --token keep-this-stable-token');
   console.log('');
 }
 
@@ -2553,6 +2783,7 @@ async function runDoctor(argv) {
     localCloudflaredPath()
   );
   const ngrokPath = localOrPathCommand(effectiveArgs.ngrok ?? process.env.NGROK_BIN ?? 'ngrok', '');
+  const tailscalePath = localOrPathCommand(effectiveArgs.tailscale ?? process.env.TAILSCALE_BIN ?? 'tailscale', '');
   const clipboard = clipboardCommand();
   const browser = browserOpenCommand();
   const checks = [];
@@ -2609,6 +2840,9 @@ async function runDoctor(argv) {
   } else if (tunnel === 'ngrok') {
     record(stableHostname ? 'ok' : 'fail', 'Hostname', stableHostname || 'required for ngrok mode');
     record(ngrokPath ? 'ok' : 'fail', 'ngrok', ngrokPath || 'not found on PATH; install ngrok and run ngrok config add-authtoken <token>');
+  } else if (tunnel === 'tailscale') {
+    record(stableHostname ? 'ok' : 'fail', 'Hostname', stableHostname || 'required for Tailscale Funnel mode');
+    record(tailscalePath ? 'ok' : 'fail', 'tailscale', tailscalePath || 'not found on PATH; install Tailscale and enable Funnel');
   } else {
     record('fail', 'Tunnel', `unknown tunnel mode: ${tunnel}`);
   }
@@ -2641,6 +2875,7 @@ async function ask(rl, question, fallback = '') {
 function tunnelChoiceFromProfile(profile, fallback = 'cloudflare') {
   if (profile?.tunnel === 'ngrok') return 'ngrok';
   if (profile?.tunnel === 'cloudflare-named') return 'stable';
+  if (profile?.tunnel === 'tailscale') return 'tailscale';
   if (profile?.tunnel === 'none') return 'local';
   if (profile?.tunnel === 'cloudflare') return 'cloudflare';
   return fallback;
@@ -2649,6 +2884,7 @@ function tunnelChoiceFromProfile(profile, fallback = 'cloudflare') {
 function tunnelModeFromChoice(choice) {
   if (choice === 'quick' || choice === 'cloudflare') return 'cloudflare';
   if (choice === 'stable') return 'cloudflare-named';
+  if (choice === 'tailscale') return 'tailscale';
   if (choice === 'local') return 'none';
   return choice;
 }
@@ -2663,8 +2899,8 @@ function hasExplicitTunnelInput(args) {
 
 async function collectTunnelPreference(rl, defaults, profile, options = {}) {
   const defaultTunnel = options.defaultTunnel ?? tunnelChoiceFromProfile(profile, 'cloudflare');
-  const tunnelAnswer = await ask(rl, 'Tunnel: cloudflare, ngrok, stable, or local?', defaultTunnel);
-  const tunnelChoice = normalizeSetupChoice(tunnelAnswer, ['cloudflare', 'quick', 'ngrok', 'stable', 'local'], defaultTunnel);
+  const tunnelAnswer = await ask(rl, 'Tunnel: cloudflare, ngrok, tailscale, stable, or local?', defaultTunnel);
+  const tunnelChoice = normalizeSetupChoice(tunnelAnswer, ['cloudflare', 'quick', 'ngrok', 'tailscale', 'stable', 'local'], defaultTunnel);
   const tunnel = tunnelModeFromChoice(tunnelChoice);
   let hostname = '';
   let tunnelName = '';
@@ -2692,6 +2928,14 @@ async function collectTunnelPreference(rl, defaults, profile, options = {}) {
     tunnelName = await ask(rl, 'Cloudflare tunnel name', optionValue(defaults, profile, 'tunnelName', ['CODEXPRO_TUNNEL_NAME', 'CLOUDFLARE_TUNNEL_NAME'], 'codexpro'));
     cloudflareConfig = optionValue(defaults, profile, 'cloudflareConfig', ['CODEXPRO_CLOUDFLARE_CONFIG', 'CLOUDFLARE_TUNNEL_CONFIG'], '');
     cloudflareTokenFile = optionValue(defaults, profile, 'cloudflareTokenFile', ['CODEXPRO_CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CLOUDFLARE_TUNNEL_TOKEN_FILE'], '');
+  } else if (tunnel === 'tailscale') {
+    hostname = await ask(
+      rl,
+      'Tailscale Funnel hostname, without /mcp',
+      optionValue(defaults, profile, 'hostname', ['CODEXPRO_PUBLIC_HOSTNAME', 'CODEXPRO_HOSTNAME', 'TAILSCALE_FUNNEL_HOSTNAME'], '')
+    );
+    if (!hostname) throw new Error('Tailscale setup needs your Funnel hostname, for example machine.tailnet.ts.net.');
+    hostname = normalizePublicHostname(hostname);
   }
 
   return {
@@ -2832,13 +3076,15 @@ async function runSetupWizard(argv) {
     }
 
     const savedTunnel = optionValue(defaults, profile, 'tunnel', ['CODEXPRO_TUNNEL'], 'cloudflare');
-    const defaultTunnel = savedTunnel === 'cloudflare-named'
+  const defaultTunnel = savedTunnel === 'cloudflare-named'
       ? 'stable'
       : savedTunnel === 'ngrok'
         ? 'ngrok'
-        : savedTunnel === 'none'
-          ? 'local'
-          : 'quick';
+        : savedTunnel === 'tailscale'
+          ? 'tailscale'
+          : savedTunnel === 'none'
+            ? 'local'
+            : 'quick';
     const defaultPort = String(optionValue(defaults, profile, 'port', ['CODEXPRO_PORT'], '8787'));
     const defaultMode = normalizeSetupChoice(optionValue(defaults, profile, 'mode', ['CODEXPRO_MODE'], 'agent'), ['agent', 'handoff', 'pro'], 'agent');
 
@@ -2851,11 +3097,12 @@ async function runSetupWizard(argv) {
       'quick  = CodexPro creates a Cloudflare quick tunnel for demos and local work.',
       'stable = use your own domain with a Cloudflare named tunnel so the ChatGPT app URL does not change.',
       'ngrok  = use your ngrok free dev domain, for example https://name.ngrok-free.dev.',
+      'tailscale = use Tailscale Funnel, for example https://device.tailnet.ts.net.',
       'local  = no tunnel, only useful for local MCP clients that can reach 127.0.0.1.'
     ]);
 
-    const tunnelAnswer = await ask(rl, 'Public access: quick, stable, ngrok, or local?', defaultTunnel);
-    const tunnelChoice = normalizeSetupChoice(tunnelAnswer, ['quick', 'stable', 'ngrok', 'local'], defaultTunnel);
+    const tunnelAnswer = await ask(rl, 'Public access: quick, stable, ngrok, tailscale, or local?', defaultTunnel);
+    const tunnelChoice = normalizeSetupChoice(tunnelAnswer, ['quick', 'stable', 'ngrok', 'tailscale', 'local'], defaultTunnel);
     const args = ['start', '--root', root, '--port', port, '--mode', mode];
     const bash = optionValue(defaults, profile, 'bash', ['CODEXPRO_BASH_MODE'], '');
     const bashTranscript = bashTranscriptOption(defaults, profile);
@@ -2924,6 +3171,17 @@ async function runSetupWizard(argv) {
         profileNgrokConfig = ngrokConfig;
         args.push('--ngrok-config', ngrokConfig);
       }
+    } else if (tunnelChoice === 'tailscale') {
+      profileTunnel = 'tailscale';
+      let hostname = await ask(
+        rl,
+        'Tailscale Funnel hostname, without /mcp',
+        optionValue(defaults, profile, 'hostname', ['CODEXPRO_PUBLIC_HOSTNAME', 'CODEXPRO_HOSTNAME', 'TAILSCALE_FUNNEL_HOSTNAME'], '')
+      );
+      if (!hostname) throw new Error('Tailscale setup needs your Funnel hostname, for example machine.tailnet.ts.net.');
+      hostname = normalizePublicHostname(hostname);
+      profileHostname = hostname;
+      args.push('--tunnel', 'tailscale', '--hostname', hostname);
     } else {
       profileTunnel = 'cloudflare';
       args.push('--tunnel', 'cloudflare');
@@ -3031,13 +3289,14 @@ function saveSettingsFromArgs(root, args, profile) {
     throw new Error('codexpro settings set does not save raw --cloudflare-token. Save it to a local file and use --cloudflare-token-file <path>; start still accepts --cloudflare-token for a single launch.');
   }
   const tunnel = optionValue(args, profile, 'tunnel', ['CODEXPRO_TUNNEL'], profile.tunnel ?? 'cloudflare');
-  if (!['none', 'cloudflare', 'cloudflare-named', 'ngrok'].includes(tunnel)) {
-    throw new Error('--tunnel must be none, cloudflare, cloudflare-named, or ngrok');
+  if (!['none', 'cloudflare', 'cloudflare-named', 'ngrok', 'tailscale'].includes(tunnel)) {
+    throw new Error('--tunnel must be none, cloudflare, cloudflare-named, ngrok, or tailscale');
   }
-  const rawHostname = (tunnel === 'ngrok' || tunnel === 'cloudflare-named') ? (args.hostname ?? args.url ?? profile.hostname ?? '') : '';
-  const hostname = (tunnel === 'ngrok' || tunnel === 'cloudflare-named') ? normalizePublicHostname(rawHostname) : String(rawHostname ?? '').trim();
-  if ((tunnel === 'ngrok' || tunnel === 'cloudflare-named') && !hostname) {
-    throw new Error('--hostname is required for ngrok and cloudflare-named settings.');
+  const needsHostname = tunnel === 'ngrok' || tunnel === 'cloudflare-named' || tunnel === 'tailscale';
+  const rawHostname = needsHostname ? (args.hostname ?? args.url ?? profile.hostname ?? '') : '';
+  const hostname = needsHostname ? normalizePublicHostname(rawHostname) : String(rawHostname ?? '').trim();
+  if (needsHostname && !hostname) {
+    throw new Error('--hostname is required for ngrok, cloudflare-named, and tailscale settings.');
   }
   const mode = optionValue(args, profile, 'mode', ['CODEXPRO_MODE'], profile.mode ?? 'agent');
   if (!['agent', 'handoff', 'pro'].includes(mode)) {
@@ -3362,6 +3621,10 @@ async function main() {
     argv.shift();
     argv.unshift('--tunnel', 'ngrok');
   }
+  if (argv[0] === 'tailscale') {
+    argv.shift();
+    argv.unshift('--tunnel', 'tailscale');
+  }
   if (argv[0] === 'start' || argv[0] === 'connect') argv.shift();
   if (argv[0] === '--version' || argv[0] === '-v' || argv[0] === 'version') {
     console.log(packageVersion());
@@ -3385,8 +3648,8 @@ async function main() {
   }
 
   const tunnel = optionValue(args, profile, 'tunnel', ['CODEXPRO_TUNNEL'], 'cloudflare');
-  if (!['none', 'cloudflare', 'cloudflare-named', 'ngrok'].includes(tunnel)) {
-    throw new Error('--tunnel must be none, cloudflare, cloudflare-named, or ngrok');
+  if (!['none', 'cloudflare', 'cloudflare-named', 'ngrok', 'tailscale'].includes(tunnel)) {
+    throw new Error('--tunnel must be none, cloudflare, cloudflare-named, ngrok, or tailscale');
   }
   const stableHostname = args.hostname
     ?? args.url
@@ -3401,6 +3664,9 @@ async function main() {
   }
   if (tunnel === 'ngrok' && !stableHostname) {
     throw new Error('--hostname is required with ngrok tunnel mode. Example: codexpro ngrok --hostname your-domain.ngrok-free.dev');
+  }
+  if (tunnel === 'tailscale' && !stableHostname) {
+    throw new Error('--hostname is required with Tailscale Funnel mode. Example: codexpro tailscale --hostname your-device.your-tailnet.ts.net');
   }
   const mode = optionValue(args, profile, 'mode', ['CODEXPRO_MODE'], 'agent');
   if (!['agent', 'handoff', 'pro'].includes(mode)) {
@@ -3480,7 +3746,9 @@ async function main() {
           ? `Cloudflare named tunnel for ${stableHostname}`
           : tunnel === 'ngrok'
             ? `ngrok endpoint for ${stableHostname}`
-            : 'none'
+            : tunnel === 'tailscale'
+              ? `Tailscale Funnel endpoint for ${stableHostname}`
+              : 'none'
     )
   ]);
 
@@ -3488,7 +3756,9 @@ async function main() {
   statusLine('wait', 'Starting local MCP server');
   const server = spawnLogged('codexpro', process.execPath, [httpPath], { cwd: projectRoot, env: serverEnv, verbose: verboseLogs });
   let cloudflared;
+  let cleanupTunnelCredentials = () => {};
   const cleanup = () => {
+    cleanupTunnelCredentials();
     cleanupChildren();
     clearRuntimeConnection(root);
   };
@@ -3579,6 +3849,50 @@ async function main() {
     return;
   }
 
+  if (tunnel === 'tailscale') {
+    const tailscalePath = resolveTailscale(effectiveArgs);
+    const publicBase = publicBaseFromHostname(stableHostname);
+    const httpsPort = tailscaleFunnelHttpsPort(publicBase);
+    const tailscaleArgs = ['funnel'];
+    if (httpsPort !== '443') tailscaleArgs.push(`--https=${httpsPort}`);
+    tailscaleArgs.push(localBase);
+    statusLine('wait', `Opening Tailscale Funnel for ${publicBase}`);
+    cloudflared = spawnLogged('tailscale', tailscalePath, tailscaleArgs, { cwd: root, env: process.env, verbose: verboseLogs });
+    try {
+      await waitForPublicHealth(publicBase, token, cloudflared, 'Tailscale Funnel');
+    } catch (error) {
+      const tail = typeof cloudflared.codexproLogTail === 'function' ? cloudflared.codexproLogTail() : '';
+      const hint = [
+        '',
+        'Tailscale Funnel needs one-time setup before this can succeed:',
+        '',
+        '  install and log in to Tailscale',
+        '  enable MagicDNS, HTTPS certificates, and Funnel for this tailnet',
+        '  codexpro tailscale --hostname your-device.your-tailnet.ts.net --token keep-this-stable-token',
+        '',
+        'Funnel exposes this connector publicly. Keep the CodexPro token enabled.'
+      ].join('\n');
+      throw new Error(`${error instanceof Error ? error.message : String(error)}${tail ? `\n\nRecent tailscale output:\n${tail}` : ''}${hint}`);
+    }
+    const details = printConnectorBlock(`${publicBase}/mcp`, token, {
+      localBase,
+      copyUrl: args.noCopyUrl ? false : true,
+      openChatgpt: Boolean(args.openChatgpt),
+      mode,
+      toolMode,
+      root,
+      write,
+      bash,
+      bashTranscript,
+      codexSessions,
+      bashSession,
+      requireBashSession
+    });
+    saveRuntimeConnection(root, details, runtimeOptions);
+    await runControlPanel(details, cleanup);
+    return;
+  }
+
   const cloudflaredPath = await resolveCloudflared(effectiveArgs);
   if (!cloudflaredPath) {
     console.error('\ncloudflared was not found. The local MCP server is still running.');
@@ -3605,8 +3919,27 @@ async function main() {
 
   if (tunnel === 'cloudflare') {
     statusLine('wait', 'Opening Cloudflare quick tunnel');
-    cloudflared = spawnLogged('cloudflared', cloudflaredPath, ['tunnel', '--url', localBase], { cwd: root, env: process.env, verbose: verboseLogs });
-    const publicBase = await waitForCloudflareUrl(cloudflared);
+    const proxyUrl = outboundProxyFromEnv(process.env);
+    let publicBase = '';
+    if (proxyUrl) {
+      const quickTunnel = requestQuickTunnelViaCurl(proxyUrl);
+      const { tmpRoot, credentialsPath } = writeQuickTunnelCredentials(quickTunnel);
+      const removeCredentials = () => fs.rmSync(tmpRoot, { recursive: true, force: true });
+      cleanupTunnelCredentials = removeCredentials;
+      try {
+        cloudflared = spawnLogged('cloudflared', cloudflaredPath, ['tunnel', '--url', localBase, '--credentials-file', credentialsPath, 'run', quickTunnel.id], { cwd: root, env: process.env, verbose: verboseLogs });
+      } catch (error) {
+        removeCredentials();
+        throw error;
+      }
+      cloudflared.once('exit', removeCredentials);
+      cloudflared.once('error', removeCredentials);
+      await waitForTunnelStartup(cloudflared, 'cloudflared');
+      publicBase = `https://${quickTunnel.hostname}`;
+    } else {
+      cloudflared = spawnLogged('cloudflared', cloudflaredPath, ['tunnel', '--url', localBase], { cwd: root, env: process.env, verbose: verboseLogs });
+      publicBase = await waitForCloudflareUrl(cloudflared);
+    }
     const details = printConnectorBlock(`${publicBase}/mcp`, token, {
       localBase,
       copyUrl: args.noCopyUrl ? false : true,

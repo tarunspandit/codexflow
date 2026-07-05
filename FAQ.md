@@ -192,6 +192,7 @@ Use this rule:
 Fast demo:              Cloudflare quick tunnel
 Recommended stable URL: ngrok free dev domain
 Custom domain:          Cloudflare named tunnel
+Tailnet users:           Tailscale Funnel
 No public tunnel:       local-only mode, only for clients that can reach localhost
 ```
 
@@ -200,6 +201,18 @@ Cloudflare quick tunnel URLs change on restart. If you put a quick-mode URL into
 For most users, the better path is a free ngrok dev domain. Create a free ngrok account, find your assigned dev domain under Universal Gateway -> Domains, and save that hostname during `codexpro setup`.
 
 If you own a domain, use Cloudflare named tunnels and route DNS to a hostname like `codexpro.example.com`.
+
+## Why does ChatGPT show “Something went wrong” when I create a connector?
+
+Usually ChatGPT could not reach the public MCP URL. A generated `trycloudflare.com` URL is not proof that `cloudflared` stayed connected.
+
+Run with tunnel logs:
+
+```bash
+codexpro start --log-requests
+```
+
+Keep `codexpro start` running, wait for the tunnel to register, then paste the current Server URL into ChatGPT. If Cloudflare returns `530` / `Error 1033`, check DNS or proxy-client DNS handling for the machine running `cloudflared`.
 
 Official references:
 

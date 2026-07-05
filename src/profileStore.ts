@@ -5,7 +5,7 @@ import path from "node:path";
 import type { BashMode, BashTranscriptMode, CodexSessionsMode, ToolMode, WriteMode } from "./config.js";
 import { expandHome } from "./config.js";
 
-export type TunnelMode = "none" | "cloudflare" | "cloudflare-named" | "ngrok";
+export type TunnelMode = "none" | "cloudflare" | "cloudflare-named" | "ngrok" | "tailscale";
 export type ConnectorMode = "agent" | "handoff" | "pro";
 
 export interface WorkspaceProfile {
