@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added Tailscale Funnel as a saved tunnel/profile option, including `codexpro tailscale --hostname ...`, launcher support, admin profile support, and settings smoke coverage.
+- Bounded browser-facing tool-card structured payloads and binary-file text checks so CodexPro emits less data without reducing normal tool-result or binary-detection quality.
+- Replaced the overlong README with a shorter install, tunnel, safety, RAM-boundary, and development guide.
 - Added a guarded `apply_patch` MCP tool for unified-diff edits inside workspace write mode, with blocked-path and secret-content checks before patches are applied.
 - Added last-shown review checkpoints to `show_changes`, so repeated unchanged reviews collapse while new workspace changes still produce a fresh diff.
 - Fixed checkpoint-hit `show_changes` responses so repeated unchanged reviews report zero new diff stats instead of carrying stale addition/deletion counts.

@@ -304,6 +304,21 @@ run([
   'settings',
   'set',
   '--root',
+  policyRoot,
+  '--tunnel',
+  'tailscale',
+  '--hostname',
+  'https://codexpro-test.tailnet.ts.net/mcp'
+], env);
+const tailscalePolicyProfile = await readProfile(policyRoot, home);
+if (tailscalePolicyProfile.tunnel !== 'tailscale' || tailscalePolicyProfile.hostname !== 'codexpro-test.tailnet.ts.net' || tailscalePolicyProfile.ngrokConfig) {
+  throw new Error(`settings tailscale profile did not normalize/clear stale tunnel values: ${JSON.stringify(tailscalePolicyProfile)}`);
+}
+
+run([
+  'settings',
+  'set',
+  '--root',
   staleRoot,
   '--tunnel',
   'cloudflare-named',
@@ -551,8 +566,38 @@ if (!ngrokFailure.includes(`--config|${path.join(realNgrokRoot, 'new-ngrok.yml')
   throw new Error(`ngrok start did not let env config override saved profile\n${ngrokFailure}`);
 }
 
+const fakeTailscale = path.join(home, 'fake-tailscale.mjs');
+await fs.writeFile(fakeTailscale, [
+  '#!/usr/bin/env node',
+  "if (process.argv.includes('version')) { console.log('1.80.0'); process.exit(0); }",
+  "console.error('TAILSCALE_ARGS=' + process.argv.slice(2).join('|'));",
+  'process.exit(2);',
+  ''
+].join('\n'), { mode: 0o700 });
+const tailscaleRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-tailscale-'));
+const tailscalePort = await getFreePort();
+const tailscaleFailure = runFail([
+  'start',
+  '--root',
+  tailscaleRoot,
+  '--tunnel',
+  'tailscale',
+  '--hostname',
+  'codexpro-env.tailnet.ts.net',
+  '--tailscale',
+  fakeTailscale,
+  '--port',
+  String(tailscalePort),
+  '--token',
+  'codexpro-tailscale-token',
+  '--no-copy-url'
+], env, /Recent tailscale output/);
+if (!tailscaleFailure.includes(`funnel|http://127.0.0.1:${tailscalePort}`)) {
+  throw new Error(`tailscale start did not invoke Funnel against the local server\n${tailscaleFailure}`);
+}
+
 const listed = run(['settings', 'list'], env);
-if (!listed.includes(root) || !listed.includes('codexpro-test.ngrok-free.app')) {
+if (!listed.includes(root) || !listed.includes('codexpro-test.ngrok-free.app') || !listed.includes('codexpro-test.tailnet.ts.net')) {
   throw new Error(`settings list missing saved profile\n${listed}`);
 }
 

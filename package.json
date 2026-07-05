@@ -20,7 +20,8 @@
     "codexpro",
     "local-development",
     "cloudflare-tunnel",
-    "ngrok"
+    "ngrok",
+    "tailscale"
   ],
   "engines": {
     "node": ">=20"
@@ -70,6 +71,7 @@
     "connect:chatgpt": "node scripts/codexpro.mjs --tunnel cloudflare",
     "connect:stable": "node scripts/codexpro.mjs --tunnel cloudflare-named",
     "connect:ngrok": "node scripts/codexpro.mjs ngrok",
+    "connect:tailscale": "node scripts/codexpro.mjs tailscale",
     "pro:bundle": "node scripts/pro-bundle.mjs",
     "pro:apply": "node scripts/pro-apply.mjs"
   },

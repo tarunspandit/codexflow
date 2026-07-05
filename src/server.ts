@@ -17,9 +17,27 @@ import { listCodexSessions, readCodexSession } from "./codexSessions.js";
 import { TOOL_CARD_LEGACY_URIS, TOOL_CARD_MIME_TYPE, TOOL_CARD_URI, toolCardWidgetHtml } from "./toolCardWidget.js";
 import { hasSecretValue, redactSensitiveText, redactStructured } from "./redact.js";
 
+const STRUCTURED_STRING_MAX_CHARS = 30_000;
+
 function errorText(error: unknown): string {
   if (error instanceof Error) return redactSensitiveText(`${error.name}: ${error.message}`);
   return redactSensitiveText(String(error));
+}
+
+function compactStructuredContent<T>(value: T, depth = 0): T {
+  if (depth > 8 || value === null || value === undefined) return value;
+  if (typeof value === "string") {
+    if (value.length <= STRUCTURED_STRING_MAX_CHARS) return value as T;
+    return `${value.slice(0, STRUCTURED_STRING_MAX_CHARS)}\n...[structured field truncated to ${STRUCTURED_STRING_MAX_CHARS} chars]` as T;
+  }
+  if (Array.isArray(value)) return value.map((item) => compactStructuredContent(item, depth + 1)) as T;
+  if (typeof value !== "object") return value;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = compactStructuredContent(item, depth + 1);
+  }
+  return out as T;
 }
 
 function textResult(text: string, structuredContent: Record<string, unknown> = {}, meta: Record<string, unknown> = {}): any {
@@ -89,11 +107,13 @@ function tagToolResult(result: any, name: string, options: Record<string, unknow
     structured && typeof structured === "object" && !Array.isArray(structured)
       ? structured
       : {};
-  result.structuredContent = {
+  const tagged = {
     codexpro_tool: name,
     codexpro_title: options.title ?? name,
     ...base
   };
+  const meta = (options._meta as Record<string, unknown> | undefined) ?? {};
+  result.structuredContent = meta.ui || meta["openai/outputTemplate"] ? compactStructuredContent(tagged) : tagged;
   return result;
 }
 

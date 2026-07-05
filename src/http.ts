@@ -47,7 +47,7 @@ function copyCommand(title: string, description: string, command: string, displa
   </div>`;
 }
 
-const TUNNELS = ["cloudflare", "ngrok", "cloudflare-named", "none"] as const;
+const TUNNELS = ["cloudflare", "ngrok", "cloudflare-named", "tailscale", "none"] as const;
 const MODES = ["agent", "handoff", "pro"] as const;
 const BASH_MODES = ["safe", "off", "full"] as const;
 const BASH_TRANSCRIPTS = ["compact", "full"] as const;
@@ -189,6 +189,7 @@ const OPTION_LABELS: Record<string, string> = {
   cloudflare: "Cloudflare quick tunnel",
   ngrok: "ngrok stable URL",
   "cloudflare-named": "Cloudflare named tunnel",
+  tailscale: "Tailscale Funnel",
   none: "Local only",
   agent: "Agent",
   handoff: "Handoff",
@@ -227,11 +228,13 @@ function currentTunnelMessage(tunnel: TunnelMode, endpoint: string): string {
     if (tunnel === "cloudflare") return "Cloudflare generated this URL for the current run. Quick tunnel URLs change after restart.";
     if (tunnel === "ngrok") return "ngrok is using the saved public hostname for this run.";
     if (tunnel === "cloudflare-named") return "Cloudflare named tunnel is using the saved public hostname for this run.";
+    if (tunnel === "tailscale") return "Tailscale Funnel is using the saved ts.net hostname for this run.";
     return "Local-only endpoint for clients that can reach this machine.";
   }
   if (tunnel === "cloudflare") return "Cloudflare quick tunnels print a generated URL after the tunnel opens.";
   if (tunnel === "ngrok") return "Enter your reserved ngrok domain, or set NGROK_DOMAIN before starting CodexPro.";
   if (tunnel === "cloudflare-named") return "Enter the Cloudflare hostname routed to your named tunnel.";
+  if (tunnel === "tailscale") return "Enter the Tailscale Funnel hostname for this device, for example machine.tailnet.ts.net.";
   return "No public tunnel is saved; local MCP clients can use the local URL.";
 }
 
@@ -334,10 +337,10 @@ function buildProfilePayload(config: CodexProConfig, existing: WorkspaceProfile,
     noInstallCloudflared: input.noInstallCloudflared ?? current.noInstallCloudflared
   };
   next.hostname = normalizePublicHostname(next.hostname);
-  if (next.tunnel !== "ngrok" && next.tunnel !== "cloudflare-named") next.hostname = "";
+  if (next.tunnel !== "ngrok" && next.tunnel !== "cloudflare-named" && next.tunnel !== "tailscale") next.hostname = "";
   next.widgetDomain = normalizeWidgetDomain(next.widgetDomain);
-  if ((next.tunnel === "ngrok" || next.tunnel === "cloudflare-named") && !next.hostname) {
-    throw new Error("hostname is required for ngrok and cloudflare-named profiles.");
+  if ((next.tunnel === "ngrok" || next.tunnel === "cloudflare-named" || next.tunnel === "tailscale") && !next.hostname) {
+    throw new Error("hostname is required for ngrok, cloudflare-named, and tailscale profiles.");
   }
   if (next.requireBashSession && !next.bashSession) {
     throw new Error("requireBashSession requires a bashSession value.");
@@ -1368,6 +1371,8 @@ function onboardingPage(config: CodexProConfig): string {
         hostnameHelp.textContent = preview ? "Next Server URL preview: " + preview : "Enter the reserved ngrok domain from your local ngrok setup.";
       } else if (tunnel === "cloudflare-named") {
         hostnameHelp.textContent = preview ? "Next Server URL preview: " + preview : "Enter the hostname routed to your Cloudflare named tunnel.";
+      } else if (tunnel === "tailscale") {
+        hostnameHelp.textContent = preview ? "Next Server URL preview: " + preview : "Enter the Tailscale Funnel hostname for this device.";
       } else {
         hostnameHelp.textContent = "Local-only mode does not expose a public ChatGPT Server URL.";
       }

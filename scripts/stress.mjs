@@ -752,9 +752,10 @@ async function runCardStress(root) {
     const opened = await client.request('tools/call', { name: 'open_current_workspace', arguments: { include_tree: false } });
     const search = await client.request('tools/call', {
       name: 'search',
-      arguments: { workspace_id: opened.structuredContent.workspace_id, query: '--flag', path: 'many', max_results: 10 }
+      arguments: { workspace_id: opened.structuredContent.workspace_id, query: '--flag', path: 'many', max_results: 2000 }
     });
     assert(typeof search.structuredContent.text === 'string' && search.structuredContent.text.includes('--flag'), 'tool-card search did not include structured text');
+    assert(search.structuredContent.text.includes('[structured field truncated to 30000 chars]'), 'tool-card search text was not capped');
   } finally {
     client.close();
   }
