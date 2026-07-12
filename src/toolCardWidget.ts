@@ -1,5 +1,5 @@
-export const TOOL_CARD_URI = "ui://widget/codexpro-tool-card-v9.html";
-export const TOOL_CARD_LEGACY_URIS = ["ui://widget/codexpro-tool-card-v8.html"];
+export const TOOL_CARD_URI = "ui://widget/codexflow-tool-card-v10.html";
+export const TOOL_CARD_LEGACY_URIS = ["ui://widget/codexflow-tool-card-v9.html", "ui://widget/codexflow-tool-card-v8.html"];
 export const TOOL_CARD_MIME_TYPE = "text/html;profile=mcp-app";
 
 export const toolCardWidgetHtml = String.raw`
@@ -10,7 +10,7 @@ export const toolCardWidgetHtml = String.raw`
     <header class="head">
       <span class="glyph">C</span>
       <div class="headline">
-        <div class="title">CodexPro</div>
+        <div class="title">CodexFlow</div>
         <div class="subtitle">Waiting for tool result...</div>
       </div>
       <span class="pill info">waiting</span>
@@ -262,6 +262,27 @@ export const toolCardWidgetHtml = String.raw`
     font-weight: 760;
   }
 
+  .project-list { display: grid; gap: 7px; }
+  .project-button {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 11px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+  }
+  .project-button:hover { border-color: var(--line-strong); background: var(--accent-soft); }
+  .project-button:disabled { cursor: wait; opacity: 0.62; }
+  .project-main { min-width: 0; }
+  .project-name { display: block; overflow: hidden; font-weight: 760; text-overflow: ellipsis; white-space: nowrap; }
+  .project-path { display: block; overflow: hidden; margin-top: 2px; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .project-action { align-self: center; color: var(--accent); font-size: 10px; font-weight: 800; }
+
   .file-list {
     display: grid;
     gap: 4px;
@@ -391,13 +412,13 @@ export const toolCardWidgetHtml = String.raw`
     max-width: 78%;
     border-radius: 999px;
     background: linear-gradient(90deg, rgba(148, 163, 184, 0.12), rgba(148, 163, 184, 0.22), rgba(148, 163, 184, 0.12));
-    animation: codexpro-sheen 1.55s ease-in-out infinite;
+    animation: codexflow-sheen 1.55s ease-in-out infinite;
   }
 
   .skeleton span:nth-child(2) { max-width: 52%; animation-delay: 0.12s; }
   .skeleton span:nth-child(3) { max-width: 66%; animation-delay: 0.24s; }
 
-  @keyframes codexpro-sheen {
+  @keyframes codexflow-sheen {
     0%, 100% { opacity: 0.46; transform: translateX(0); }
     50% { opacity: 1; transform: translateX(2px); }
   }
@@ -450,8 +471,10 @@ export const toolCardWidgetHtml = String.raw`
   function titleFor(tool) {
     const titles = {
       server_config: "Server config",
-      codexpro_self_test: "Self-test",
-      codexpro_inventory: "Inventory",
+      codexflow_self_test: "Self-test",
+      codexflow_inventory: "Inventory",
+      list_projects: "Choose a project",
+      select_project: "Project selected",
       load_skill: "Skill",
       list_workspaces: "Workspaces",
       open_current_workspace: "Workspace",
@@ -474,13 +497,14 @@ export const toolCardWidgetHtml = String.raw`
       search: "Search",
       read: "Read file"
     };
-    return titles[tool] || "CodexPro";
+    return titles[tool] || "CodexFlow";
   }
 
   function iconFor(tool) {
     if (tool === "server_config") return "S";
-    if (tool === "codexpro_self_test") return "T";
-    if (tool === "codexpro_inventory") return "I";
+    if (tool === "codexflow_self_test") return "T";
+    if (tool === "codexflow_inventory") return "I";
+    if (tool === "list_projects" || tool === "select_project") return "P";
     if (tool === "load_skill") return "L";
     if (tool === "list_workspaces") return "W";
     if (tool === "open_current_workspace" || tool === "open_workspace") return "W";
@@ -504,35 +528,37 @@ export const toolCardWidgetHtml = String.raw`
   }
 
   function subtitleFor(data) {
-    if (data?.codexpro_tool === "open_current_workspace" || data?.codexpro_tool === "open_workspace") {
+    if (data?.codexflow_tool === "open_current_workspace" || data?.codexflow_tool === "open_workspace") {
       return data?.root || "Workspace opened";
     }
-    if (data?.codexpro_tool === "show_changes") {
+    if (data?.codexflow_tool === "show_changes") {
       if (data?.status_error || data?.diff_error) return "Git state unavailable";
       const count = Array.isArray(data?.changed_files) ? data.changed_files.length : 0;
       if (!count && !data?.changed) return "Workspace is clean";
       return count === 1 ? "1 changed file" : count + " changed files";
     }
-    if (data?.codexpro_tool === "codexpro_self_test") return data?.status ? "Status " + data.status : "Local diagnostic";
-    if (data?.codexpro_tool === "codexpro_inventory") return (data?.skill_count ?? 0) + " skills, " + (data?.mcp_server_count ?? 0) + " MCP servers";
-    if (data?.codexpro_tool === "list_workspaces") return (data?.count ?? 0) + " open workspaces";
-    if (data?.codexpro_tool === "server_config") {
+    if (data?.codexflow_tool === "codexflow_self_test") return data?.status ? "Status " + data.status : "Local diagnostic";
+    if (data?.codexflow_tool === "codexflow_inventory") return (data?.skill_count ?? 0) + " skills, " + (data?.mcp_server_count ?? 0) + " MCP servers";
+    if (data?.codexflow_tool === "list_projects") return (data?.count ?? 0) + " synchronized projects";
+    if (data?.codexflow_tool === "select_project") return data?.root || "Chat routed to project";
+    if (data?.codexflow_tool === "list_workspaces") return (data?.count ?? 0) + " open workspaces";
+    if (data?.codexflow_tool === "server_config") {
       const session = data?.bashSessionId || data?.bash_session_id;
       return "tools " + (data?.toolMode || data?.tool_mode || "-") + ", bash " + (data?.bashMode || data?.bash_mode || "-") + (session ? ", session " + session : "");
     }
-    if (data?.codexpro_tool === "workspace_snapshot") return data?.root || "Workspace snapshot";
-    if (data?.codexpro_tool === "inspect_workspace") {
+    if (data?.codexflow_tool === "workspace_snapshot") return data?.root || "Workspace snapshot";
+    if (data?.codexflow_tool === "inspect_workspace") {
       const coverage = data?.coverage || {};
       return (coverage.analyzedFiles ?? coverage.analyzed_files ?? 0) + " files analyzed, " + (coverage.symbolCount ?? coverage.symbol_count ?? 0) + " symbols";
     }
-    if (data?.codexpro_tool === "git_status") {
+    if (data?.codexflow_tool === "git_status") {
       const count = Array.isArray(data?.changed_files) ? data.changed_files.length : 0;
       return count ? count + " changed entries" : "Working tree clean";
     }
-    if (data?.codexpro_tool === "codex_context") return (data?.agents_files?.length ?? 0) + " AGENTS, " + (data?.ai_context_files?.length ?? 0) + " bridge files";
-    if (data?.codexpro_tool === "read_handoff") return (data?.file_count ?? 0) + " bridge files";
-    if (data?.codexpro_tool === "load_skill" && data?.skill?.name) return data.skill.name;
-    if (data?.codexpro_tool === "handoff_to_agent" && data?.agent_name) return data.agent_name;
+    if (data?.codexflow_tool === "codex_context") return (data?.agents_files?.length ?? 0) + " AGENTS, " + (data?.ai_context_files?.length ?? 0) + " bridge files";
+    if (data?.codexflow_tool === "read_handoff") return (data?.file_count ?? 0) + " bridge files";
+    if (data?.codexflow_tool === "load_skill" && data?.skill?.name) return data.skill.name;
+    if (data?.codexflow_tool === "handoff_to_agent" && data?.agent_name) return data.agent_name;
     if (data?.path) return data.path;
     if (data?.plan_path) return data.plan_path;
     if (data?.root) return data.root;
@@ -545,7 +571,7 @@ export const toolCardWidgetHtml = String.raw`
   }
 
   function header(data, pills) {
-    const tool = data?.codexpro_tool;
+    const tool = data?.codexflow_tool;
     return [
       '<div class="rail"></div>',
       '<header class="head">',
@@ -871,6 +897,7 @@ export const toolCardWidgetHtml = String.raw`
 
   function renderInventory(data) {
     const skills = Array.isArray(data.skills) ? data.skills : [];
+    const plugins = Array.isArray(data.plugins) ? data.plugins : [];
     const servers = Array.isArray(data.mcp_servers) ? data.mcp_servers : [];
     const skillRows = skills.slice(0, 18).map((skill) =>
       '<div class="file-row"><span class="file-code">' + esc(shortSource(skill?.source)) + '</span><span class="file-name">' + esc((skill?.name || "skill") + (skill?.description ? " — " + skill.description : "")) + '</span></div>'
@@ -878,7 +905,10 @@ export const toolCardWidgetHtml = String.raw`
     const serverRows = servers.slice(0, 18).map((server) =>
       '<div class="file-row"><span class="file-code">mcp</span><span class="file-name">' + esc((server?.name || "server") + (server?.source ? " — " + server.source : "")) + '</span></div>'
     ).join("");
-    return '<article class="card">' + header(data, pill((data.skill_count ?? skills.length) + " skills", "info") + pill((data.mcp_server_count ?? servers.length) + " MCP")) +
+    const pluginRows = plugins.slice(0, 18).map((plugin) =>
+      '<div class="file-row"><span class="file-code">plugin</span><span class="file-name">' + esc((plugin?.name || "plugin") + (plugin?.version ? " " + plugin.version : "") + (plugin?.description ? " — " + plugin.description : "")) + '</span></div>'
+    ).join("");
+    return '<article class="card">' + header(data, pill((data.skill_count ?? skills.length) + " skills", "info") + pill((data.plugin_count ?? plugins.length) + " plugins") + pill((data.mcp_server_count ?? servers.length) + " MCP")) +
       '<div class="body">' +
       '<div class="summary">' +
       summaryItem("Write", data.write_mode || "-") +
@@ -886,6 +916,7 @@ export const toolCardWidgetHtml = String.raw`
       summaryItem("Tools", data.tool_mode || "-") +
       '</div>' +
       fold("Skills", (data.skill_count ?? skills.length) + " found", '<div class="file-list">' + (skillRows || '<div class="empty">No skills discovered.</div>') + '</div>', false) +
+      fold("Plugins", (data.plugin_count ?? plugins.length) + " found", '<div class="file-list">' + (pluginRows || '<div class="empty">No plugins discovered.</div>') + '</div>', false) +
       fold("MCP servers", (data.mcp_server_count ?? servers.length) + " found", '<div class="file-list">' + (serverRows || '<div class="empty">No MCP server names discovered.</div>') + '</div>', false) +
       '</div></article>';
   }
@@ -897,6 +928,24 @@ export const toolCardWidgetHtml = String.raw`
     ).join("");
     return '<article class="card">' + header(data, pill((data.count ?? spaces.length) + " open", "info")) +
       '<div class="body"><div class="file-list">' + (rows || '<div class="empty">No workspaces opened yet.</div>') + '</div></div></article>';
+  }
+
+  function renderProjects(data) {
+    const projects = Array.isArray(data.projects) ? data.projects : [];
+    const rows = projects.map((project) => {
+      const sources = Array.isArray(project?.sources) ? project.sources.join(", ") : "local";
+      return '<button type="button" class="project-button" data-project-id="' + esc(project?.project_id || "") + '" data-project-name="' + esc(project?.name || "project") + '">' +
+        '<span class="project-main"><span class="project-name">' + esc(project?.name || "Project") + '</span>' +
+        '<span class="project-path">' + esc(project?.root || "") + ' · ' + esc(sources) + '</span></span>' +
+        '<span class="project-action">' + (project?.selected ? "Selected" : "Use project") + '</span></button>';
+    }).join("");
+    const roots = Array.isArray(data.allowed_roots) ? data.allowed_roots : [];
+    return '<article class="card">' + header(data, pill(projects.length + " projects", "info") + pill("one broker")) +
+      '<div class="body"><div class="section-label">Choose where this chat works</div>' +
+      '<div class="project-list">' + (rows || '<div class="empty">No projects found. Add a projects directory with --allow-root and refresh.</div>') + '</div>' +
+      fold("Synchronized roots", roots.length + " roots", compactRows(roots, "root", 12), false) +
+      '<div class="empty" id="project-status">The selected project stays bound to this ChatGPT conversation.</div>' +
+      '</div></article>';
   }
 
   function renderServerConfig(data) {
@@ -969,7 +1018,7 @@ export const toolCardWidgetHtml = String.raw`
   }
 
   function renderGeneric(data) {
-    const keys = Object.keys(data || {}).filter((key) => !key.startsWith("codexpro_"));
+    const keys = Object.keys(data || {}).filter((key) => !key.startsWith("codexflow_"));
     const metrics = keys.slice(0, 3).map((key) => metric(key, typeof data[key] === "object" ? JSON.stringify(data[key]) : data[key])).join("");
     return '<article class="card">' + header(data, pill("structured", "info")) +
       '<div class="body">' + (metrics ? '<div class="metrics">' + metrics + '</div>' : '') +
@@ -980,7 +1029,7 @@ export const toolCardWidgetHtml = String.raw`
   function isPlaceholderPayload(data) {
     if (!data || typeof data !== "object") return true;
     const keys = Object.keys(data);
-    return !keys.length || (keys.length === 1 && data.codexpro_tool === "codexpro");
+    return !keys.length || (keys.length === 1 && data.codexflow_tool === "codexflow");
   }
 
   function renderPending() {
@@ -989,7 +1038,7 @@ export const toolCardWidgetHtml = String.raw`
       '<div class="rail"></div>',
       '<header class="head">',
       '<span class="glyph">C</span>',
-      '<div class="headline"><div class="title">CodexPro</div><div class="subtitle">Waiting for tool result...</div></div>',
+      '<div class="headline"><div class="title">CodexFlow</div><div class="subtitle">Waiting for tool result...</div></div>',
       '<span class="pill info">waiting</span>',
       '</header>',
       '<div class="skeleton"><span></span><span></span><span></span></div>',
@@ -1002,16 +1051,18 @@ export const toolCardWidgetHtml = String.raw`
       renderPending();
       return;
     }
-    const tool = data.codexpro_tool;
+    const tool = data.codexflow_tool;
     if (tool === "server_config") {
       root.innerHTML = renderServerConfig(data);
-    } else if (tool === "codexpro_self_test") {
+    } else if (tool === "codexflow_self_test") {
       root.innerHTML = renderSelfTest(data);
-    } else if (tool === "codexpro_inventory") {
+    } else if (tool === "codexflow_inventory") {
       root.innerHTML = renderInventory(data);
+    } else if (tool === "list_projects") {
+      root.innerHTML = renderProjects(data);
     } else if (tool === "list_workspaces") {
       root.innerHTML = renderWorkspaces(data);
-    } else if (tool === "open_current_workspace" || tool === "open_workspace" || tool === "workspace_snapshot") {
+    } else if (tool === "select_project" || tool === "open_current_workspace" || tool === "open_workspace" || tool === "workspace_snapshot") {
       root.innerHTML = renderWorkspace(data);
     } else if (tool === "inspect_workspace") {
       root.innerHTML = renderWorkspaceAnalysis(data);
@@ -1038,7 +1089,7 @@ export const toolCardWidgetHtml = String.raw`
 
   function extractStructuredContent(value) {
     if (!value || typeof value !== "object") return {};
-    if (value.codexpro_tool || value.codexpro_title) return value;
+    if (value.codexflow_tool || value.codexflow_title) return value;
     const candidates = [
       value.structuredContent,
       value.toolOutput?.structuredContent,
@@ -1055,6 +1106,31 @@ export const toolCardWidgetHtml = String.raw`
   }
 
   render(extractStructuredContent(window.openai?.toolOutput || window.openai?.toolResponseMetadata || {}));
+
+  root.addEventListener("click", async (event) => {
+    const button = event.target?.closest?.("[data-project-id]");
+    if (!button) return;
+    const projectId = button.getAttribute("data-project-id") || "";
+    const projectName = button.getAttribute("data-project-name") || "project";
+    const status = document.getElementById("project-status");
+    const buttons = root.querySelectorAll("[data-project-id]");
+    buttons.forEach((item) => { item.disabled = true; });
+    if (status) status.textContent = "Selecting " + projectName + "...";
+    try {
+      if (!window.openai?.callTool) throw new Error("Project selection is unavailable in this client.");
+      await window.openai.callTool("select_project", { project_id: projectId });
+      await window.openai.setWidgetState?.({ selectedProjectId: projectId, selectedProjectName: projectName });
+      button.querySelector(".project-action").textContent = "Selected";
+      if (status) status.textContent = projectName + " is selected. This chat now routes file, git, and terminal tools there.";
+      await window.openai.sendFollowUpMessage?.({
+        prompt: "Use the selected CodexFlow project " + projectName + " (project_id " + projectId + ") for this coding conversation. Inspect its repository instructions and relevant advertised skills before making changes.",
+        scrollToBottom: true
+      });
+    } catch (error) {
+      buttons.forEach((item) => { item.disabled = false; });
+      if (status) status.textContent = error instanceof Error ? error.message : "Could not select the project.";
+    }
+  });
 
   window.addEventListener("openai:set_globals", (event) => {
     render(extractStructuredContent(

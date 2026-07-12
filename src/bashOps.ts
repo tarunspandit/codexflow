@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import type { CodexProConfig } from "./config.js";
+import type { CodexFlowConfig } from "./config.js";
 import type { Workspace } from "./guard.js";
-import { CodexProError, PathGuard } from "./guard.js";
+import { CodexFlowError, PathGuard } from "./guard.js";
 import { redactSensitiveText } from "./redact.js";
 
 export interface BashResult {
@@ -128,9 +128,9 @@ function isAllowedPackageScript(command: string): boolean {
   return packageScriptPattern.test(command);
 }
 
-function assertSafeCommand(config: CodexProConfig, command: string): void {
+function assertSafeCommand(config: CodexFlowConfig, command: string): void {
   if (config.bashMode === "off") {
-    throw new CodexProError("bash tool is disabled. Start with CODEXPRO_BASH_MODE=safe or CODEXPRO_BASH_MODE=full to enable it.");
+    throw new CodexFlowError("bash tool is disabled. Start with CODEXFLOW_BASH_MODE=safe or CODEXFLOW_BASH_MODE=full to enable it.");
   }
   if (config.bashMode === "full") return;
 
@@ -138,42 +138,42 @@ function assertSafeCommand(config: CodexProConfig, command: string): void {
   const normalized = compact(command);
   for (const pattern of SAFE_BLOCKED_PATTERNS) {
     if (pattern.test(raw) || pattern.test(normalized)) {
-      throw new CodexProError(
-        `Command is blocked in CODEXPRO_BASH_MODE=safe: ${normalized}\n` +
-          "Use separate read/search/git tools, or restart with CODEXPRO_BASH_MODE=full only for trusted repos."
+      throw new CodexFlowError(
+        `Command is blocked in CODEXFLOW_BASH_MODE=safe: ${normalized}\n` +
+          "Use separate read/search/git tools, or restart with CODEXFLOW_BASH_MODE=full only for trusted repos."
       );
     }
   }
   if (!startsWithAllowedPrefix(normalized)) {
-    throw new CodexProError(
+    throw new CodexFlowError(
       `Command is not in the safe bash allowlist: ${normalized}\n` +
         "Allowed examples: ls, find, git status, git diff, npm test, npm run typecheck, npm run build:clients, pytest, go test, cargo test. Use read/search tools for file contents. " +
-        "Use CODEXPRO_BASH_MODE=full for trusted local automation."
+        "Use CODEXFLOW_BASH_MODE=full for trusted local automation."
     );
   }
 }
 
-function assertBashSession(config: CodexProConfig, sessionId?: string): string | undefined {
+function assertBashSession(config: CodexFlowConfig, sessionId?: string): string | undefined {
   const requested = sessionId?.trim();
   if (!config.bashSessionId) {
     if (config.requireBashSession) {
-      throw new CodexProError("bash session guard is enabled but no server bash session id is configured.");
+      throw new CodexFlowError("bash session guard is enabled but no server bash session id is configured.");
     }
     return undefined;
   }
   if (!requested) {
     if (config.requireBashSession) {
-      throw new CodexProError(`bash session id is required. Retry with session_id="${config.bashSessionId}".`);
+      throw new CodexFlowError(`bash session id is required. Retry with session_id="${config.bashSessionId}".`);
     }
     return config.bashSessionId;
   }
   if (requested !== config.bashSessionId) {
-    throw new CodexProError(`bash session id mismatch. This CodexPro server accepts session_id="${config.bashSessionId}".`);
+    throw new CodexFlowError(`bash session id mismatch. This CodexFlow server accepts session_id="${config.bashSessionId}".`);
   }
   return config.bashSessionId;
 }
 
-function makeEnv(config: CodexProConfig): NodeJS.ProcessEnv {
+function makeEnv(config: CodexFlowConfig): NodeJS.ProcessEnv {
   if (config.inheritEnv) {
     return { ...process.env, NO_COLOR: "1", CI: process.env.CI ?? "1" };
   }
@@ -201,13 +201,13 @@ function trimOutput(value: string, maxBytes: number): { value: string; truncated
 }
 
 export async function runBash(
-  config: CodexProConfig,
+  config: CodexFlowConfig,
   guard: PathGuard,
   workspace: Workspace,
   command: string,
   options: { cwd?: string; timeoutMs?: number; sessionId?: string } = {}
 ): Promise<BashResult> {
-  if (!command?.trim()) throw new CodexProError("command is required.");
+  if (!command?.trim()) throw new CodexFlowError("command is required.");
   const bashSessionId = assertBashSession(config, options.sessionId);
   assertSafeCommand(config, command);
   const cwdResolved = guard.resolve(workspace, options.cwd ?? ".");
@@ -247,7 +247,7 @@ export async function runBash(
     child.on("close", (exitCode, signal) => {
       clearTimeout(timer);
       if (killedByTimeout) {
-        stderr += `\n[codexpro] Command timed out after ${timeoutMs} ms.`;
+        stderr += `\n[codexflow] Command timed out after ${timeoutMs} ms.`;
       }
       const out = trimOutput(redactSensitiveText(stdout), config.maxOutputBytes);
       const err = trimOutput(redactSensitiveText(stderr), config.maxOutputBytes);

@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import fsp from "node:fs/promises";
-import type { CodexProConfig } from "../config.js";
+import type { CodexFlowConfig } from "../config.js";
 import { listFiles, textScanByteLimit } from "../fsOps.js";
 import type { PathGuard, Workspace } from "../guard.js";
 import { classifyFileRole, classifyLanguage, isEntrypoint, isGeneratedFile } from "./classify.js";
 import type { InventoryFile, InventoryResult } from "./types.js";
 
-export async function inventoryWorkspace(config: CodexProConfig, guard: PathGuard, workspace: Workspace): Promise<InventoryResult> {
+export async function inventoryWorkspace(config: CodexFlowConfig, guard: PathGuard, workspace: Workspace): Promise<InventoryResult> {
   const maxFiles = config.analysisLimits.maxInventoryFiles;
   const candidates = await listFiles(guard, workspace, { root: ".", includeHidden: true, maxFiles: maxFiles + 1 });
   const truncated = candidates.length > maxFiles;

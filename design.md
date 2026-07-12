@@ -1,6 +1,6 @@
-# Design - CodexPro
+# Design - CodexFlow
 
-A locked product-system note for CodexPro docs and the local admin surface.
+A locked product-system note for CodexFlow docs and the local admin surface.
 Every redesign should keep the same trust story: ChatGPT can act on one local
 workspace through a token-protected MCP bridge, while shell, writes, Codex
 history, and handoff execution stay explicit user choices.
@@ -13,7 +13,7 @@ modern-minimal developer tool
 
 Use ChatGPT like your local coding agent.
 
-CodexPro should explain itself in this order:
+codexflow should explain itself in this order:
 
 1. Install the CLI.
 2. Run setup inside one repo.
@@ -61,9 +61,9 @@ motion support. Animate transform and opacity only.
 
 ## Copy Rules
 
-- Say what CodexPro does, then say what it does not do.
+- Say what CodexFlow does, then say what it does not do.
 - Do not claim permanent ChatGPT memory. Say repo-backed context files.
-- Do not imply CodexPro unlocks models, bypasses limits, or automates approval
+- Do not imply CodexFlow unlocks models, bypasses limits, or automates approval
   gates.
 - Do not expose raw local paths as marketing proof. Local admin can show them
   because it is token-protected and opened by the local user.

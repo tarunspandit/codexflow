@@ -6,16 +6,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const cli = path.join(projectRoot, 'scripts', 'codexpro.mjs');
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-analysis-cli-'));
-const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-analysis-cli-home-'));
+const cli = path.join(projectRoot, 'scripts', 'codexflow.mjs');
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-analysis-cli-'));
+const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-analysis-cli-home-'));
 
 function run(args) {
   return spawnSync(process.execPath, [cli, ...args], {
     cwd: projectRoot,
     encoding: 'utf8',
     timeout: 5000,
-    env: { ...process.env, NO_COLOR: '1', CI: '1', CODEXPRO_HOME: home }
+    env: { ...process.env, NO_COLOR: '1', CI: '1', CODEXFLOW_HOME: home }
   });
 }
 
@@ -65,7 +65,7 @@ try {
   assert.notEqual(missing.status, 0);
   assert.match(missing.stderr, /does not exist/i);
 
-  const nonGitRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-analysis-cli-non-git-'));
+  const nonGitRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-analysis-cli-non-git-'));
   try {
     const nonGitReview = run(['review', '--root', nonGitRoot, '--json']);
     assert.notEqual(nonGitReview.status, 0);

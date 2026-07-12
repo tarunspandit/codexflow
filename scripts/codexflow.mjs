@@ -22,35 +22,35 @@ function isLoopbackHost(host) {
 }
 
 function usage() {
-  console.log(`CodexPro easy launcher
+  console.log(`CodexFlow easy launcher
 
 Usage:
-  npm install -g codexpro
-  codexpro setup
-  codexpro start
-  codexpro start --root /path/to/repo
-  codexpro settings
-  codexpro doctor
-  codexpro connection-test --root /path/to/repo
-  codexpro inspect --root /path/to/repo [--json]
-  codexpro review --root /path/to/repo [--staged] [--path src/file.ts] [--json]
-  codexpro execute-handoff --agent opencode --model provider/model
-  codexpro watch-handoff --agent opencode --model provider/model
-  codexpro loop-handoff --agent opencode --model provider/model --review-command "node ./reviewer.js --status {{status_file}} --diff {{diff_file}} --plan-file {{plan_file}}"
-  codexpro --root /path/to/repo
-  codexpro ngrok --hostname your-domain.ngrok-free.dev
-  codexpro tailscale --hostname your-device.your-tailnet.ts.net
-  codexpro stable --hostname codexpro.example.com --tunnel-name codexpro
-  codexpro pro-bundle --root /path/to/repo --copy
-  codexpro pro-apply --root /path/to/repo --file plan.md
-  codexpro install-cloudflared
+  npm install -g @tarunspandit/codexflow
+  codexflow
+  codexflow --root /path/to/repo
+  codexflow settings
+  codexflow status --root /path/to/repo [--json]
+  codexflow doctor
+  codexflow connection-test --root /path/to/repo
+  codexflow inspect --root /path/to/repo [--json]
+  codexflow review --root /path/to/repo [--staged] [--path src/file.ts] [--json]
+  codexflow execute-handoff --agent opencode --model provider/model
+  codexflow watch-handoff --agent opencode --model provider/model
+  codexflow loop-handoff --agent opencode --model provider/model --review-command "node ./reviewer.js --status {{status_file}} --diff {{diff_file}} --plan-file {{plan_file}}"
+  codexflow --root /path/to/repo
+  codexflow ngrok --hostname your-domain.ngrok-free.dev
+  codexflow tailscale --hostname your-device.your-tailnet.ts.net
+  codexflow stable --hostname codexflow.example.com --tunnel-name codexflow
+  codexflow pro-bundle --root /path/to/repo --copy
+  codexflow pro-apply --root /path/to/repo --file plan.md
+  codexflow install-cloudflared
   npm run connect -- --root /path/to/repo
-  node scripts/codexpro.mjs --root /path/to/repo --tunnel cloudflare
+  node scripts/codexflow.mjs --root /path/to/repo --tunnel cloudflare
 
 Options:
-  --root <dir>              Workspace root. Default: current directory.
+  --root <dir>              Override the default project. Normally discovered from local Codex metadata.
   --from-root <dir>         Copy saved settings from another workspace with settings use.
-  --allow-root <dir>        Additional allowed root. Can be repeated.
+  --allow-root <dir>        Additional project root. Normally discovered automatically from local Codex metadata.
   --allow-home              Allow opening any workspace under your home directory.
   --mode <agent|handoff|pro>
                              Default: agent.
@@ -82,7 +82,7 @@ Options:
                              minimal = config/self-test plus open/read/write/edit/apply_patch/bash/show_changes.
                              full = expose every compatibility and advanced tool.
   --widget-domain <origin>   Dedicated HTTPS origin for ChatGPT widget iframes.
-                             Required for app submission. Default: https://rebel0789.github.io.
+                             Required for app submission. Default: https://tarunspandit.github.io.
   --tool-cards <on|off>      Opt in to ChatGPT widget metadata on tool descriptors. Default: off.
   --tunnel <none|cloudflare|cloudflare-named|ngrok|tailscale>
                              Expose local MCP. Default: cloudflare.
@@ -99,30 +99,30 @@ Options:
                              File containing a Cloudflare Tunnel token.
   --cloudflare-config <path> cloudflared YAML config for a named tunnel.
   --token <token>           Bearer token for HTTP MCP. Auto-generated for tunnels.
-  --cloudflared <path>      cloudflared executable. Default: PATH, then ~/.codexpro/bin.
+  --cloudflared <path>      cloudflared executable. Default: PATH, then ~/.codexflow/bin.
   --ngrok <path>            ngrok executable. Default: PATH.
   --ngrok-config <path>     Optional ngrok config file path.
   --tailscale <path>        tailscale executable. Default: PATH.
-  --no-profile              Do not load a saved ~/.codexpro workspace profile.
-  --save-config             Save setup choices for this workspace when using setup.
-  --no-save-config          Do not save setup choices when using setup.
+  --no-profile              Do not load a saved ~/.codexflow workspace profile.
   --yes                     Confirm settings delete/reset without prompting.
-  --install-cloudflared     Install/reinstall cloudflared into ~/.codexpro/bin.
+  --install-cloudflared     Install/reinstall cloudflared into ~/.codexflow/bin.
   --no-install-cloudflared  Do not auto-install cloudflared when missing.
   --copy-url                Copy the ChatGPT Server URL to clipboard. Default for public HTTPS URLs.
   --no-copy-url             Do not copy the Server URL.
+  --non-interactive          Keep the server running without terminal key controls; stop with SIGINT/SIGTERM.
+  --no-control-panel         Alias for --non-interactive.
   --open-chatgpt            Open ChatGPT connector settings after the URL is ready.
   --no-auth                 Disable bearer-token auth. Only allowed with --tunnel none.
   --log-requests            Print redacted HTTP request and tool-call logs from the local MCP server.
   connection-test           Start a read-only connector with request logging and no bash or tool cards.
   --print-env               Print the environment used to launch the server.
-  --version, -v             Print the CodexPro version.
+  --version, -v             Print the CodexFlow version.
   --help                    Show this message.
 
 Execute handoff options:
-  codexpro execute-handoff --agent opencode --model provider/model
-  codexpro execute-handoff --agent pi --model provider/model
-  codexpro execute-handoff --agent custom --command "my-agent --task-file {{plan_file}}"
+  codexflow execute-handoff --agent opencode --model provider/model
+  codexflow execute-handoff --agent pi --model provider/model
+  codexflow execute-handoff --agent custom --command "my-agent --task-file {{plan_file}}"
   --agent <opencode|pi|codex|custom>
                              Local implementation agent adapter.
   --model <provider/model>  Optional model name passed to the adapter.
@@ -134,9 +134,9 @@ Execute handoff options:
   --yes                     Run without interactive confirmation.
 
 Watch handoff options:
-  codexpro watch-handoff --agent opencode --model provider/model
-  codexpro watch-handoff --agent pi --model provider/model
-  codexpro watch-handoff --agent custom --command "my-agent --task-file {{plan_file}}"
+  codexflow watch-handoff --agent opencode --model provider/model
+  codexflow watch-handoff --agent pi --model provider/model
+  codexflow watch-handoff --agent custom --command "my-agent --task-file {{plan_file}}"
   --once                    Exit after checking/running one new plan.
   --poll-interval-ms <ms>   Poll interval. Default: 2000.
   --debounce-ms <ms>        Wait for plan file stability. Default: 500.
@@ -144,14 +144,14 @@ Watch handoff options:
   --yes                     Start automatic local execution without startup confirmation.
 
 Loop handoff options:
-  codexpro loop-handoff --agent opencode --model provider/model --review-command "reviewer --status {{status_file}} --diff {{diff_file}} --plan-file {{plan_file}}"
+  codexflow loop-handoff --agent opencode --model provider/model --review-command "reviewer --status {{status_file}} --diff {{diff_file}} --plan-file {{plan_file}}"
   --review-command <template>
-                             Local reviewer/orchestrator command. It should print CODEXPRO_REVIEW=PASS or CODEXPRO_REVIEW=FAIL.
+                             Local reviewer/orchestrator command. It should print CODEXFLOW_REVIEW=PASS or CODEXFLOW_REVIEW=FAIL.
                              On FAIL it must update .ai-bridge/current-plan.md before the next iteration.
   --max-iters <n>           Maximum execute/review iterations. Default: 3.
   --run-tests <template>    Optional local verification command before review.
   --allow-implicit-review-verdict
-                             Infer PASS/FAIL from reviewer exit code and plan changes when no CODEXPRO_REVIEW line is printed.
+                             Infer PASS/FAIL from reviewer exit code and plan changes when no CODEXFLOW_REVIEW line is printed.
   --allow-review-pass-on-failure
                              Let explicit reviewer PASS override a failed executor or failed test command.
   --require-clean-git-start Refuse to start unless git status is clean.
@@ -164,45 +164,47 @@ Loop handoff options:
   --yes                     Start the local loop without startup confirmation.
 
 Default agent mode:
-  codexpro start --root /path/to/repo
-
-Guided setup:
-  codexpro setup
+  codexflow
+  codexflow --root /path/to/repo
 
 Workspace settings:
-  codexpro settings
-  codexpro settings show
-  codexpro settings list
-  codexpro settings set --tunnel ngrok --hostname your-domain.ngrok-free.dev
-  codexpro settings use
-  codexpro settings delete --yes
+  codexflow settings
+  codexflow settings show
+  codexflow settings list
+  codexflow settings set --tunnel ngrok --hostname your-domain.ngrok-free.dev
+  codexflow settings use
+  codexflow settings delete --yes
+
+Runtime status:
+  codexflow status
+  codexflow status --json
 
 Preflight diagnostics:
-  codexpro doctor
+  codexflow doctor
 
 Ngrok stable URL mode:
-  codexpro ngrok --root /path/to/repo --hostname your-domain.ngrok-free.dev
+  codexflow ngrok --root /path/to/repo --hostname your-domain.ngrok-free.dev
 
 Tailscale Funnel mode:
-  codexpro tailscale --root /path/to/repo --hostname your-device.your-tailnet.ts.net
+  codexflow tailscale --root /path/to/repo --hostname your-device.your-tailnet.ts.net
 
 Planning-only handoff mode:
-  codexpro start --root /path/to/repo --mode handoff
+  codexflow --root /path/to/repo --mode handoff
 
 Execute a local handoff after ChatGPT writes .ai-bridge/current-plan.md:
-  codexpro execute-handoff --agent opencode --model provider/model
-  codexpro execute-handoff --agent pi --model provider/model
-  codexpro execute-handoff --agent custom --command "node ./agent.js --task-file {{plan_file}}" --yes
+  codexflow execute-handoff --agent opencode --model provider/model
+  codexflow execute-handoff --agent pi --model provider/model
+  codexflow execute-handoff --agent custom --command "node ./agent.js --task-file {{plan_file}}" --yes
 
 Watch for new handoff plans and execute them locally:
-  codexpro watch-handoff --agent opencode --model provider/model --yes
-  codexpro watch-handoff --agent custom --command "node ./agent.js --task-file {{plan_file}}" --yes
+  codexflow watch-handoff --agent opencode --model provider/model --yes
+  codexflow watch-handoff --agent custom --command "node ./agent.js --task-file {{plan_file}}" --yes
 
 Run a bounded local execute/review loop:
-  codexpro loop-handoff --agent opencode --model provider/model --review-command "node ./reviewer.js --status {{status_file}} --diff {{diff_file}} --plan-file {{plan_file}}" --max-iters 3 --yes
+  codexflow loop-handoff --agent opencode --model provider/model --review-command "node ./reviewer.js --status {{status_file}} --diff {{diff_file}} --plan-file {{plan_file}}" --max-iters 3 --yes
 
 Stable URL mode after one-time Cloudflare tunnel setup:
-  codexpro stable --root /path/to/repo --hostname codexpro.example.com --tunnel-name codexpro
+  codexflow stable --root /path/to/repo --hostname codexflow.example.com --tunnel-name codexflow
 `);
 }
 
@@ -293,8 +295,8 @@ function printSavedProfileHint(profile) {
   if (!summary) return;
   printBox('Saved setup found', [
     summary,
-    'From this folder, future launches only need: codexpro start',
-    'Use codexpro setup when you want to change the port, mode, tool mode, tunnel, hostname, or token.'
+    'From this folder, future launches only need: codexflow',
+    'Use codexflow when you want to change the port, mode, tool mode, tunnel, hostname, or token.'
   ]);
 }
 
@@ -317,6 +319,7 @@ function parseArgs(argv) {
     else if (key === 'require-bash-session') out.requireBashSession = true;
     else if (key === 'copy-url') out.copyUrl = true;
     else if (key === 'no-copy-url') out.noCopyUrl = true;
+    else if (key === 'non-interactive' || key === 'no-control-panel') out.nonInteractive = true;
     else if (key === 'dry-run') out.dryRun = true;
     else if (key === 'json') out.json = true;
     else if (key === 'staged') out.staged = true;
@@ -416,7 +419,7 @@ function printWorkspaceInspection(result, json) {
     return;
   }
   console.log([
-    'CodexPro Repository Analysis',
+    'CodexFlow Repository Analysis',
     '',
     `Workspace: ${result.root}`,
     `Projects: ${result.projectTypes.join(', ') || 'unknown'}`,
@@ -446,7 +449,7 @@ function printChangeReview(result, json) {
     return;
   }
   console.log([
-    'CodexPro Change Review',
+    'CodexFlow Change Review',
     '',
     `Changed files: ${result.changedPaths.join(', ') || 'none'}`,
     `Affected areas: ${result.affectedAreas.join(', ') || 'none'}`,
@@ -512,7 +515,7 @@ function effectiveWriteMode(mode, requested) {
 }
 
 function writeOption(args, profile, mode) {
-  return effectiveWriteMode(mode, optionValue(args, profile, 'write', ['CODEXPRO_WRITE_MODE'], mode === 'agent' ? 'workspace' : 'handoff'));
+  return effectiveWriteMode(mode, optionValue(args, profile, 'write', ['CODEXFLOW_WRITE_MODE'], mode === 'agent' ? 'workspace' : 'handoff'));
 }
 
 function validateChoice(flag, value, allowed) {
@@ -526,7 +529,7 @@ function optionalChoice(flag, value, allowed) {
 }
 
 function optionalWriteOption(args, profile, mode) {
-  const requested = optionValue(args, profile, 'write', ['CODEXPRO_WRITE_MODE'], '');
+  const requested = optionValue(args, profile, 'write', ['CODEXFLOW_WRITE_MODE'], '');
   return requested ? effectiveWriteMode(mode, requested) : '';
 }
 
@@ -567,7 +570,7 @@ function isWindowsCommandCandidate(command) {
 }
 
 function resolveCodexCommand() {
-  const explicit = String(process.env.CODEXPRO_CODEX_BIN ?? '').trim();
+  const explicit = String(process.env.CODEXFLOW_CODEX_BIN ?? '').trim();
   if (explicit) {
     if (isPathLike(explicit)) return resolveExecutablePath(explicit);
     const candidates = commandPaths(explicit);
@@ -598,13 +601,13 @@ function commandAvailableFromRoot(command, root) {
   return executableFileExists(resolved);
 }
 
-function codexProHome() {
-  const customHome = process.env.CODEXPRO_HOME;
-  return customHome ? path.resolve(expandHome(customHome)) : path.join(os.homedir(), '.codexpro');
+function codexFlowHome() {
+  const customHome = process.env.CODEXFLOW_HOME;
+  return customHome ? path.resolve(expandHome(customHome)) : path.join(os.homedir(), '.codexflow');
 }
 
 function profileDir() {
-  return path.join(codexProHome(), 'profiles');
+  return path.join(codexFlowHome(), 'profiles');
 }
 
 function profileIdForRoot(root) {
@@ -616,7 +619,7 @@ function profilePathForRoot(root) {
 }
 
 function runtimeDir() {
-  return path.join(codexProHome(), 'runtime');
+  return path.join(codexFlowHome(), 'runtime');
 }
 
 function runtimeStatusPathForRoot(root) {
@@ -690,7 +693,7 @@ function saveRuntimeConnection(root, details, options = {}) {
     updatedAt: new Date().toISOString(),
     endpoint: details.endpoint,
     localBase: options.localBase ?? '',
-    localStatusUrl: details.localStatusUrl ? details.localStatusUrl.replace(/codexpro_token=[^&]+/, 'codexpro_token=<redacted>') : '',
+    localStatusUrl: details.localStatusUrl ? details.localStatusUrl.replace(/codexflow_token=[^&]+/, 'codexflow_token=<redacted>') : '',
     tunnel: options.tunnel ?? '',
     mode: options.mode ?? '',
     bash: options.bash ?? '',
@@ -766,17 +769,17 @@ function optionBool(args, profile, field, envNames = [], fallback = false) {
 }
 
 function hasToolCardsInput(args, profile = {}) {
-  return args.toolCards !== undefined || profile.toolCards !== undefined || (process.env.CODEXPRO_TOOL_CARDS !== undefined && process.env.CODEXPRO_TOOL_CARDS !== '');
+  return args.toolCards !== undefined || profile.toolCards !== undefined || (process.env.CODEXFLOW_TOOL_CARDS !== undefined && process.env.CODEXFLOW_TOOL_CARDS !== '');
 }
 
 function toolCardsProfileEntry(args, profile = {}) {
   const hasInput = hasToolCardsInput(args, profile);
-  return hasInput ? { toolCards: optionBool(args, profile, 'toolCards', ['CODEXPRO_TOOL_CARDS'], false) } : {};
+  return hasInput ? { toolCards: optionBool(args, profile, 'toolCards', ['CODEXFLOW_TOOL_CARDS'], false) } : {};
 }
 
 function toolCardsCliArgs(args, profile = {}) {
   if (!hasToolCardsInput(args, profile)) return [];
-  return ['--tool-cards', optionBool(args, profile, 'toolCards', ['CODEXPRO_TOOL_CARDS'], false) ? 'on' : 'off'];
+  return ['--tool-cards', optionBool(args, profile, 'toolCards', ['CODEXFLOW_TOOL_CARDS'], false) ? 'on' : 'off'];
 }
 
 function validateBashSession(value) {
@@ -789,8 +792,8 @@ function validateBashSession(value) {
 }
 
 function bashSessionOptions(args, profile = {}) {
-  const bashSession = validateBashSession(optionValue(args, profile, 'bashSession', ['CODEXPRO_BASH_SESSION_ID'], ''));
-  const requireBashSession = optionBool(args, profile, 'requireBashSession', ['CODEXPRO_REQUIRE_BASH_SESSION'], false);
+  const bashSession = validateBashSession(optionValue(args, profile, 'bashSession', ['CODEXFLOW_BASH_SESSION_ID'], ''));
+  const requireBashSession = optionBool(args, profile, 'requireBashSession', ['CODEXFLOW_REQUIRE_BASH_SESSION'], false);
   if (requireBashSession && !bashSession) {
     throw new Error('--require-bash-session requires --bash-session <id>.');
   }
@@ -798,15 +801,40 @@ function bashSessionOptions(args, profile = {}) {
 }
 
 function bashTranscriptOption(args, profile = {}) {
-  const value = optionValue(args, profile, 'bashTranscript', ['CODEXPRO_BASH_TRANSCRIPT'], 'compact');
+  const value = optionValue(args, profile, 'bashTranscript', ['CODEXFLOW_BASH_TRANSCRIPT'], 'compact');
   if (value === 'compact' || value === 'full') return value;
   throw new Error('--bash-transcript must be compact or full.');
 }
 
 function codexSessionsOption(args, profile = {}) {
-  const value = optionValue(args, profile, 'codexSessions', ['CODEXPRO_CODEX_SESSIONS'], 'off');
+  const value = optionValue(args, profile, 'codexSessions', ['CODEXFLOW_CODEX_SESSIONS'], 'off');
   if (value === 'off' || value === 'metadata' || value === 'read') return value;
   throw new Error('--codex-sessions must be off, metadata, or read.');
+}
+
+async function discoverCodexProjectDirectories(codexDirInput) {
+  try {
+    const modulePath = path.join(projectRoot, 'dist', 'codexSessions.js');
+    if (!fs.existsSync(modulePath)) return [];
+    const { listCodexProjectDirectories } = await import(pathToFileURL(modulePath).href);
+    const projects = await listCodexProjectDirectories({ codexSessions: 'metadata', codexDir: codexDirInput });
+    const roots = [];
+    const seen = new Set();
+    for (const project of projects) {
+      let root;
+      try {
+        root = realDir(project.project_dir);
+      } catch {
+        continue;
+      }
+      if (seen.has(root)) continue;
+      seen.add(root);
+      roots.push(root);
+    }
+    return roots;
+  } catch {
+    return [];
+  }
 }
 
 function stableToken(existing = '') {
@@ -818,7 +846,7 @@ function cloudflaredBinName() {
 }
 
 function localCloudflaredPath() {
-  return path.join(codexProHome(), 'bin', cloudflaredBinName());
+  return path.join(codexFlowHome(), 'bin', cloudflaredBinName());
 }
 
 function cloudflaredReleaseAsset() {
@@ -860,7 +888,7 @@ function findFileByName(root, fileName) {
 
 async function downloadFile(url, destination) {
   const response = await fetch(url, {
-    headers: { 'user-agent': 'codexpro-launcher' }
+    headers: { 'user-agent': 'codexflow-launcher' }
   });
   if (!response.ok) {
     throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`);
@@ -884,12 +912,12 @@ async function installCloudflaredLocal() {
   const asset = cloudflaredReleaseAsset();
   const installPath = localCloudflaredPath();
   const binDir = path.dirname(installPath);
-  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'codexpro-cloudflared-'));
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'codexflow-cloudflared-'));
   const url = `https://github.com/cloudflare/cloudflared/releases/latest/download/${asset.file}`;
 
   fs.mkdirSync(binDir, { recursive: true, mode: 0o700 });
-  console.error(`[codexpro] Installing cloudflared locally: ${installPath}`);
-  console.error(`[codexpro] Downloading official Cloudflare release: ${asset.file}`);
+  console.error(`[codexflow] Installing cloudflared locally: ${installPath}`);
+  console.error(`[codexflow] Downloading official Cloudflare release: ${asset.file}`);
 
   try {
     if (asset.archive) {
@@ -916,7 +944,7 @@ async function installCloudflaredLocal() {
 
     if (process.platform !== 'win32') fs.chmodSync(installPath, 0o755);
     verifyCloudflared(installPath);
-    console.error('[codexpro] cloudflared installed successfully.');
+    console.error('[codexflow] cloudflared installed successfully.');
     return installPath;
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
@@ -939,7 +967,7 @@ async function resolveCloudflared(args) {
       verifyCloudflared('cloudflared');
       return 'cloudflared';
     } catch (error) {
-      console.error(`[codexpro] cloudflared in PATH failed --version; trying local install. ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`[codexflow] cloudflared in PATH failed --version; trying local install. ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -950,7 +978,7 @@ async function resolveCloudflared(args) {
       return localPath;
     } catch (error) {
       if (args.noInstallCloudflared) return localPath;
-      console.error(`[codexpro] Existing ${localPath} failed --version; reinstalling. ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`[codexflow] Existing ${localPath} failed --version; reinstalling. ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -1015,11 +1043,11 @@ function resolveTailscale(args) {
     return 'tailscale';
   }
 
-  throw new Error('tailscale was not found on PATH. Install Tailscale and enable Funnel, then run codexpro tailscale --hostname your-device.your-tailnet.ts.net.');
+  throw new Error('tailscale was not found on PATH. Install Tailscale and enable Funnel, then run codexflow tailscale --hostname your-device.your-tailnet.ts.net.');
 }
 
 function ngrokConfigPath(root, args, profile = {}) {
-  const configPath = optionValue(args, profile, 'ngrokConfig', ['NGROK_CONFIG', 'CODEXPRO_NGROK_CONFIG'], '');
+  const configPath = optionValue(args, profile, 'ngrokConfig', ['NGROK_CONFIG', 'CODEXFLOW_NGROK_CONFIG'], '');
   return resolveConfigPath(root, configPath);
 }
 
@@ -1027,7 +1055,7 @@ function runHelperScript(scriptName, args) {
   const scriptPath = path.join(projectRoot, 'scripts', scriptName);
   const result = spawnSync(process.execPath, [scriptPath, ...args], {
     cwd: projectRoot,
-    env: { ...process.env, CODEXPRO_CALLER_CWD: process.cwd() },
+    env: { ...process.env, CODEXFLOW_CALLER_CWD: process.cwd() },
     stdio: 'inherit'
   });
   if (result.error) throw result.error;
@@ -1061,11 +1089,11 @@ function portInUseHelp(host, port) {
     'If you want two repositories running at the same time, each one needs its own local port.',
     '',
     'Example:',
-    '  repo A: codexpro setup  -> port 8787 -> hostname A',
-    '  repo B: codexpro setup  -> port 8788 -> hostname B',
+    '  repo A: codexflow  -> port 8787 -> hostname A',
+    '  repo B: codexflow  -> port 8788 -> hostname B',
     '',
     'For quick tunnels you can also start the second repo with:',
-    '  codexpro start --port 8788',
+    '  codexflow --port 8788',
     '',
     'Stable public hostnames also cannot be shared by two running repositories at once.'
   ].join('\n');
@@ -1109,7 +1137,7 @@ function spawnLogged(name, command, args, options = {}) {
     while (logLines.length > 120) logLines.shift();
     if (verbose) stream.write(`[${name}] ${text}`);
   };
-  child.codexproLogTail = () => logLines.join('\n');
+  child.codexflowLogTail = () => logLines.join('\n');
   spawnedChildren.add(child);
   child.stdout.on('data', (chunk) => record(process.stdout, chunk));
   child.stderr.on('data', (chunk) => record(process.stderr, chunk));
@@ -1168,7 +1196,7 @@ function waitForTunnelStartup(child, label, timeoutMs = 1000) {
       fn(value);
     };
     const outputTail = () => {
-      const tail = typeof child.codexproLogTail === 'function' ? child.codexproLogTail() : '';
+      const tail = typeof child.codexflowLogTail === 'function' ? child.codexflowLogTail() : '';
       return tail ? `\n\nRecent ${label} output:\n${tail}` : '';
     };
     const onExit = (code, signal) => {
@@ -1223,7 +1251,7 @@ function requestQuickTunnelViaCurl(proxyUrl) {
 }
 
 function writeQuickTunnelCredentials(tunnel) {
-  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'codexpro-cloudflare-quick-'));
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'codexflow-cloudflare-quick-'));
   const credentialsPath = path.join(tmpRoot, 'credentials.json');
   fs.writeFileSync(credentialsPath, JSON.stringify({
     AccountTag: tunnel.accountTag,
@@ -1250,7 +1278,7 @@ function cleanupChildren() {
 function endpointWithToken(endpoint, token) {
   if (!token) return endpoint;
   const url = new URL(endpoint);
-  url.searchParams.set('codexpro_token', token);
+  url.searchParams.set('codexflow_token', token);
   return url.toString();
 }
 
@@ -1282,7 +1310,7 @@ function readTokenFile(filePath) {
 }
 
 function normalizeMode(args) {
-  const mode = args.mode ?? process.env.CODEXPRO_MODE ?? 'agent';
+  const mode = args.mode ?? process.env.CODEXFLOW_MODE ?? 'agent';
   if (!['agent', 'handoff', 'pro'].includes(mode)) {
     throw new Error('--mode must be agent, handoff, or pro');
   }
@@ -1346,7 +1374,7 @@ function isSubpath(child, parent) {
 }
 
 function contextDirFromArgs(args) {
-  return args.contextDir ?? process.env.CODEXPRO_CONTEXT_DIR ?? '.ai-bridge';
+  return args.contextDir ?? process.env.CODEXFLOW_CONTEXT_DIR ?? '.ai-bridge';
 }
 
 function resolveWorkspaceFile(root, relativePath) {
@@ -1373,7 +1401,7 @@ function numberOption(value, fallback, min, max) {
 }
 
 function handoffMaxReadBytes() {
-  return numberOption(process.env.CODEXPRO_MAX_READ_BYTES, 180_000, 4_000, 2_000_000);
+  return numberOption(process.env.CODEXFLOW_MAX_READ_BYTES, 180_000, 4_000, 2_000_000);
 }
 
 function shellCommandPreview(parts) {
@@ -1389,7 +1417,7 @@ function redactForLog(value) {
     .replace(/\bsk-[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_SECRET]')
     .replace(/\b(?:sk-ant-[A-Za-z0-9_-]{10,}|gh[opsru]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|npm_[A-Za-z0-9_-]{20,})\b/g, '[REDACTED_SECRET]')
     .replace(/\b(Authorization\s*:\s*Bearer\s+)[A-Za-z0-9._~+/=-]{12,}/gi, '$1[REDACTED_SECRET]')
-    .replace(/([?&](?:codexpro_token|token|access_token|auth_token|api[_-]?key)=)[^&\s"'`<>]{8,}/gi, '$1[REDACTED_SECRET]')
+    .replace(/([?&](?:codexflow_token|token|access_token|auth_token|api[_-]?key)=)[^&\s"'`<>]{8,}/gi, '$1[REDACTED_SECRET]')
     .replace(/(["']?[A-Za-z0-9_]{0,64}(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PRIVATE[_-]?KEY)[A-Za-z0-9_]{0,64}["']?\s*:\s*)(?:"[^"\r\n]{12,512}"|'[^'\r\n]{12,512}'|`[^`\r\n]{12,512}`|[A-Za-z0-9_./+=-]{20,512})/gi, '$1[REDACTED_SECRET]')
     .replace(/\b[A-Za-z0-9_]{0,64}(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PRIVATE[_-]?KEY)[A-Za-z0-9_]{0,64}\s*=\s*(?:"[^"\r\n]{12,512}"|'[^'\r\n]{12,512}'|`[^`\r\n]{12,512}`|[A-Za-z0-9_./+=-]{20,512})/gi, (match) => {
       const index = match.indexOf('=');
@@ -1471,7 +1499,7 @@ function applyCommandTemplate(value, replacements) {
 
 function buildExecutorCommand(args, root, planPath, planText) {
   const agent = String(args.agent ?? 'opencode').trim().toLowerCase();
-  const model = String(args.model ?? process.env.CODEXPRO_AGENT_MODEL ?? '').trim();
+  const model = String(args.model ?? process.env.CODEXFLOW_AGENT_MODEL ?? '').trim();
   const replacements = {
     model,
     plan_file: planPath,
@@ -1633,7 +1661,7 @@ function runProcessCaptured(command, args, options) {
       closed = true;
       clearTimeout(timer);
       const out = trimBytes(stdout, maxOutputBytes);
-      const err = trimBytes(`${stderr}${timedOut ? `\n[codexpro] Command timed out after ${timeoutMs} ms.` : ''}`, maxOutputBytes);
+      const err = trimBytes(`${stderr}${timedOut ? `\n[codexflow] Command timed out after ${timeoutMs} ms.` : ''}`, maxOutputBytes);
       resolve({
         exitCode,
         signal,
@@ -1741,7 +1769,7 @@ async function confirmLocalExecution(args, root, commandInfo) {
     labelValue('Agent', commandInfo.agent),
     ...(commandInfo.model ? [labelValue('Model', commandInfo.model)] : []),
     labelValue('Command', executorCommandPreview(commandInfo)),
-    'This runs a local process in the workspace. CodexPro will collect status, logs, and git diff into .ai-bridge.'
+    'This runs a local process in the workspace. CodexFlow will collect status, logs, and git diff into .ai-bridge.'
   ]);
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
@@ -1753,12 +1781,12 @@ async function confirmLocalExecution(args, root, commandInfo) {
 }
 
 function loadHandoffExecution(args) {
-  const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
+  const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? process.cwd());
   const contextDir = contextDirFromArgs(args);
   const bridgeDir = resolveWorkspaceFile(root, contextDir);
   const planPath = path.join(bridgeDir, 'current-plan.md');
   const maxReadBytes = handoffMaxReadBytes();
-  const maxOutputBytes = numberOption(args.maxOutputBytes ?? process.env.CODEXPRO_MAX_OUTPUT_BYTES, 120_000, 4_000, 2_000_000);
+  const maxOutputBytes = numberOption(args.maxOutputBytes ?? process.env.CODEXFLOW_MAX_OUTPUT_BYTES, 120_000, 4_000, 2_000_000);
   const timeoutMs = numberOption(args.timeoutMs ?? args.timeout, 600_000, 1_000, 24 * 60 * 60_000);
   if (!fs.existsSync(planPath)) {
     throw new Error(`No handoff plan found at ${path.relative(root, planPath)}. Ask ChatGPT to call handoff_to_agent first.`);
@@ -1779,7 +1807,7 @@ function loadHandoffExecution(args) {
   };
 }
 
-function printHandoffDryRun(request, title = 'CodexPro execute-handoff dry run') {
+function printHandoffDryRun(request, title = 'CodexFlow execute-handoff dry run') {
   printBox(title, [
     labelValue('Workspace', request.root),
     labelValue('Plan', path.relative(request.root, request.planPath)),
@@ -1948,7 +1976,7 @@ async function runWatchHandoff(argv) {
     usage();
     return;
   }
-  const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
+  const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? process.cwd());
   const contextDir = contextDirFromArgs(args);
   const bridgeDir = resolveWorkspaceFile(root, contextDir);
   const planPath = path.join(bridgeDir, 'current-plan.md');
@@ -1968,7 +1996,7 @@ async function runWatchHandoff(argv) {
     }
   }
 
-  printBox('CodexPro watch-handoff', [
+  printBox('CodexFlow watch-handoff', [
     labelValue('Workspace', root),
     labelValue('Plan', path.relative(root, planPath)),
     labelValue('State', path.relative(root, statePath)),
@@ -2017,7 +2045,7 @@ async function runWatchHandoff(argv) {
     }
 
     if (args.dryRun) {
-      printHandoffDryRun(request, 'CodexPro watch-handoff dry run');
+      printHandoffDryRun(request, 'CodexFlow watch-handoff dry run');
       lastDryRunHash = currentHash;
       if (args.once) return;
       await sleep(pollIntervalMs);
@@ -2373,7 +2401,7 @@ function writeLoopTestOutput(paths, result, commandText) {
 function explicitReviewVerdict(text) {
   for (const rawLine of String(text || '').split(/\r?\n/)) {
     const line = rawLine.trim();
-    const assignment = line.match(/^CODEXPRO_REVIEW\s*=\s*(PASS|FAIL)\b/i);
+    const assignment = line.match(/^CODEXFLOW_REVIEW\s*=\s*(PASS|FAIL)\b/i);
     if (assignment) return assignment[1].toUpperCase();
   }
   return '';
@@ -2466,7 +2494,7 @@ async function confirmLoopContinuation(args, root, iteration, planPath) {
 }
 
 function printLoopDryRun(request, reviewCommand, testCommand, maxIters) {
-  printBox('CodexPro loop-handoff dry run', [
+  printBox('CodexFlow loop-handoff dry run', [
     labelValue('Workspace', request.root),
     labelValue('Plan', path.relative(request.root, request.planPath)),
     labelValue('Agent', request.commandInfo.agent),
@@ -2491,12 +2519,12 @@ async function runLoopHandoff(argv) {
     return;
   }
 
-  const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
+  const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? process.cwd());
   const contextDir = contextDirFromArgs(args);
   const paths = loopArtifactPaths(root, contextDir);
   const maxIters = numberOption(args.maxIters ?? args.maxIterations, 3, 1, 25);
   const maxReadBytes = handoffMaxReadBytes();
-  const maxOutputBytes = numberOption(args.maxOutputBytes ?? process.env.CODEXPRO_MAX_OUTPUT_BYTES, 120_000, 4_000, 2_000_000);
+  const maxOutputBytes = numberOption(args.maxOutputBytes ?? process.env.CODEXFLOW_MAX_OUTPUT_BYTES, 120_000, 4_000, 2_000_000);
   const reviewTimeoutMs = numberOption(args.reviewTimeoutMs, 600_000, 1_000, 24 * 60 * 60_000);
   const testTimeoutMs = numberOption(args.testTimeoutMs, 600_000, 1_000, 24 * 60 * 60_000);
 
@@ -2519,7 +2547,7 @@ async function runLoopHandoff(argv) {
     return;
   }
 
-  printBox('CodexPro loop-handoff', [
+  printBox('CodexFlow loop-handoff', [
     labelValue('Workspace', root),
     labelValue('Plan', path.relative(root, paths.planPath)),
     labelValue('Agent', request.commandInfo.agent),
@@ -2728,7 +2756,7 @@ function createConnectorDetails(endpoint, token, localBase = '') {
 function printCreateAppFields(details) {
   console.log('Create App fields:');
   console.log('');
-  console.log('  Name: CodexPro');
+  console.log('  Name: CodexFlow');
   console.log('  Description: Local coding workspace bridge for ChatGPT.');
   console.log('  Connection: Server URL');
   console.log(`  Server URL: ${details.serverUrl}`);
@@ -2746,6 +2774,7 @@ function printCreateAppFields(details) {
 function printConnectorBlock(endpoint, token, options = {}) {
   const details = createConnectorDetails(endpoint, token, options.localBase ?? '');
   const { serverUrl } = details;
+  const interactive = options.interactive !== false && options.nonInteractive !== true && Boolean(process.stdin.isTTY && process.stdout.isTTY);
   const publicHttps = serverUrl.startsWith('https://');
   const shouldCopy = options.copyUrl === true || (options.copyUrl !== false && publicHttps);
   const copied = shouldCopy ? copyToClipboard(serverUrl) : { ok: false, command: '' };
@@ -2754,7 +2783,7 @@ function printConnectorBlock(endpoint, token, options = {}) {
   const mode = options.mode ?? 'agent';
   const modeTitle = mode === 'agent' ? 'Agent' : mode === 'handoff' ? 'Handoff' : 'Pro planning';
   console.log('');
-  console.log(paint('bold', 'CodexPro ready'));
+  console.log(paint('bold', 'CodexFlow ready'));
   if (options.root) console.log(`  Workspace  ${options.root}`);
   console.log(`  Mode       ${modeTitle}  tools=${options.toolMode ?? 'standard'}  write=${options.write ?? 'workspace'}  bash=${options.bash ?? 'safe'}`);
   console.log(`  Transcript bash=${options.bashTranscript ?? 'compact'}`);
@@ -2781,15 +2810,20 @@ function printConnectorBlock(endpoint, token, options = {}) {
     console.log(paint('bold', 'Connection test'));
     console.log('  1. In ChatGPT, open Settings -> Plugins and create a development plugin.');
     console.log('  2. Paste the Server URL above and choose Authentication: No Authentication.');
-    console.log('  3. Watch this terminal for: [CodexPro] POST /mcp received');
+    console.log('  3. Watch this terminal for: [CodexFlow] POST /mcp received');
     console.log('');
-    console.log('  No POST /mcp     ChatGPT or the tunnel did not reach CodexPro.');
-    console.log('  POST /mcp -> 401 The full Server URL, including codexpro_token, was not used.');
-    console.log('  POST /mcp -> 2xx The MCP connection reached CodexPro successfully.');
+    console.log('  No POST /mcp     ChatGPT or the tunnel did not reach CodexFlow.');
+    console.log('  POST /mcp -> 401 The full Server URL, including codexflow_token, was not used.');
+    console.log('  POST /mcp -> 2xx The MCP connection reached CodexFlow successfully.');
     console.log('');
   }
-  console.log('Next: press Enter to open ChatGPT, paste the copied Server URL, choose Authentication: None.');
-  console.log('Keys: Enter open | c copy | o status | h help | q quit');
+  if (interactive) {
+    console.log('Next: press Enter to open ChatGPT, paste the copied Server URL, choose Authentication: None.');
+    console.log('Keys: Enter open | c copy | o status | h help | q quit');
+  } else {
+    console.log('Non-interactive mode: the connector stays running until SIGINT/SIGTERM.');
+    console.log(`Check it with: ${shellCommandPreview(['codexflow', 'status', ...(options.root ? ['--root', options.root] : [])])}`);
+  }
   return { ...details, copied, opened, mode, toolMode: options.toolMode ?? 'standard' };
 }
 
@@ -2799,24 +2833,24 @@ function printControlHelp() {
   console.log('  Enter  open ChatGPT connector settings in your browser');
   console.log('  c      copy Server URL again');
   console.log('  u      print Server URL only');
-  console.log('  o      open local setup/status page');
+  console.log('  o      open local status/settings dashboard');
   console.log('  p      print Create App fields');
   console.log('  m      print mode help');
   console.log('  h      show controls');
-  console.log('  q      stop CodexPro');
+  console.log('  q      stop CodexFlow');
   console.log('');
 }
 
 function printModeHelp() {
   console.log('');
   console.log('Modes');
-  console.log('  codexpro start                 agent mode: read/write/edit/apply_patch/search/bash');
-  console.log('  codexpro start --no-bash       agent mode without ChatGPT-triggered shell commands');
-  console.log('  codexpro start --bash-session main --require-bash-session');
-  console.log('  codexpro start --mode handoff  planning-only .ai-bridge handoff');
-  console.log('  codexpro start --mode pro      export context for models without MCP tools');
-  console.log('  codexpro start --tool-mode minimal   expose only the tight coding loop');
-  console.log('  codexpro start --tool-mode full      expose every advanced compatibility tool');
+  console.log('  codexflow                 agent mode: read/write/edit/apply_patch/search/bash');
+  console.log('  codexflow --no-bash       agent mode without ChatGPT-triggered shell commands');
+  console.log('  codexflow --bash-session main --require-bash-session');
+  console.log('  codexflow --mode handoff  planning-only .ai-bridge handoff');
+  console.log('  codexflow --mode pro      export context for models without MCP tools');
+  console.log('  codexflow --tool-mode minimal   expose only the tight coding loop');
+  console.log('  codexflow --tool-mode full      expose every advanced compatibility tool');
   console.log('');
 }
 
@@ -2827,21 +2861,21 @@ function printStableUrlHelp() {
   console.log('Quick tunnels change every restart. ChatGPT apps should use a stable URL.');
   console.log('');
   console.log('One-time Cloudflare setup with your domain:');
-  console.log('  codexpro install-cloudflared');
-  console.log('  ~/.codexpro/bin/cloudflared tunnel login');
-  console.log('  ~/.codexpro/bin/cloudflared tunnel create codexpro');
-  console.log('  ~/.codexpro/bin/cloudflared tunnel route dns codexpro codexpro.example.com');
+  console.log('  codexflow install-cloudflared');
+  console.log('  ~/.codexflow/bin/cloudflared tunnel login');
+  console.log('  ~/.codexflow/bin/cloudflared tunnel create codexflow');
+  console.log('  ~/.codexflow/bin/cloudflared tunnel route dns codexflow codexflow.example.com');
   console.log('');
   console.log('Daily start:');
-  console.log('  codexpro stable --hostname codexpro.example.com --tunnel-name codexpro --token keep-this-stable-token');
+  console.log('  codexflow stable --hostname codexflow.example.com --tunnel-name codexflow --token keep-this-stable-token');
   console.log('');
   console.log('Ngrok alternative with a reserved domain:');
   console.log('  ngrok config add-authtoken <your-ngrok-token>');
-  console.log('  codexpro ngrok --hostname your-domain.ngrok-free.dev --token keep-this-stable-token');
+  console.log('  codexflow ngrok --hostname your-domain.ngrok-free.dev --token keep-this-stable-token');
   console.log('');
   console.log('Tailscale Funnel alternative:');
   console.log('  tailscale funnel 8787');
-  console.log('  codexpro tailscale --hostname your-device.your-tailnet.ts.net --token keep-this-stable-token');
+  console.log('  codexflow tailscale --hostname your-device.your-tailnet.ts.net --token keep-this-stable-token');
   console.log('');
 }
 
@@ -2883,15 +2917,15 @@ async function runDoctor(argv) {
     return;
   }
 
-  const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
+  const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? process.cwd());
   const profile = args.noProfile ? {} : loadWorkspaceProfile(root);
   const effectiveArgs = { ...profile, ...args };
-  const tunnel = optionValue(args, profile, 'tunnel', ['CODEXPRO_TUNNEL'], 'cloudflare');
-  const host = optionValue(args, profile, 'host', ['CODEXPRO_HOST'], '127.0.0.1');
-  const port = String(optionValue(args, profile, 'port', ['CODEXPRO_PORT'], '8787'));
-  const mode = optionValue(args, profile, 'mode', ['CODEXPRO_MODE'], 'agent');
-  const bash = optionValue(args, profile, 'bash', ['CODEXPRO_BASH_MODE'], 'safe');
-  const rawWrite = optionValue(args, profile, 'write', ['CODEXPRO_WRITE_MODE'], mode === 'agent' ? 'workspace' : 'handoff');
+  const tunnel = optionValue(args, profile, 'tunnel', ['CODEXFLOW_TUNNEL'], 'cloudflare');
+  const host = optionValue(args, profile, 'host', ['CODEXFLOW_HOST'], '127.0.0.1');
+  const port = String(optionValue(args, profile, 'port', ['CODEXFLOW_PORT'], '8787'));
+  const mode = optionValue(args, profile, 'mode', ['CODEXFLOW_MODE'], 'agent');
+  const bash = optionValue(args, profile, 'bash', ['CODEXFLOW_BASH_MODE'], 'safe');
+  const rawWrite = optionValue(args, profile, 'write', ['CODEXFLOW_WRITE_MODE'], mode === 'agent' ? 'workspace' : 'handoff');
   let write = String(rawWrite);
   let writeError = '';
   try {
@@ -2899,11 +2933,11 @@ async function runDoctor(argv) {
   } catch (error) {
     writeError = error instanceof Error ? error.message : String(error);
   }
-  const toolMode = optionValue(args, profile, 'toolMode', ['CODEXPRO_TOOL_MODE'], 'standard');
+  const toolMode = optionValue(args, profile, 'toolMode', ['CODEXFLOW_TOOL_MODE'], 'standard');
   const stableHostname = args.hostname
     ?? args.url
-    ?? process.env.CODEXPRO_PUBLIC_HOSTNAME
-    ?? process.env.CODEXPRO_HOSTNAME
+    ?? process.env.CODEXFLOW_PUBLIC_HOSTNAME
+    ?? process.env.CODEXFLOW_HOSTNAME
     ?? process.env.NGROK_DOMAIN
     ?? profile.hostname
     ?? '';
@@ -2925,7 +2959,7 @@ async function runDoctor(argv) {
   }
 
   console.log('');
-  printBox('CodexPro doctor', [
+  printBox('CodexFlow doctor', [
     labelValue('Workspace', root),
     labelValue('Mode', `${mode}  tools=${toolMode}  write=${write}  bash=${bash}`),
     labelValue('Tunnel', tunnel),
@@ -2954,15 +2988,15 @@ async function runDoctor(argv) {
   if (tunnel === 'none') {
     record('ok', 'Tunnel', 'local-only mode');
   } else if (tunnel === 'cloudflare') {
-    record(cloudflaredPath ? 'ok' : 'warn', 'cloudflared', cloudflaredPath || 'missing now; codexpro start can auto-install unless --no-install-cloudflared is used');
+    record(cloudflaredPath ? 'ok' : 'warn', 'cloudflared', cloudflaredPath || 'missing now; codexflow can auto-install unless --no-install-cloudflared is used');
   } else if (tunnel === 'cloudflare-named') {
     record(stableHostname ? 'ok' : 'fail', 'Hostname', stableHostname || 'required for Cloudflare stable mode');
-    record(cloudflaredPath ? 'ok' : 'warn', 'cloudflared', cloudflaredPath || 'missing now; run codexpro install-cloudflared or pass --cloudflared');
+    record(cloudflaredPath ? 'ok' : 'warn', 'cloudflared', cloudflaredPath || 'missing now; run codexflow install-cloudflared or pass --cloudflared');
     record(
-      optionValue(args, profile, 'tunnelName', ['CLOUDFLARE_TUNNEL_NAME', 'CODEXPRO_TUNNEL_NAME'], '') ||
-        optionValue(args, profile, 'cloudflareTokenFile', ['CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CODEXPRO_CLOUDFLARE_TUNNEL_TOKEN_FILE'], '') ||
-        optionValue(args, profile, 'cloudflareConfig', ['CLOUDFLARE_TUNNEL_CONFIG', 'CODEXPRO_CLOUDFLARE_CONFIG'], '') ||
-        optionValue(args, profile, 'cloudflareToken', ['CLOUDFLARE_TUNNEL_TOKEN', 'CODEXPRO_CLOUDFLARE_TUNNEL_TOKEN'], '')
+      optionValue(args, profile, 'tunnelName', ['CLOUDFLARE_TUNNEL_NAME', 'CODEXFLOW_TUNNEL_NAME'], '') ||
+        optionValue(args, profile, 'cloudflareTokenFile', ['CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CODEXFLOW_CLOUDFLARE_TUNNEL_TOKEN_FILE'], '') ||
+        optionValue(args, profile, 'cloudflareConfig', ['CLOUDFLARE_TUNNEL_CONFIG', 'CODEXFLOW_CLOUDFLARE_CONFIG'], '') ||
+        optionValue(args, profile, 'cloudflareToken', ['CLOUDFLARE_TUNNEL_TOKEN', 'CODEXFLOW_CLOUDFLARE_TUNNEL_TOKEN'], '')
         ? 'ok'
         : 'fail',
       'Cloudflare setup',
@@ -3024,7 +3058,7 @@ function hasExplicitTunnelInput(args) {
   return Boolean(
     args.tunnel ||
     args.noProfile ||
-    process.env.CODEXPRO_TUNNEL
+    process.env.CODEXFLOW_TUNNEL
   );
 }
 
@@ -3043,27 +3077,27 @@ async function collectTunnelPreference(rl, defaults, profile, options = {}) {
     hostname = await ask(
       rl,
       'Ngrok domain or URL, without /mcp',
-      optionValue(defaults, profile, 'hostname', ['CODEXPRO_PUBLIC_HOSTNAME', 'CODEXPRO_HOSTNAME', 'NGROK_DOMAIN'], '')
+      optionValue(defaults, profile, 'hostname', ['CODEXFLOW_PUBLIC_HOSTNAME', 'CODEXFLOW_HOSTNAME', 'NGROK_DOMAIN'], '')
     );
     if (!hostname) throw new Error('Ngrok setup needs your reserved domain, for example name.ngrok-free.dev.');
     hostname = normalizePublicHostname(hostname);
-    ngrokConfig = optionValue(defaults, profile, 'ngrokConfig', ['NGROK_CONFIG', 'CODEXPRO_NGROK_CONFIG'], '');
+    ngrokConfig = optionValue(defaults, profile, 'ngrokConfig', ['NGROK_CONFIG', 'CODEXFLOW_NGROK_CONFIG'], '');
   } else if (tunnel === 'cloudflare-named') {
     hostname = await ask(
       rl,
       'Stable Cloudflare hostname, without /mcp',
-      optionValue(defaults, profile, 'hostname', ['CODEXPRO_PUBLIC_HOSTNAME', 'CODEXPRO_HOSTNAME'], '')
+      optionValue(defaults, profile, 'hostname', ['CODEXFLOW_PUBLIC_HOSTNAME', 'CODEXFLOW_HOSTNAME'], '')
     );
-    if (!hostname) throw new Error('Stable public URL setup needs a real hostname, for example codexpro.yourdomain.com.');
+    if (!hostname) throw new Error('Stable public URL setup needs a real hostname, for example codexflow.yourdomain.com.');
     hostname = normalizePublicHostname(hostname);
-    tunnelName = await ask(rl, 'Cloudflare tunnel name', optionValue(defaults, profile, 'tunnelName', ['CODEXPRO_TUNNEL_NAME', 'CLOUDFLARE_TUNNEL_NAME'], 'codexpro'));
-    cloudflareConfig = optionValue(defaults, profile, 'cloudflareConfig', ['CODEXPRO_CLOUDFLARE_CONFIG', 'CLOUDFLARE_TUNNEL_CONFIG'], '');
-    cloudflareTokenFile = optionValue(defaults, profile, 'cloudflareTokenFile', ['CODEXPRO_CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CLOUDFLARE_TUNNEL_TOKEN_FILE'], '');
+    tunnelName = await ask(rl, 'Cloudflare tunnel name', optionValue(defaults, profile, 'tunnelName', ['CODEXFLOW_TUNNEL_NAME', 'CLOUDFLARE_TUNNEL_NAME'], 'codexflow'));
+    cloudflareConfig = optionValue(defaults, profile, 'cloudflareConfig', ['CODEXFLOW_CLOUDFLARE_CONFIG', 'CLOUDFLARE_TUNNEL_CONFIG'], '');
+    cloudflareTokenFile = optionValue(defaults, profile, 'cloudflareTokenFile', ['CODEXFLOW_CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CLOUDFLARE_TUNNEL_TOKEN_FILE'], '');
   } else if (tunnel === 'tailscale') {
     hostname = await ask(
       rl,
       'Tailscale Funnel hostname, without /mcp',
-      optionValue(defaults, profile, 'hostname', ['CODEXPRO_PUBLIC_HOSTNAME', 'CODEXPRO_HOSTNAME', 'TAILSCALE_FUNNEL_HOSTNAME'], '')
+      optionValue(defaults, profile, 'hostname', ['CODEXFLOW_PUBLIC_HOSTNAME', 'CODEXFLOW_HOSTNAME', 'TAILSCALE_FUNNEL_HOSTNAME'], '')
     );
     if (!hostname) throw new Error('Tailscale setup needs your Funnel hostname, for example machine.tailnet.ts.net.');
     hostname = normalizePublicHostname(hostname);
@@ -3089,19 +3123,20 @@ function applyTunnelPreferenceToArgs(args, preference) {
 }
 
 function profileFromPreference(root, args, profile, preference) {
-  const mode = optionValue(args, profile, 'mode', ['CODEXPRO_MODE'], 'agent');
-  const port = String(optionValue(args, profile, 'port', ['CODEXPRO_PORT'], '8787'));
-  const bash = optionValue(args, profile, 'bash', ['CODEXPRO_BASH_MODE'], '');
+  const mode = optionValue(args, profile, 'mode', ['CODEXFLOW_MODE'], 'agent');
+  const port = String(optionValue(args, profile, 'port', ['CODEXFLOW_PORT'], '8787'));
+  const bash = optionValue(args, profile, 'bash', ['CODEXFLOW_BASH_MODE'], '');
   const bashTranscript = bashTranscriptOption(args, profile);
   const codexSessions = codexSessionsOption(args, profile);
-  const codexDir = optionValue(args, profile, 'codexDir', ['CODEXPRO_CODEX_DIR'], '');
+  const codexDir = optionValue(args, profile, 'codexDir', ['CODEXFLOW_CODEX_DIR'], '');
   const { bashSession, requireBashSession } = bashSessionOptions(args, profile);
   const write = optionalWriteOption(args, profile, mode);
-  const toolMode = optionValue(args, profile, 'toolMode', ['CODEXPRO_TOOL_MODE'], '');
-  const widgetDomain = optionValue(args, profile, 'widgetDomain', ['CODEXPRO_WIDGET_DOMAIN'], '');
-  const existingToken = optionValue(args, profile, 'token', ['CODEXPRO_HTTP_TOKEN', 'CODEBASE_BRIDGE_HTTP_TOKEN'], '');
+  const toolMode = optionValue(args, profile, 'toolMode', ['CODEXFLOW_TOOL_MODE'], '');
+  const widgetDomain = optionValue(args, profile, 'widgetDomain', ['CODEXFLOW_WIDGET_DOMAIN'], '');
+  const existingToken = optionValue(args, profile, 'token', ['CODEXFLOW_HTTP_TOKEN', 'CODEBASE_BRIDGE_HTTP_TOKEN'], '');
   const token = preference.tunnel === 'none' ? existingToken : stableToken(existingToken);
   return {
+    ...((args.allowRoots?.length || profile.allowRoots?.length) ? { allowRoots: [...new Set([...(profile.allowRoots ?? []), ...(args.allowRoots ?? [])].map(realDir))] } : {}),
     port,
     mode,
     tunnel: preference.tunnel,
@@ -3127,7 +3162,7 @@ function profileFromPreference(root, args, profile, preference) {
 }
 
 async function maybeConfigureFirstRun(root, args, profile) {
-  if (profile.profilePath || !process.stdin.isTTY || !process.stdout.isTTY || process.env.CI || hasExplicitTunnelInput(args)) {
+  if (profile.profilePath || args.nonInteractive || !process.stdin.isTTY || !process.stdout.isTTY || process.env.CI || hasExplicitTunnelInput(args)) {
     return profile;
   }
 
@@ -3135,7 +3170,7 @@ async function maybeConfigureFirstRun(root, args, profile) {
   if (reusableProfiles.length) {
     const shown = reusableProfiles.slice(0, 9);
     printBox('Saved setups', [
-      'No saved settings exist for this workspace, but CodexPro found saved setups from other workspaces.',
+      'No saved settings exist for this workspace, but CodexFlow found saved setups from other workspaces.',
       ...shown.map((item, index) => profileOneLine(item, index + 1)),
       'Use a number to reuse one here, or type new to choose a fresh tunnel.'
     ]);
@@ -3147,8 +3182,8 @@ async function maybeConfigureFirstRun(root, args, profile) {
       if (Number.isInteger(selectedIndex) && selectedIndex >= 1 && selectedIndex <= shown.length) {
         const selected = shown[selectedIndex - 1];
         const payload = reusableProfilePayload(selected, {
-          port: String(optionValue(args, selected, 'port', ['CODEXPRO_PORT'], selected.port ?? '8787')),
-          mode: optionValue(args, selected, 'mode', ['CODEXPRO_MODE'], selected.mode ?? 'agent')
+          port: String(optionValue(args, selected, 'port', ['CODEXFLOW_PORT'], selected.port ?? '8787')),
+          mode: optionValue(args, selected, 'mode', ['CODEXFLOW_MODE'], selected.mode ?? 'agent')
         });
         const savedPath = saveWorkspaceProfile(root, payload);
         statusLine('ok', `Saved workspace settings from ${selected.root}: ${savedPath}`);
@@ -3159,9 +3194,9 @@ async function maybeConfigureFirstRun(root, args, profile) {
     }
   }
 
-  printBox('First run setup', [
+  printBox('Automatic start', [
     'No saved tunnel preference exists for this workspace.',
-    'Choose once now. CodexPro will reuse this choice on future codexpro start runs until you change or delete it with codexpro settings.'
+    'Choose once now. CodexFlow will reuse this choice on future codexflow runs until you change or delete it with codexflow settings.'
   ]);
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -3181,19 +3216,19 @@ async function maybeConfigureFirstRun(root, args, profile) {
 }
 
 function commandPreview(args) {
-  return shellCommandPreview(['codexpro', ...args]);
+  return shellCommandPreview(['codexflow', ...args]);
 }
 
 async function runSetupWizard(argv) {
   if (!process.stdin.isTTY) {
-    throw new Error('codexpro setup needs an interactive terminal. Use codexpro start --root /path/to/repo for non-interactive scripts.');
+    throw new Error('codexflow needs an interactive terminal. Use codexflow --root /path/to/repo for non-interactive scripts.');
   }
   const defaults = parseArgs(argv);
-  const defaultRoot = path.resolve(expandHome(defaults.root ?? process.env.CODEXPRO_ROOT ?? process.cwd()));
+  const defaultRoot = path.resolve(expandHome(defaults.root ?? process.env.CODEXFLOW_ROOT ?? process.cwd()));
 
-  printBox('CodexPro setup', [
+  printBox('CodexFlow setup', [
     'This wizard prepares a ChatGPT connector for the folder you choose.',
-    'Press Enter to accept defaults. Stable tunnel choices are saved per workspace under ~/.codexpro.'
+    'Press Enter to accept defaults. Stable tunnel choices are saved per workspace under ~/.codexflow.'
   ]);
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -3205,8 +3240,12 @@ async function runSetupWizard(argv) {
       statusLine('ok', `Loaded saved profile: ${profile.profilePath}`);
       printSavedProfileHint(profile);
     }
+    const savedProjectRoot = profile.allowRoots?.[0] || defaults.allowRoots?.[0] || path.dirname(root);
+    const projectRootInput = await ask(rl, 'Folder containing the projects you want in the web picker', savedProjectRoot);
+    const projectRoot = realDir(projectRootInput);
+    defaults.allowRoots = [...new Set([...(defaults.allowRoots ?? []), ...(profile.allowRoots ?? []), projectRoot])];
 
-    const savedTunnel = optionValue(defaults, profile, 'tunnel', ['CODEXPRO_TUNNEL'], 'cloudflare');
+    const savedTunnel = optionValue(defaults, profile, 'tunnel', ['CODEXFLOW_TUNNEL'], 'cloudflare');
   const defaultTunnel = savedTunnel === 'cloudflare-named'
       ? 'stable'
       : savedTunnel === 'ngrok'
@@ -3216,16 +3255,16 @@ async function runSetupWizard(argv) {
           : savedTunnel === 'none'
             ? 'local'
             : 'quick';
-    const defaultPort = String(optionValue(defaults, profile, 'port', ['CODEXPRO_PORT'], '8787'));
-    const defaultMode = normalizeSetupChoice(optionValue(defaults, profile, 'mode', ['CODEXPRO_MODE'], 'agent'), ['agent', 'handoff', 'pro'], 'agent');
+    const defaultPort = String(optionValue(defaults, profile, 'port', ['CODEXFLOW_PORT'], '8787'));
+    const defaultMode = normalizeSetupChoice(optionValue(defaults, profile, 'mode', ['CODEXFLOW_MODE'], 'agent'), ['agent', 'handoff', 'pro'], 'agent');
 
-    const port = normalizePort(await ask(rl, 'Which local port should CodexPro use?', defaultPort));
+    const port = normalizePort(await ask(rl, 'Which local port should CodexFlow use?', defaultPort));
     const modeAnswer = await ask(rl, 'Mode: agent, handoff, or pro?', defaultMode);
     const mode = normalizeSetupChoice(modeAnswer, ['agent', 'handoff', 'pro'], defaultMode);
 
     printBox('Public URL', [
       'ChatGPT needs an HTTPS URL it can reach.',
-      'quick  = CodexPro creates a Cloudflare quick tunnel for demos and local work.',
+      'quick  = CodexFlow creates a Cloudflare quick tunnel for demos and local work.',
       'stable = use your own domain with a Cloudflare named tunnel so the ChatGPT app URL does not change.',
       'ngrok  = use your ngrok free dev domain, for example https://name.ngrok-free.dev.',
       'tailscale = use Tailscale Funnel, for example https://device.tailnet.ts.net.',
@@ -3235,13 +3274,14 @@ async function runSetupWizard(argv) {
     const tunnelAnswer = await ask(rl, 'Public access: quick, stable, ngrok, tailscale, or local?', defaultTunnel);
     const tunnelChoice = normalizeSetupChoice(tunnelAnswer, ['quick', 'stable', 'ngrok', 'tailscale', 'local'], defaultTunnel);
     const args = ['start', '--root', root, '--port', port, '--mode', mode];
-    const bash = optionValue(defaults, profile, 'bash', ['CODEXPRO_BASH_MODE'], '');
+    for (const allowRoot of defaults.allowRoots) args.push('--allow-root', allowRoot);
+    const bash = optionValue(defaults, profile, 'bash', ['CODEXFLOW_BASH_MODE'], '');
     const bashTranscript = bashTranscriptOption(defaults, profile);
     const codexSessions = codexSessionsOption(defaults, profile);
-    const codexDir = optionValue(defaults, profile, 'codexDir', ['CODEXPRO_CODEX_DIR'], '');
+    const codexDir = optionValue(defaults, profile, 'codexDir', ['CODEXFLOW_CODEX_DIR'], '');
     const write = optionalWriteOption(defaults, profile, mode);
-    const toolMode = optionalChoice('tool-mode', optionValue(defaults, profile, 'toolMode', ['CODEXPRO_TOOL_MODE'], ''), ['minimal', 'standard', 'full']);
-    const widgetDomain = optionValue(defaults, profile, 'widgetDomain', ['CODEXPRO_WIDGET_DOMAIN'], '');
+    const toolMode = optionalChoice('tool-mode', optionValue(defaults, profile, 'toolMode', ['CODEXFLOW_TOOL_MODE'], ''), ['minimal', 'standard', 'full']);
+    const widgetDomain = optionValue(defaults, profile, 'widgetDomain', ['CODEXFLOW_WIDGET_DOMAIN'], '');
     const toolCardsEntry = toolCardsProfileEntry(defaults, profile);
     if (bash) args.push('--bash', bash);
     if (bashTranscript !== 'compact') args.push('--bash-transcript', bashTranscript);
@@ -3264,7 +3304,7 @@ async function runSetupWizard(argv) {
     let profileNgrokConfig = '';
     let profileCloudflareConfig = '';
     let profileCloudflareTokenFile = '';
-    let profileToken = optionValue(defaults, profile, 'token', ['CODEXPRO_HTTP_TOKEN', 'CODEBASE_BRIDGE_HTTP_TOKEN'], '');
+    let profileToken = optionValue(defaults, profile, 'token', ['CODEXFLOW_HTTP_TOKEN', 'CODEBASE_BRIDGE_HTTP_TOKEN'], '');
 
     if (tunnelChoice === 'local') {
       profileTunnel = 'none';
@@ -3274,16 +3314,16 @@ async function runSetupWizard(argv) {
       let hostname = await ask(
         rl,
         'Stable Cloudflare hostname, without /mcp',
-        optionValue(defaults, profile, 'hostname', ['CODEXPRO_PUBLIC_HOSTNAME', 'CODEXPRO_HOSTNAME'], '')
+        optionValue(defaults, profile, 'hostname', ['CODEXFLOW_PUBLIC_HOSTNAME', 'CODEXFLOW_HOSTNAME'], '')
       );
-      if (!hostname) throw new Error('Stable public URL setup needs a real hostname, for example codexpro.yourdomain.com.');
+      if (!hostname) throw new Error('Stable public URL setup needs a real hostname, for example codexflow.yourdomain.com.');
       hostname = normalizePublicHostname(hostname);
       profileHostname = hostname;
-      const tunnelName = await ask(rl, 'Cloudflare tunnel name', optionValue(defaults, profile, 'tunnelName', ['CODEXPRO_TUNNEL_NAME', 'CLOUDFLARE_TUNNEL_NAME'], 'codexpro'));
+      const tunnelName = await ask(rl, 'Cloudflare tunnel name', optionValue(defaults, profile, 'tunnelName', ['CODEXFLOW_TUNNEL_NAME', 'CLOUDFLARE_TUNNEL_NAME'], 'codexflow'));
       profileTunnelName = tunnelName;
       args.push('--tunnel', 'cloudflare-named', '--hostname', hostname, '--tunnel-name', tunnelName);
-      profileCloudflareConfig = optionValue(defaults, profile, 'cloudflareConfig', ['CODEXPRO_CLOUDFLARE_CONFIG', 'CLOUDFLARE_TUNNEL_CONFIG'], '');
-      profileCloudflareTokenFile = optionValue(defaults, profile, 'cloudflareTokenFile', ['CODEXPRO_CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CLOUDFLARE_TUNNEL_TOKEN_FILE'], '');
+      profileCloudflareConfig = optionValue(defaults, profile, 'cloudflareConfig', ['CODEXFLOW_CLOUDFLARE_CONFIG', 'CLOUDFLARE_TUNNEL_CONFIG'], '');
+      profileCloudflareTokenFile = optionValue(defaults, profile, 'cloudflareTokenFile', ['CODEXFLOW_CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CLOUDFLARE_TUNNEL_TOKEN_FILE'], '');
       if (profileCloudflareConfig) args.push('--cloudflare-config', profileCloudflareConfig);
       if (profileCloudflareTokenFile) args.push('--cloudflare-token-file', profileCloudflareTokenFile);
     } else if (tunnelChoice === 'ngrok') {
@@ -3291,13 +3331,13 @@ async function runSetupWizard(argv) {
       let hostname = await ask(
         rl,
         'Ngrok domain or URL, without /mcp',
-        optionValue(defaults, profile, 'hostname', ['CODEXPRO_PUBLIC_HOSTNAME', 'CODEXPRO_HOSTNAME', 'NGROK_DOMAIN'], '')
+        optionValue(defaults, profile, 'hostname', ['CODEXFLOW_PUBLIC_HOSTNAME', 'CODEXFLOW_HOSTNAME', 'NGROK_DOMAIN'], '')
       );
       if (!hostname) throw new Error('Ngrok setup needs your reserved domain, for example name.ngrok-free.dev.');
       hostname = normalizePublicHostname(hostname);
       profileHostname = hostname;
       args.push('--tunnel', 'ngrok', '--hostname', hostname);
-      const ngrokConfig = optionValue(defaults, profile, 'ngrokConfig', ['NGROK_CONFIG', 'CODEXPRO_NGROK_CONFIG'], '');
+      const ngrokConfig = optionValue(defaults, profile, 'ngrokConfig', ['NGROK_CONFIG', 'CODEXFLOW_NGROK_CONFIG'], '');
       if (ngrokConfig) {
         profileNgrokConfig = ngrokConfig;
         args.push('--ngrok-config', ngrokConfig);
@@ -3307,7 +3347,7 @@ async function runSetupWizard(argv) {
       let hostname = await ask(
         rl,
         'Tailscale Funnel hostname, without /mcp',
-        optionValue(defaults, profile, 'hostname', ['CODEXPRO_PUBLIC_HOSTNAME', 'CODEXPRO_HOSTNAME', 'TAILSCALE_FUNNEL_HOSTNAME'], '')
+        optionValue(defaults, profile, 'hostname', ['CODEXFLOW_PUBLIC_HOSTNAME', 'CODEXFLOW_HOSTNAME', 'TAILSCALE_FUNNEL_HOSTNAME'], '')
       );
       if (!hostname) throw new Error('Tailscale setup needs your Funnel hostname, for example machine.tailnet.ts.net.');
       hostname = normalizePublicHostname(hostname);
@@ -3319,7 +3359,7 @@ async function runSetupWizard(argv) {
     }
 
     if (profileTunnel !== 'none') {
-      profileToken = await ask(rl, 'CodexPro auth token for this workspace', stableToken(profileToken));
+      profileToken = await ask(rl, 'CodexFlow auth token for this workspace', stableToken(profileToken));
       if (profileToken) args.push('--token', profileToken);
     }
 
@@ -3328,6 +3368,7 @@ async function runSetupWizard(argv) {
     const shouldSave = !['n', 'no'].includes(saveAnswer.trim().toLowerCase());
     if (shouldSave) {
       const savedPath = saveWorkspaceProfile(root, {
+        allowRoots: defaults.allowRoots.map(realDir),
         port,
         mode,
         tunnel: profileTunnel,
@@ -3352,7 +3393,7 @@ async function runSetupWizard(argv) {
       statusLine('ok', `Saved workspace profile: ${savedPath}`);
     }
 
-    const startAnswer = await ask(rl, 'Start CodexPro now?', 'yes');
+    const startAnswer = await ask(rl, 'Start CodexFlow now?', 'yes');
     const shouldStart = !['n', 'no'].includes(startAnswer.trim().toLowerCase());
     console.log('');
     console.log(paint('bold', 'Command'));
@@ -3370,15 +3411,15 @@ async function runSetupWizard(argv) {
 
 function printProfile(root, profile) {
   if (!profile.profilePath) {
-    printBox('CodexPro settings', [
+    printBox('CodexFlow settings', [
       labelValue('Workspace', root),
       'No saved settings for this workspace.',
-      'Run codexpro settings set or codexpro setup to save a tunnel preference.'
+      'Run codexflow settings set or codexflow to save a tunnel preference.'
     ]);
     return;
   }
   const safe = sanitizedProfile(profile);
-  printBox('CodexPro settings', [
+  printBox('CodexFlow settings', [
     labelValue('Workspace', root),
     labelValue('Profile', profile.profilePath),
     labelValue('Tunnel', safe.tunnel ?? 'cloudflare'),
@@ -3389,6 +3430,7 @@ function printProfile(root, profile) {
     ...(safe.cloudflareTokenFile ? [labelValue('CF token file', safe.cloudflareTokenFile)] : []),
     ...(safe.port ? [labelValue('Port', safe.port)] : []),
     ...(safe.mode ? [labelValue('Mode', safe.mode)] : []),
+    ...(safe.allowRoots?.length ? [labelValue('Project roots', safe.allowRoots.join(', '))] : []),
     ...(safe.bash ? [labelValue('Bash', safe.bash)] : []),
     ...(safe.write ? [labelValue('Write', safe.write)] : []),
     ...(safe.toolMode ? [labelValue('Tool mode', safe.toolMode)] : []),
@@ -3404,22 +3446,154 @@ function printProfile(root, profile) {
   ]);
 }
 
+function processIsAlive(pid) {
+  const numericPid = Number(pid);
+  if (!Number.isInteger(numericPid) || numericPid <= 0) return false;
+  try {
+    process.kill(numericPid, 0);
+    return true;
+  } catch (error) {
+    return Boolean(error && typeof error === 'object' && error.code === 'EPERM');
+  }
+}
+
+function safeStatusUrl(value) {
+  if (!value) return '';
+  try {
+    const url = new URL(String(value));
+    url.search = '';
+    url.hash = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return redactForLog(String(value));
+  }
+}
+
+async function probeRuntimeHealth(runtime, profile) {
+  const localBase = typeof runtime?.localBase === 'string' ? runtime.localBase.trim().replace(/\/+$/, '') : '';
+  if (!localBase) return { status: 'unknown', detail: 'No local health endpoint was recorded.' };
+
+  let healthUrl;
+  try {
+    const parsed = new URL(`${localBase}/healthz`);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported protocol');
+    healthUrl = parsed.toString();
+  } catch {
+    return { status: 'unknown', detail: 'The saved local health endpoint is invalid.' };
+  }
+
+  const token = typeof profile?.token === 'string' && profile.token
+    ? profile.token
+    : process.env.CODEXFLOW_HTTP_TOKEN || process.env.CODEBASE_BRIDGE_HTTP_TOKEN || '';
+  try {
+    const response = await fetch(healthUrl, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: AbortSignal.timeout(2000)
+    });
+    if (response.status === 401) {
+      return { status: 'auth', http_status: response.status, detail: 'Local MCP is reachable but the saved auth token is unavailable.' };
+    }
+    if (!response.ok) {
+      return { status: 'error', http_status: response.status, detail: `Local health endpoint returned HTTP ${response.status}.` };
+    }
+    return { status: 'ok', http_status: response.status, detail: 'Local MCP server is healthy.' };
+  } catch (error) {
+    return {
+      status: 'unreachable',
+      detail: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+async function runStatus(argv) {
+  const args = parseArgs(argv);
+  if (args.help) {
+    usage();
+    return;
+  }
+
+  const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? process.cwd());
+  const profile = args.noProfile ? {} : loadWorkspaceProfile(root);
+  const runtimePath = runtimeStatusPathForRoot(root);
+  let runtime = readJsonFile(runtimePath);
+  if (!runtime || typeof runtime !== 'object' || Array.isArray(runtime) || (runtime.root && runtime.root !== root)) runtime = {};
+
+  const runtimeExists = Object.keys(runtime).length > 0;
+  const active = runtimeExists && processIsAlive(runtime.pid);
+  const state = !runtimeExists ? 'not_running' : active ? 'active' : 'stale';
+  const health = active
+    ? await probeRuntimeHealth(runtime, profile)
+    : { status: state === 'stale' ? 'stale' : 'not_running', detail: state === 'stale' ? 'The launcher process is no longer running.' : 'No active runtime record was found.' };
+  const payload = {
+    schema_version: 1,
+    root,
+    state,
+    active,
+    profile: {
+      exists: Boolean(profile.profilePath),
+      path: profile.profilePath ?? null,
+      tunnel: profile.tunnel ?? null,
+      hostname: profile.hostname ?? null,
+      port: profile.port ?? null,
+      mode: profile.mode ?? null,
+      summary: profileSummary(profile) || null
+    },
+    runtime: {
+      exists: runtimeExists,
+      path: runtimeExists ? runtimePath : null,
+      pid: runtime.pid ?? null,
+      updated_at: runtime.updatedAt ?? null,
+      endpoint: safeStatusUrl(runtime.endpoint),
+      local_base: safeStatusUrl(runtime.localBase),
+      status_url: safeStatusUrl(runtime.localStatusUrl),
+      tunnel: runtime.tunnel ?? null,
+      mode: runtime.mode ?? null,
+      bash: runtime.bash ?? null,
+      write: runtime.write ?? null,
+      tool_mode: runtime.toolMode ?? null,
+      tool_cards: runtime.toolCards ?? null
+    },
+    health
+  };
+
+  if (args.json) {
+    console.log(JSON.stringify(payload, null, 2));
+  } else {
+    const stateLabel = state === 'active' ? 'active' : state === 'stale' ? 'stale runtime record' : 'not running';
+    printBox('CodexFlow status', [
+      labelValue('Workspace', root),
+      labelValue('State', stateLabel),
+      labelValue('Profile', profile.profilePath ? profileSummary(profile) || profile.profilePath : 'none saved'),
+      ...(runtime.pid ? [labelValue('PID', String(runtime.pid))] : []),
+      ...(runtime.updatedAt ? [labelValue('Updated', String(runtime.updatedAt))] : []),
+      ...(runtime.endpoint ? [labelValue('Server URL', safeStatusUrl(runtime.endpoint))] : []),
+      ...(runtime.tunnel ? [labelValue('Tunnel', String(runtime.tunnel))] : []),
+      labelValue('Health', `${health.status} — ${health.detail}`),
+      state === 'active'
+        ? 'Use Ctrl+C in the original terminal to stop the active connector.'
+        : 'Run codexflow from this workspace to create a new runtime connection.'
+    ]);
+  }
+
+  if (state !== 'active' || !['ok', 'auth', 'unknown'].includes(health.status)) process.exitCode = 1;
+}
+
 function printProfileList(profiles = listWorkspaceProfiles()) {
   if (!profiles.length) {
-    printBox('CodexPro saved setups', [
+    printBox('CodexFlow saved setups', [
       'No saved workspace settings found.',
-      'Run codexpro setup or codexpro settings set to create one.'
+      'Run codexflow or codexflow settings set to create one.'
     ]);
     return;
   }
-  printBox('CodexPro saved setups', profiles.slice(0, 50).map((profile, index) => profileOneLine(profile, index + 1)));
+  printBox('CodexFlow saved setups', profiles.slice(0, 50).map((profile, index) => profileOneLine(profile, index + 1)));
 }
 
 function saveSettingsFromArgs(root, args, profile) {
   if (args.cloudflareToken !== undefined) {
-    throw new Error('codexpro settings set does not save raw --cloudflare-token. Save it to a local file and use --cloudflare-token-file <path>; start still accepts --cloudflare-token for a single launch.');
+    throw new Error('codexflow settings set does not save raw --cloudflare-token. Save it to a local file and use --cloudflare-token-file <path>; start still accepts --cloudflare-token for a single launch.');
   }
-  const tunnel = optionValue(args, profile, 'tunnel', ['CODEXPRO_TUNNEL'], profile.tunnel ?? 'cloudflare');
+  const tunnel = optionValue(args, profile, 'tunnel', ['CODEXFLOW_TUNNEL'], profile.tunnel ?? 'cloudflare');
   if (!['none', 'cloudflare', 'cloudflare-named', 'ngrok', 'tailscale'].includes(tunnel)) {
     throw new Error('--tunnel must be none, cloudflare, cloudflare-named, ngrok, or tailscale');
   }
@@ -3429,33 +3603,35 @@ function saveSettingsFromArgs(root, args, profile) {
   if (needsHostname && !hostname) {
     throw new Error('--hostname is required for ngrok, cloudflare-named, and tailscale settings.');
   }
-  const mode = optionValue(args, profile, 'mode', ['CODEXPRO_MODE'], profile.mode ?? 'agent');
+  const mode = optionValue(args, profile, 'mode', ['CODEXFLOW_MODE'], profile.mode ?? 'agent');
   if (!['agent', 'handoff', 'pro'].includes(mode)) {
     throw new Error('--mode must be agent, handoff, or pro');
   }
-  const toolMode = optionalChoice('tool-mode', optionValue(args, profile, 'toolMode', ['CODEXPRO_TOOL_MODE'], profile.toolMode ?? ''), ['minimal', 'standard', 'full']);
-  const widgetDomain = optionValue(args, profile, 'widgetDomain', ['CODEXPRO_WIDGET_DOMAIN'], profile.widgetDomain ?? '');
-  const port = normalizePort(optionValue(args, profile, 'port', ['CODEXPRO_PORT'], profile.port ?? '8787'));
+  const toolMode = optionalChoice('tool-mode', optionValue(args, profile, 'toolMode', ['CODEXFLOW_TOOL_MODE'], profile.toolMode ?? ''), ['minimal', 'standard', 'full']);
+  const widgetDomain = optionValue(args, profile, 'widgetDomain', ['CODEXFLOW_WIDGET_DOMAIN'], profile.widgetDomain ?? '');
+  const port = normalizePort(optionValue(args, profile, 'port', ['CODEXFLOW_PORT'], profile.port ?? '8787'));
   const bashTranscript = bashTranscriptOption(args, profile);
   const codexSessions = codexSessionsOption(args, profile);
-  const codexDir = optionValue(args, profile, 'codexDir', ['CODEXPRO_CODEX_DIR'], profile.codexDir ?? '');
+  const codexDir = optionValue(args, profile, 'codexDir', ['CODEXFLOW_CODEX_DIR'], profile.codexDir ?? '');
   const { bashSession, requireBashSession } = bashSessionOptions(args, profile);
   const write = writeOption(args, profile, mode);
-  const bash = optionalChoice('bash', optionValue(args, profile, 'bash', ['CODEXPRO_BASH_MODE'], profile.bash ?? ''), ['off', 'safe', 'full']);
+  const bash = optionalChoice('bash', optionValue(args, profile, 'bash', ['CODEXFLOW_BASH_MODE'], profile.bash ?? ''), ['off', 'safe', 'full']);
   const tunnelName = tunnel === 'cloudflare-named' ? (args.tunnelName ?? profile.tunnelName ?? '') : '';
   const ngrokConfig = tunnel === 'ngrok'
-    ? resolveConfigPath(root, optionValue(args, profile, 'ngrokConfig', ['NGROK_CONFIG', 'CODEXPRO_NGROK_CONFIG'], ''))
+    ? resolveConfigPath(root, optionValue(args, profile, 'ngrokConfig', ['NGROK_CONFIG', 'CODEXFLOW_NGROK_CONFIG'], ''))
     : '';
   const cloudflareConfig = tunnel === 'cloudflare-named'
-    ? resolveConfigPath(root, optionValue(args, profile, 'cloudflareConfig', ['CODEXPRO_CLOUDFLARE_CONFIG', 'CLOUDFLARE_TUNNEL_CONFIG'], ''))
+    ? resolveConfigPath(root, optionValue(args, profile, 'cloudflareConfig', ['CODEXFLOW_CLOUDFLARE_CONFIG', 'CLOUDFLARE_TUNNEL_CONFIG'], ''))
     : '';
   const cloudflareTokenFile = tunnel === 'cloudflare-named'
-    ? resolveConfigPath(root, optionValue(args, profile, 'cloudflareTokenFile', ['CODEXPRO_CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CLOUDFLARE_TUNNEL_TOKEN_FILE'], ''))
+    ? resolveConfigPath(root, optionValue(args, profile, 'cloudflareTokenFile', ['CODEXFLOW_CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CLOUDFLARE_TUNNEL_TOKEN_FILE'], ''))
     : '';
   const token = tunnel === 'none'
-    ? optionValue(args, profile, 'token', ['CODEXPRO_HTTP_TOKEN', 'CODEBASE_BRIDGE_HTTP_TOKEN'], profile.token ?? '')
-    : stableToken(optionValue(args, profile, 'token', ['CODEXPRO_HTTP_TOKEN', 'CODEBASE_BRIDGE_HTTP_TOKEN'], profile.token ?? ''));
+    ? optionValue(args, profile, 'token', ['CODEXFLOW_HTTP_TOKEN', 'CODEBASE_BRIDGE_HTTP_TOKEN'], profile.token ?? '')
+    : stableToken(optionValue(args, profile, 'token', ['CODEXFLOW_HTTP_TOKEN', 'CODEBASE_BRIDGE_HTTP_TOKEN'], profile.token ?? ''));
+  const allowRoots = [...new Set([...(profile.allowRoots ?? []), ...(args.allowRoots ?? [])].map(realDir))];
   const savedPath = saveWorkspaceProfile(root, {
+    ...(allowRoots.length ? { allowRoots } : {}),
     port,
     mode,
     tunnel,
@@ -3500,7 +3676,7 @@ async function runSettings(argv) {
     usage();
     return;
   }
-  const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
+  const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? process.cwd());
   const profile = args.noProfile ? {} : loadWorkspaceProfile(root);
 
   if (action === 'list' || action === 'ls') {
@@ -3530,7 +3706,7 @@ async function runSettings(argv) {
         rl.close();
       }
     } else if (!args.yes) {
-      throw new Error('Use codexpro settings delete --yes in non-interactive shells.');
+      throw new Error('Use codexflow settings delete --yes in non-interactive shells.');
     }
     deleteWorkspaceProfile(root);
     statusLine('ok', 'Deleted saved settings for this workspace.');
@@ -3627,11 +3803,11 @@ async function runSettings(argv) {
 }
 
 function writeControlPrompt() {
-  process.stdout.write('codexpro> ');
+  process.stdout.write('codexflow> ');
 }
 
-function runControlPanel(details, cleanup = cleanupChildren) {
-  if (!process.stdin.isTTY) return new Promise(() => {});
+function runControlPanel(details, cleanup = cleanupChildren, options = {}) {
+  if (options.nonInteractive || !process.stdin.isTTY || !process.stdout.isTTY) return Promise.resolve();
 
   writeControlPrompt();
 
@@ -3642,7 +3818,7 @@ function runControlPanel(details, cleanup = cleanupChildren) {
   return new Promise(() => {
     process.stdin.on('data', (key) => {
       if (key === '\u0003') {
-        console.log('\nStopping CodexPro...');
+        console.log('\nStopping CodexFlow...');
         cleanup();
         process.exit(130);
       }
@@ -3663,7 +3839,7 @@ function runControlPanel(details, cleanup = cleanupChildren) {
           console.log('\nNo local status page URL is available for this run.');
         } else {
           const opened = openUrl(details.localStatusUrl);
-          console.log(opened ? '\nOpened local CodexPro setup/status page.' : `\nCould not open automatically. Open this URL:\n${details.localStatusUrl}`);
+          console.log(opened ? '\nOpened local CodexFlow status/settings dashboard.' : `\nCould not open automatically. Open this URL:\n${details.localStatusUrl}`);
         }
         writeControlPrompt();
       } else if (normalized === 'p') {
@@ -3679,7 +3855,7 @@ function runControlPanel(details, cleanup = cleanupChildren) {
         printControlHelp();
         writeControlPrompt();
       } else if (normalized === 'q') {
-        console.log('\nStopping CodexPro...');
+        console.log('\nStopping CodexFlow...');
         cleanup();
         process.exit(0);
       }
@@ -3704,17 +3880,15 @@ async function main() {
     return;
   }
   if (subcommand === 'setup' || subcommand === 'onboard') {
-    if (argv.includes('--help') || argv[1] === 'help') {
-      usage();
-      return;
-    }
-    const setupArgs = await runSetupWizard(argv.slice(1));
-    if (!setupArgs) return;
-    argv = setupArgs;
+    argv = argv.slice(1);
     subcommand = argv[0];
   }
   if (subcommand === 'settings' || subcommand === 'config') {
     await runSettings(argv.slice(1));
+    return;
+  }
+  if (subcommand === 'status' || subcommand === 'state') {
+    await runStatus(argv.slice(1));
     return;
   }
   if (subcommand === 'execute-handoff' || subcommand === 'execute' || subcommand === 'run-handoff') {
@@ -3785,24 +3959,25 @@ async function main() {
     return;
   }
 
-  const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
+  const initialCodexDir = path.resolve(expandHome(args.codexDir ?? process.env.CODEXFLOW_CODEX_DIR ?? path.join(os.homedir(), '.codex')));
+  const discoveredProjects = await discoverCodexProjectDirectories(initialCodexDir);
+  const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? discoveredProjects[0] ?? process.cwd());
   let profile = args.noProfile ? {} : loadWorkspaceProfile(root);
-  profile = await maybeConfigureFirstRun(root, args, profile);
   const effectiveArgs = { ...profile, ...args };
   if (profile.profilePath && !args.noProfile) {
     statusLine('ok', `Using saved profile: ${profile.profilePath}`);
     const summary = profileSummary(profile);
-    if (summary) statusLine('ok', `${summary}. Future launches from this folder only need: codexpro start`);
+    if (summary) statusLine('ok', `${summary}.`);
   }
 
-  const tunnel = optionValue(args, profile, 'tunnel', ['CODEXPRO_TUNNEL'], 'cloudflare');
+  const tunnel = optionValue(args, profile, 'tunnel', ['CODEXFLOW_TUNNEL'], 'cloudflare');
   if (!['none', 'cloudflare', 'cloudflare-named', 'ngrok', 'tailscale'].includes(tunnel)) {
     throw new Error('--tunnel must be none, cloudflare, cloudflare-named, ngrok, or tailscale');
   }
   const stableHostname = args.hostname
     ?? args.url
-    ?? process.env.CODEXPRO_PUBLIC_HOSTNAME
-    ?? process.env.CODEXPRO_HOSTNAME
+    ?? process.env.CODEXFLOW_PUBLIC_HOSTNAME
+    ?? process.env.CODEXFLOW_HOSTNAME
     ?? process.env.NGROK_DOMAIN
     ?? profile.hostname
     ?? '';
@@ -3811,63 +3986,63 @@ async function main() {
     throw new Error('--hostname is required with stable URL mode.');
   }
   if (tunnel === 'ngrok' && !stableHostname) {
-    throw new Error('--hostname is required with ngrok tunnel mode. Example: codexpro ngrok --hostname your-domain.ngrok-free.dev');
+    throw new Error('--hostname is required with ngrok tunnel mode. Example: codexflow ngrok --hostname your-domain.ngrok-free.dev');
   }
   if (tunnel === 'tailscale' && !stableHostname) {
-    throw new Error('--hostname is required with Tailscale Funnel mode. Example: codexpro tailscale --hostname your-device.your-tailnet.ts.net');
+    throw new Error('--hostname is required with Tailscale Funnel mode. Example: codexflow tailscale --hostname your-device.your-tailnet.ts.net');
   }
-  const mode = optionValue(args, profile, 'mode', ['CODEXPRO_MODE'], 'agent');
+  const mode = optionValue(args, profile, 'mode', ['CODEXFLOW_MODE'], 'agent');
   if (!['agent', 'handoff', 'pro'].includes(mode)) {
     throw new Error('--mode must be agent, handoff, or pro');
   }
 
-  const allowRoots = [root, ...(args.allowRoots ?? [])].map(realDir);
-  const host = optionValue(args, profile, 'host', ['CODEXPRO_HOST'], '127.0.0.1');
+  const allowRoots = [...new Set([root, ...discoveredProjects, ...(profile.allowRoots ?? []), ...(args.allowRoots ?? [])].map(realDir))];
+  const host = optionValue(args, profile, 'host', ['CODEXFLOW_HOST'], '127.0.0.1');
   if (args.noAuth && (tunnel !== 'none' || !isLoopbackHost(host))) {
     throw new Error('--no-auth is only allowed with --tunnel none on a loopback host.');
   }
-  const port = String(optionValue(args, profile, 'port', ['CODEXPRO_PORT'], '8787'));
-  const bash = optionValue(args, profile, 'bash', ['CODEXPRO_BASH_MODE'], 'safe');
+  const port = String(optionValue(args, profile, 'port', ['CODEXFLOW_PORT'], '8787'));
+  const bash = optionValue(args, profile, 'bash', ['CODEXFLOW_BASH_MODE'], 'safe');
   const bashTranscript = bashTranscriptOption(args, profile);
   const codexSessions = codexSessionsOption(args, profile);
-  const codexDir = resolveCodexDir(root, optionValue(args, profile, 'codexDir', ['CODEXPRO_CODEX_DIR'], ''));
+  const codexDir = resolveCodexDir(root, optionValue(args, profile, 'codexDir', ['CODEXFLOW_CODEX_DIR'], ''));
   const { bashSession, requireBashSession } = bashSessionOptions(args, profile);
   const write = writeOption(args, profile, mode);
-  const toolMode = optionValue(args, profile, 'toolMode', ['CODEXPRO_TOOL_MODE'], 'standard');
-  const widgetDomain = optionValue(args, profile, 'widgetDomain', ['CODEXPRO_WIDGET_DOMAIN'], 'https://rebel0789.github.io');
-  const toolCards = optionBool(args, profile, 'toolCards', ['CODEXPRO_TOOL_CARDS'], false);
+  const toolMode = optionValue(args, profile, 'toolMode', ['CODEXFLOW_TOOL_MODE'], 'standard');
+  const widgetDomain = optionValue(args, profile, 'widgetDomain', ['CODEXFLOW_WIDGET_DOMAIN'], 'https://tarunspandit.github.io');
+  const toolCards = optionBool(args, profile, 'toolCards', ['CODEXFLOW_TOOL_CARDS'], false);
   validateChoice('bash', bash, ['off', 'safe', 'full']);
   validateChoice('write', write, ['off', 'handoff', 'workspace']);
   validateChoice('tool-mode', toolMode, ['minimal', 'standard', 'full']);
 
-  let token = args.noAuth ? '' : optionValue(args, profile, 'token', ['CODEXPRO_HTTP_TOKEN', 'CODEBASE_BRIDGE_HTTP_TOKEN'], '');
+  let token = args.noAuth ? '' : optionValue(args, profile, 'token', ['CODEXFLOW_HTTP_TOKEN', 'CODEBASE_BRIDGE_HTTP_TOKEN'], '');
   if (!token && !args.noAuth) token = stableToken();
 
   const serverEnv = {
     ...process.env,
-    CODEXPRO_ROOT: root,
-    CODEXPRO_ALLOWED_ROOTS: allowRoots.join(path.delimiter),
-    CODEXPRO_HOST: host,
-    CODEXPRO_PORT: port,
-    CODEXPRO_BASH_MODE: bash,
-    CODEXPRO_BASH_TRANSCRIPT: bashTranscript,
-    CODEXPRO_BASH_SESSION_ID: bashSession,
-    CODEXPRO_REQUIRE_BASH_SESSION: requireBashSession ? '1' : '0',
-    CODEXPRO_CODEX_SESSIONS: codexSessions,
-    CODEXPRO_WRITE_MODE: write,
-    CODEXPRO_TOOL_MODE: toolMode,
-    CODEXPRO_WIDGET_DOMAIN: widgetDomain,
-    CODEXPRO_TOOL_CARDS: toolCards ? '1' : '0',
-    CODEXPRO_CONNECTION_TEST: connectionTest ? '1' : '0',
-    CODEXPRO_MODE: mode,
-    CODEXPRO_TUNNEL_MODE: tunnel === 'none' ? '0' : '1',
-    CODEXPRO_ALLOW_NO_HTTP_TOKEN: args.noAuth ? '1' : '0'
+    CODEXFLOW_ROOT: root,
+    CODEXFLOW_ALLOWED_ROOTS: allowRoots.join(path.delimiter),
+    CODEXFLOW_HOST: host,
+    CODEXFLOW_PORT: port,
+    CODEXFLOW_BASH_MODE: bash,
+    CODEXFLOW_BASH_TRANSCRIPT: bashTranscript,
+    CODEXFLOW_BASH_SESSION_ID: bashSession,
+    CODEXFLOW_REQUIRE_BASH_SESSION: requireBashSession ? '1' : '0',
+    CODEXFLOW_CODEX_SESSIONS: codexSessions,
+    CODEXFLOW_WRITE_MODE: write,
+    CODEXFLOW_TOOL_MODE: toolMode,
+    CODEXFLOW_WIDGET_DOMAIN: widgetDomain,
+    CODEXFLOW_TOOL_CARDS: toolCards ? '1' : '0',
+    CODEXFLOW_CONNECTION_TEST: connectionTest ? '1' : '0',
+    CODEXFLOW_MODE: mode,
+    CODEXFLOW_TUNNEL_MODE: tunnel === 'none' ? '0' : '1',
+    CODEXFLOW_ALLOW_NO_HTTP_TOKEN: args.noAuth ? '1' : '0'
   };
-  if (codexDir) serverEnv.CODEXPRO_CODEX_DIR = codexDir;
-  if (args.logRequests || process.env.CODEXPRO_LOG_REQUESTS === '1') serverEnv.CODEXPRO_LOG_REQUESTS = '1';
-  if (args.allowHome) serverEnv.CODEXPRO_ALLOW_HOME = '1';
-  if (token) serverEnv.CODEXPRO_HTTP_TOKEN = token;
-  else delete serverEnv.CODEXPRO_HTTP_TOKEN;
+  if (codexDir) serverEnv.CODEXFLOW_CODEX_DIR = codexDir;
+  if (args.logRequests || process.env.CODEXFLOW_LOG_REQUESTS === '1') serverEnv.CODEXFLOW_LOG_REQUESTS = '1';
+  if (args.allowHome) serverEnv.CODEXFLOW_ALLOW_HOME = '1';
+  if (token) serverEnv.CODEXFLOW_HTTP_TOKEN = token;
+  else delete serverEnv.CODEXFLOW_HTTP_TOKEN;
 
   if (args.printEnv) {
     console.log(JSON.stringify(redactEnvObject(serverEnv), null, 2));
@@ -3880,8 +4055,9 @@ async function main() {
 
   await assertPortAvailable(host, port);
 
-  printBox('CodexPro start', [
-    labelValue('Workspace', root),
+  printBox('CodexFlow', [
+    labelValue('Default project', root),
+    labelValue('Projects found', String(allowRoots.length)),
     labelValue('Mode', `${mode}  tools=${toolMode}  write=${write}  bash=${bash}`),
     labelValue('Bash transcript', bashTranscript),
     labelValue('Codex sessions', codexSessions),
@@ -3901,9 +4077,9 @@ async function main() {
     )
   ]);
 
-  const verboseLogs = Boolean(args.logRequests || process.env.CODEXPRO_LOG_REQUESTS === '1');
+  const verboseLogs = Boolean(args.logRequests || process.env.CODEXFLOW_LOG_REQUESTS === '1');
   statusLine('wait', 'Starting local MCP server');
-  const server = spawnLogged('codexpro', process.execPath, [httpPath], { cwd: projectRoot, env: serverEnv, verbose: verboseLogs });
+  const server = spawnLogged('codexflow', process.execPath, [httpPath], { cwd: projectRoot, env: serverEnv, verbose: verboseLogs });
   let cloudflared;
   let cleanupTunnelCredentials = () => {};
   const cleanup = () => {
@@ -3950,10 +4126,11 @@ async function main() {
       codexSessions,
       bashSession,
       requireBashSession,
-      connectionTest
+      connectionTest,
+      nonInteractive: Boolean(args.nonInteractive)
     });
     saveRuntimeConnection(root, details, runtimeOptions);
-    await runControlPanel(details, cleanup);
+    await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
     return;
   }
 
@@ -3968,14 +4145,14 @@ async function main() {
     try {
       await waitForPublicHealth(publicBase, token, cloudflared, 'ngrok');
     } catch (error) {
-      const tail = typeof cloudflared.codexproLogTail === 'function' ? cloudflared.codexproLogTail() : '';
+      const tail = typeof cloudflared.codexflowLogTail === 'function' ? cloudflared.codexflowLogTail() : '';
       const hint = [
         '',
         'Ngrok stable domains need one-time setup before this can succeed:',
         '',
         '  ngrok config add-authtoken <your-ngrok-token>',
         '  find your free ngrok dev domain in the ngrok dashboard',
-        '  codexpro ngrok --hostname your-domain.ngrok-free.dev --token keep-this-stable-token',
+        '  codexflow ngrok --hostname your-domain.ngrok-free.dev --token keep-this-stable-token',
         '',
         'If the domain is already in use, stop the other ngrok process or choose another reserved domain.'
       ].join('\n');
@@ -3994,10 +4171,11 @@ async function main() {
       codexSessions,
       bashSession,
       requireBashSession,
-      connectionTest
+      connectionTest,
+      nonInteractive: Boolean(args.nonInteractive)
     });
     saveRuntimeConnection(root, details, runtimeOptions);
-    await runControlPanel(details, cleanup);
+    await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
     return;
   }
 
@@ -4013,16 +4191,16 @@ async function main() {
     try {
       await waitForPublicHealth(publicBase, token, cloudflared, 'Tailscale Funnel');
     } catch (error) {
-      const tail = typeof cloudflared.codexproLogTail === 'function' ? cloudflared.codexproLogTail() : '';
+      const tail = typeof cloudflared.codexflowLogTail === 'function' ? cloudflared.codexflowLogTail() : '';
       const hint = [
         '',
         'Tailscale Funnel needs one-time setup before this can succeed:',
         '',
         '  install and log in to Tailscale',
         '  enable MagicDNS, HTTPS certificates, and Funnel for this tailnet',
-        '  codexpro tailscale --hostname your-device.your-tailnet.ts.net --token keep-this-stable-token',
+        '  codexflow tailscale --hostname your-device.your-tailnet.ts.net --token keep-this-stable-token',
         '',
-        'Funnel exposes this connector publicly. Keep the CodexPro token enabled.'
+        'Funnel exposes this connector publicly. Keep the CodexFlow token enabled.'
       ].join('\n');
       throw new Error(`${error instanceof Error ? error.message : String(error)}${tail ? `\n\nRecent tailscale output:\n${tail}` : ''}${hint}`);
     }
@@ -4039,10 +4217,11 @@ async function main() {
       codexSessions,
       bashSession,
       requireBashSession,
-      connectionTest
+      connectionTest,
+      nonInteractive: Boolean(args.nonInteractive)
     });
     saveRuntimeConnection(root, details, runtimeOptions);
-    await runControlPanel(details, cleanup);
+    await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
     return;
   }
 
@@ -4064,10 +4243,11 @@ async function main() {
       codexSessions,
       bashSession,
       requireBashSession,
-      connectionTest
+      connectionTest,
+      nonInteractive: Boolean(args.nonInteractive)
     });
     saveRuntimeConnection(root, details, runtimeOptions);
-    await runControlPanel(details, cleanup);
+    await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
     return;
   }
 
@@ -4107,18 +4287,19 @@ async function main() {
       codexSessions,
       bashSession,
       requireBashSession,
-      connectionTest
+      connectionTest,
+      nonInteractive: Boolean(args.nonInteractive)
     });
     saveRuntimeConnection(root, details, runtimeOptions);
-    await runControlPanel(details, cleanup);
+    await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
     return;
   }
 
   const publicBase = publicBaseFromHostname(stableHostname);
-  const tunnelName = optionValue(args, profile, 'tunnelName', ['CLOUDFLARE_TUNNEL_NAME', 'CODEXPRO_TUNNEL_NAME'], '');
-  const cloudflareConfig = resolveConfigPath(root, optionValue(args, profile, 'cloudflareConfig', ['CLOUDFLARE_TUNNEL_CONFIG', 'CODEXPRO_CLOUDFLARE_CONFIG'], ''));
-  const cloudflareTokenFile = resolveConfigPath(root, optionValue(args, profile, 'cloudflareTokenFile', ['CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CODEXPRO_CLOUDFLARE_TUNNEL_TOKEN_FILE'], ''));
-  const cloudflareToken = optionValue(args, profile, 'cloudflareToken', ['CLOUDFLARE_TUNNEL_TOKEN', 'CODEXPRO_CLOUDFLARE_TUNNEL_TOKEN'], '');
+  const tunnelName = optionValue(args, profile, 'tunnelName', ['CLOUDFLARE_TUNNEL_NAME', 'CODEXFLOW_TUNNEL_NAME'], '');
+  const cloudflareConfig = resolveConfigPath(root, optionValue(args, profile, 'cloudflareConfig', ['CLOUDFLARE_TUNNEL_CONFIG', 'CODEXFLOW_CLOUDFLARE_CONFIG'], ''));
+  const cloudflareTokenFile = resolveConfigPath(root, optionValue(args, profile, 'cloudflareTokenFile', ['CLOUDFLARE_TUNNEL_TOKEN_FILE', 'CODEXFLOW_CLOUDFLARE_TUNNEL_TOKEN_FILE'], ''));
+  const cloudflareToken = optionValue(args, profile, 'cloudflareToken', ['CLOUDFLARE_TUNNEL_TOKEN', 'CODEXFLOW_CLOUDFLARE_TUNNEL_TOKEN'], '');
 
   const cloudflaredArgs = ['tunnel'];
   if (cloudflareConfig) {
@@ -4146,7 +4327,7 @@ async function main() {
   try {
     await waitForPublicHealth(publicBase, token, cloudflared);
   } catch (error) {
-    const tail = typeof cloudflared.codexproLogTail === 'function' ? cloudflared.codexproLogTail() : '';
+    const tail = typeof cloudflared.codexflowLogTail === 'function' ? cloudflared.codexflowLogTail() : '';
     const hint = [
       '',
       'Named Cloudflare tunnels need one-time setup before this can succeed:',
@@ -4157,7 +4338,7 @@ async function main() {
       '',
       'Or create a remotely managed tunnel in the Cloudflare dashboard and pass:',
       '',
-      '  --cloudflare-token-file ~/.codexpro/cloudflare-tunnel-token',
+      '  --cloudflare-token-file ~/.codexflow/cloudflare-tunnel-token',
       '',
       'Quick tunnels do not support a permanent hostname. Use --tunnel cloudflare only for demos.'
     ].join('\n');
@@ -4176,17 +4357,18 @@ async function main() {
     codexSessions,
     bashSession,
     requireBashSession,
-    connectionTest
+    connectionTest,
+    nonInteractive: Boolean(args.nonInteractive)
   });
   saveRuntimeConnection(root, details, runtimeOptions);
-  await runControlPanel(details, cleanup);
+  await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
 }
 
 main().catch((error) => {
   cleanupChildren();
   const message = error instanceof Error ? error.message : String(error);
   console.error(`Error: ${message}`);
-  if (process.env.CODEXPRO_DEBUG === '1' && error instanceof Error && error.stack) {
+  if (process.env.CODEXFLOW_DEBUG === '1' && error instanceof Error && error.stack) {
     console.error(error.stack);
   }
   process.exit(1);

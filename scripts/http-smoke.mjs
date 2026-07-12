@@ -73,21 +73,21 @@ async function waitForHealthJson(url, timeoutMs = 15000) {
 }
 
 async function expectHttpTokenRequired(name, overrides = {}, options = {}) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), `codexpro-http-no-token-${name}-`));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), `codexflow-http-no-token-${name}-`));
   const port = await getFreePort();
   const env = {
     ...process.env,
-    CODEXPRO_ROOT: root,
-    CODEXPRO_ALLOWED_ROOTS: root,
-    CODEXPRO_HOST: '127.0.0.1',
-    CODEXPRO_PORT: String(port),
-    CODEXPRO_BASH_MODE: 'safe',
-    CODEXPRO_WRITE_MODE: 'handoff',
+    CODEXFLOW_ROOT: root,
+    CODEXFLOW_ALLOWED_ROOTS: root,
+    CODEXFLOW_HOST: '127.0.0.1',
+    CODEXFLOW_PORT: String(port),
+    CODEXFLOW_BASH_MODE: 'safe',
+    CODEXFLOW_WRITE_MODE: 'handoff',
     ...overrides
   };
-  delete env.CODEXPRO_HTTP_TOKEN;
+  delete env.CODEXFLOW_HTTP_TOKEN;
   delete env.CODEBASE_BRIDGE_HTTP_TOKEN;
-  if (!options.keepAllowNoToken) delete env.CODEXPRO_ALLOW_NO_HTTP_TOKEN;
+  if (!options.keepAllowNoToken) delete env.CODEXFLOW_ALLOW_NO_HTTP_TOKEN;
 
   const child = spawn('node', ['dist/http.js'], {
     cwd: path.resolve('.'),
@@ -98,13 +98,13 @@ async function expectHttpTokenRequired(name, overrides = {}, options = {}) {
   if (result.code === 0) {
     throw new Error(`expected ${name} HTTP server without token to fail closed`);
   }
-  if (!result.stderr.includes('CODEXPRO_HTTP_TOKEN is required')) {
+  if (!result.stderr.includes('CODEXFLOW_HTTP_TOKEN is required')) {
     throw new Error(`expected ${name} missing-token failure, got:\n${result.stderr}`);
   }
 }
 
 async function listTools(url, token) {
-  const client = new Client({ name: 'codexpro-http-smoke', version: '0.0.0' });
+  const client = new Client({ name: 'codexflow-http-smoke', version: '0.0.0' });
   const transport = new StreamableHTTPClientTransport(new URL(url), {
     requestInit: token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
   });
@@ -134,12 +134,12 @@ function hasToolCardStatusMeta(tools, name) {
 }
 
 await expectHttpTokenRequired('loopback-default');
-await expectHttpTokenRequired('non-loopback', { CODEXPRO_HOST: '0.0.0.0' });
-await expectHttpTokenRequired('non-loopback-allow-no-token', { CODEXPRO_HOST: '0.0.0.0', CODEXPRO_ALLOW_NO_HTTP_TOKEN: '1' }, { keepAllowNoToken: true });
-await expectHttpTokenRequired('tunnel-mode', { CODEXPRO_TUNNEL_MODE: '1' });
+await expectHttpTokenRequired('non-loopback', { CODEXFLOW_HOST: '0.0.0.0' });
+await expectHttpTokenRequired('non-loopback-allow-no-token', { CODEXFLOW_HOST: '0.0.0.0', CODEXFLOW_ALLOW_NO_HTTP_TOKEN: '1' }, { keepAllowNoToken: true });
+await expectHttpTokenRequired('tunnel-mode', { CODEXFLOW_TUNNEL_MODE: '1' });
 
 async function withClient(url, fn) {
-  const client = new Client({ name: 'codexpro-http-smoke', version: '0.0.0' });
+  const client = new Client({ name: 'codexflow-http-smoke', version: '0.0.0' });
   const transport = new StreamableHTTPClientTransport(new URL(url));
   try {
     await client.connect(transport);
@@ -171,7 +171,7 @@ async function expectSessionNotFound(response, label) {
 }
 
 function postToolsListWithSession(baseUrl, token, sessionId) {
-  return fetch(`${baseUrl}/mcp?codexpro_token=${encodeURIComponent(token)}`, {
+  return fetch(`${baseUrl}/mcp?codexflow_token=${encodeURIComponent(token)}`, {
     method: 'POST',
     headers: {
       accept: 'application/json, text/event-stream',
@@ -182,8 +182,13 @@ function postToolsListWithSession(baseUrl, token, sessionId) {
   });
 }
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-http-smoke-'));
-const profileHome = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-http-profile-home-'));
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-http-smoke-'));
+const alternateProject = path.join(root, 'alternate-project');
+await fs.mkdir(alternateProject, { recursive: true });
+await fs.writeFile(path.join(alternateProject, 'package.json'), '{"name":"alternate-project"}\n', 'utf8');
+await fs.writeFile(path.join(alternateProject, 'routing.txt'), 'alternate-chat-binding\n', 'utf8');
+await fs.writeFile(path.join(root, 'routing.txt'), 'default-chat-binding\n', 'utf8');
+const profileHome = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-http-profile-home-'));
 await fs.mkdir(path.join(root, '.codex', 'skills', 'http-smoke-skill'), { recursive: true });
 await fs.writeFile(path.join(root, '.codex', 'skills', 'http-smoke-skill', 'SKILL.md'), [
   '---',
@@ -196,7 +201,7 @@ await fs.writeFile(path.join(root, '.codex', 'skills', 'http-smoke-skill', 'SKIL
 ].join('\n'), 'utf8');
 const port = await getFreePort();
 const genericPort = await getFreePort();
-const token = 'codexpro-http-smoke-token';
+const token = 'codexflow-http-smoke-token';
 const runtimeQuerySecret = 'runtimequerysecret1234567890';
 const runtimeAccessSecret = 'runtimeaccesssecret1234567890';
 const runtimeCloudflareSecret = 'eyJhbGciOiJIUzI1NiJ9.eyJ0dW5uZWwiOiJodHRwLXNtb2tlIn0.signature1234567890';
@@ -207,7 +212,7 @@ await fs.writeFile(path.join(profileHome, 'runtime', `${runtimeId}.json`), JSON.
   version: 1,
   root,
   endpoint: `https://runtime.example/mcp?token=${runtimeQuerySecret}`,
-  localStatusUrl: `http://127.0.0.1:${port}/?codexpro_token=${token}&access_token=${runtimeAccessSecret}`,
+  localStatusUrl: `http://127.0.0.1:${port}/?codexflow_token=${token}&access_token=${runtimeAccessSecret}`,
   note: `cloudflared tunnel run --token ${runtimeCloudflareSecret}`
 }, null, 2), 'utf8');
 const child = spawn('node', ['dist/http.js'], {
@@ -216,17 +221,17 @@ const child = spawn('node', ['dist/http.js'], {
     ...process.env,
     HOST: '0.0.0.0',
     PORT: String(genericPort),
-    CODEXPRO_ROOT: root,
-    CODEXPRO_ALLOWED_ROOTS: root,
-    CODEXPRO_HOST: '127.0.0.1',
-    CODEXPRO_PORT: String(port),
-    CODEXPRO_HTTP_TOKEN: token,
-    CODEXPRO_BASH_MODE: 'safe',
-    CODEXPRO_WRITE_MODE: 'handoff',
-    CODEXPRO_TOOL_MODE: 'full',
-    CODEXPRO_TOOL_CARDS: '0',
-    CODEXPRO_WIDGET_DOMAIN: 'https://widgets.codexpro.test',
-    CODEXPRO_HOME: profileHome
+    CODEXFLOW_ROOT: root,
+    CODEXFLOW_ALLOWED_ROOTS: root,
+    CODEXFLOW_HOST: '127.0.0.1',
+    CODEXFLOW_PORT: String(port),
+    CODEXFLOW_HTTP_TOKEN: token,
+    CODEXFLOW_BASH_MODE: 'safe',
+    CODEXFLOW_WRITE_MODE: 'handoff',
+    CODEXFLOW_TOOL_MODE: 'full',
+    CODEXFLOW_TOOL_CARDS: '0',
+    CODEXFLOW_WIDGET_DOMAIN: 'https://widgets.codexflow.test',
+    CODEXFLOW_HOME: profileHome
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
@@ -260,12 +265,12 @@ try {
     }
   }
 
-  const queryAuthorized = await fetch(`${baseUrl}/healthz?codexpro_token=${encodeURIComponent(token)}`);
+  const queryAuthorized = await fetch(`${baseUrl}/healthz?codexflow_token=${encodeURIComponent(token)}`);
   if (queryAuthorized.status !== 200) {
     throw new Error(`expected URL-token healthz to return 200, got ${queryAuthorized.status}`);
   }
 
-  const badAdminJson = await fetch(`${baseUrl}/admin/profile?codexpro_token=${encodeURIComponent(token)}`, {
+  const badAdminJson = await fetch(`${baseUrl}/admin/profile?codexflow_token=${encodeURIComponent(token)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: '{"tunnel":'
@@ -275,7 +280,7 @@ try {
     throw new Error(`expected invalid admin JSON to return structured 400, got ${badAdminJson.status} ${JSON.stringify(badAdminBody)}`);
   }
 
-  const badMcpJson = await fetch(`${baseUrl}/mcp?codexpro_token=${encodeURIComponent(token)}`, {
+  const badMcpJson = await fetch(`${baseUrl}/mcp?codexflow_token=${encodeURIComponent(token)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: '{"jsonrpc":'
@@ -285,7 +290,7 @@ try {
     throw new Error(`expected invalid MCP JSON to return JSON-RPC parse error, got ${badMcpJson.status} ${JSON.stringify(badMcpBody)}`);
   }
 
-  const hugeMcpJson = await fetch(`${baseUrl}/mcp?codexpro_token=${encodeURIComponent(token)}`, {
+  const hugeMcpJson = await fetch(`${baseUrl}/mcp?codexflow_token=${encodeURIComponent(token)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { filler: 'x'.repeat(21 * 1024 * 1024) } })
@@ -300,12 +305,12 @@ try {
     throw new Error(`expected unauthenticated favicon to return SVG 200, got ${favicon.status} ${favicon.headers.get('content-type')}`);
   }
 
-  const home = await fetch(`${baseUrl}/?codexpro_token=${encodeURIComponent(token)}`);
+  const home = await fetch(`${baseUrl}/?codexflow_token=${encodeURIComponent(token)}`);
   const homeText = await home.text();
   if (home.status !== 200 || !home.headers.get('content-type')?.includes('text/html')) {
     throw new Error(`expected authenticated onboarding page to return HTML 200, got ${home.status}`);
   }
-  if (!homeText.includes('CodexPro Local Control') || !homeText.includes('CLI controls') || !homeText.includes('Connect ChatGPT') || !homeText.includes('Runtime guardrails')) {
+  if (!homeText.includes('CodexFlow Local Control') || !homeText.includes('CLI controls') || !homeText.includes('Connect ChatGPT') || !homeText.includes('Runtime guardrails')) {
     throw new Error('onboarding page did not include expected admin setup copy');
   }
   if (!homeText.includes('Connection profile') || !homeText.includes('data-profile-form')) {
@@ -323,7 +328,7 @@ try {
     if (homeText.includes(leaked)) throw new Error(`onboarding page leaked runtime secret: ${leaked}`);
   }
 
-  const profileBefore = await fetch(`${baseUrl}/admin/profile?codexpro_token=${encodeURIComponent(token)}`);
+  const profileBefore = await fetch(`${baseUrl}/admin/profile?codexflow_token=${encodeURIComponent(token)}`);
   const profileBeforeJson = await profileBefore.json();
   if (profileBefore.status !== 200 || profileBeforeJson.exists !== false) {
     throw new Error(`expected empty admin profile response, got ${profileBefore.status} ${JSON.stringify(profileBeforeJson)}`);
@@ -335,12 +340,12 @@ try {
     if (JSON.stringify(profileBeforeJson).includes(leaked)) throw new Error(`admin profile GET leaked runtime secret: ${leaked}`);
   }
 
-  const invalidProfile = await fetch(`${baseUrl}/admin/profile?codexpro_token=${encodeURIComponent(token)}`, {
+  const invalidProfile = await fetch(`${baseUrl}/admin/profile?codexflow_token=${encodeURIComponent(token)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       tunnel: 'ngrok',
-      hostname: 'codexpro-http-smoke.ngrok-free.app',
+      hostname: 'codexflow-http-smoke.ngrok-free.app',
       requireBashSession: true,
       bashSession: ''
     })
@@ -358,12 +363,12 @@ try {
     cloudflareTokenFile: path.join(root, 'stale-cloudflare-token')
   }, null, 2), 'utf8');
 
-  const profileSave = await fetch(`${baseUrl}/admin/profile?codexpro_token=${encodeURIComponent(token)}`, {
+  const profileSave = await fetch(`${baseUrl}/admin/profile?codexflow_token=${encodeURIComponent(token)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       tunnel: 'ngrok',
-      hostname: 'https://codexpro-http-smoke.ngrok-free.app/mcp',
+      hostname: 'https://codexflow-http-smoke.ngrok-free.app/mcp',
       port,
       mode: 'agent',
       bash: 'safe',
@@ -375,7 +380,7 @@ try {
       write: 'workspace',
       toolMode: 'full',
       toolCards: true,
-      widgetDomain: 'https://widgets.codexpro.test',
+      widgetDomain: 'https://widgets.codexflow.test',
       ngrokConfig: path.join(root, 'ngrok.yml'),
       cloudflareTokenFile: 'cloudflare-token',
       noInstallCloudflared: true
@@ -391,7 +396,7 @@ try {
   const savedProfile = JSON.parse(await fs.readFile(profileSaveJson.profile_path, 'utf8'));
   if (
     savedProfile.tunnel !== 'ngrok' ||
-    savedProfile.hostname !== 'codexpro-http-smoke.ngrok-free.app' ||
+    savedProfile.hostname !== 'codexflow-http-smoke.ngrok-free.app' ||
     savedProfile.bashTranscript !== 'full' ||
     savedProfile.codexSessions !== 'metadata' ||
     savedProfile.bashSession !== 'http-main' ||
@@ -407,7 +412,7 @@ try {
     throw new Error(`admin profile save kept cloudflare token config on ngrok profile: ${JSON.stringify(savedProfile)}`);
   }
 
-  const localProfile = await fetch(`${baseUrl}/admin/profile?codexpro_token=${encodeURIComponent(token)}`, {
+  const localProfile = await fetch(`${baseUrl}/admin/profile?codexflow_token=${encodeURIComponent(token)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ tunnel: 'none' })
@@ -434,9 +439,9 @@ try {
     throw new Error(`admin profile local-only save kept stale tunnel config: ${JSON.stringify(localProfileJson)} ${JSON.stringify(localSavedProfile)}`);
   }
 
-  const queryTools = await listTools(`${baseUrl}/mcp?codexpro_token=${encodeURIComponent(token)}`);
+  const queryTools = await listTools(`${baseUrl}/mcp?codexflow_token=${encodeURIComponent(token)}`);
   const queryToolNames = toolNames(queryTools);
-  for (const expected of ['server_config', 'codexpro_self_test', 'codexpro_inventory', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'tree', 'search', 'load_skill', 'git_status', 'git_diff', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
+  for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inventory', 'list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'tree', 'search', 'load_skill', 'git_status', 'git_diff', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
     if (!queryToolNames.includes(expected)) {
       throw new Error(`URL-token MCP tools/list missing ${expected}; got ${queryToolNames.join(', ')}`);
     }
@@ -446,10 +451,14 @@ try {
       throw new Error(`HTTP handoff mode should not advertise ${hidden}; got ${queryToolNames.join(', ')}`);
     }
   }
-  const toolCardUri = 'ui://widget/codexpro-tool-card-v9.html';
+  const toolCardUri = 'ui://widget/codexflow-tool-card-v10.html';
   for (const visualTool of queryToolNames) {
+    if (visualTool === 'list_projects' || visualTool === 'select_project') {
+      if (!hasWidgetMeta(queryTools, visualTool, toolCardUri)) throw new Error(`${visualTool} did not expose its required project picker widget`);
+      continue;
+    }
     if (hasWidgetMeta(queryTools, visualTool, toolCardUri) || hasToolCardStatusMeta(queryTools, visualTool)) {
-      throw new Error(`${visualTool} exposed widget metadata while CODEXPRO_TOOL_CARDS is off`);
+      throw new Error(`${visualTool} exposed widget metadata while CODEXFLOW_TOOL_CARDS is off`);
     }
   }
 
@@ -459,10 +468,10 @@ try {
     throw new Error(`bearer MCP tools/list missing server_config; got ${headerToolNames.join(', ')}`);
   }
 
-  const mcpUrl = `${baseUrl}/mcp?codexpro_token=${encodeURIComponent(token)}`;
+  const mcpUrl = `${baseUrl}/mcp?codexflow_token=${encodeURIComponent(token)}`;
   const unknownSession = '00000000-0000-4000-8000-000000000000';
   await expectSessionNotFound(await postToolsListWithSession(baseUrl, token, unknownSession), 'unknown POST session');
-  await expectSessionNotFound(await fetch(`${baseUrl}/mcp?codexpro_token=${encodeURIComponent(token)}`, {
+  await expectSessionNotFound(await fetch(`${baseUrl}/mcp?codexflow_token=${encodeURIComponent(token)}`, {
     headers: {
       accept: 'text/event-stream',
       'mcp-session-id': unknownSession
@@ -483,19 +492,19 @@ try {
     if (toolCard.mimeType !== 'text/html;profile=mcp-app') {
       throw new Error(`unexpected HTTP tool-card mime type: ${toolCard.mimeType}`);
     }
-    const legacyToolCardUri = 'ui://widget/codexpro-tool-card-v8.html';
+    const legacyToolCardUri = 'ui://widget/codexflow-tool-card-v8.html';
     const legacyToolCard = resources.resources.find((resource) => resource.uri === legacyToolCardUri);
     if (!legacyToolCard) throw new Error(`HTTP MCP resources/list missing legacy ${legacyToolCardUri}`);
     const widget = await client.readResource({ uri: toolCardUri });
     const widgetText = widget.contents?.[0]?.text ?? '';
     const widgetMeta = widget.contents?.[0]?._meta ?? {};
-    if (!widgetText.includes('Waiting for tool result') || !widgetText.includes('renderWorkspace') || !widgetText.includes('renderSelfTest') || !widgetText.includes('details class="fold"') || !widgetText.includes('ui/notifications/tool-result')) {
+    if (!widgetText.includes('Waiting for tool result') || !widgetText.includes('renderWorkspace') || !widgetText.includes('renderProjects') || !widgetText.includes('callTool("select_project"') || !widgetText.includes('renderSelfTest') || !widgetText.includes('details class="fold"') || !widgetText.includes('ui/notifications/tool-result')) {
       throw new Error('HTTP tool-card widget resource did not include expected Apps bridge code');
     }
     if (!widgetMeta.ui?.csp || !widgetMeta['openai/widgetCSP']) {
       throw new Error('HTTP tool-card widget resource did not expose standard and ChatGPT CSP metadata');
     }
-    if (widgetMeta.ui?.domain !== 'https://widgets.codexpro.test' || widgetMeta['openai/widgetDomain'] !== 'https://widgets.codexpro.test') {
+    if (widgetMeta.ui?.domain !== 'https://widgets.codexflow.test' || widgetMeta['openai/widgetDomain'] !== 'https://widgets.codexflow.test') {
       throw new Error('HTTP tool-card widget resource did not expose standard and ChatGPT widget domain metadata');
     }
     const legacyWidget = await client.readResource({ uri: legacyToolCardUri });
@@ -509,7 +518,7 @@ try {
 
   const currentOpened = await withClient(mcpUrl, async (client) => {
     const result = await callTool(client, 'open_current_workspace', { include_tree: false });
-    if (result.structuredContent.codexpro_tool !== 'open_current_workspace') {
+    if (result.structuredContent.codexflow_tool !== 'open_current_workspace') {
       throw new Error('HTTP tool result was not tagged for widget rendering');
     }
     if (result.structuredContent.tool_mode !== 'full') {
@@ -527,6 +536,33 @@ try {
     }
     return result.structuredContent.workspace_id;
   });
+
+  const bindingClientA = new Client({ name: 'codexflow-binding-a', version: '0.0.0' });
+  const bindingClientB = new Client({ name: 'codexflow-binding-b', version: '0.0.0' });
+  const bindingTransportA = new StreamableHTTPClientTransport(new URL(mcpUrl));
+  const bindingTransportB = new StreamableHTTPClientTransport(new URL(mcpUrl));
+  try {
+    await Promise.all([bindingClientA.connect(bindingTransportA), bindingClientB.connect(bindingTransportB)]);
+    const [catalogA, catalogB] = await Promise.all([
+      callTool(bindingClientA, 'list_projects', { refresh: true }),
+      callTool(bindingClientB, 'list_projects')
+    ]);
+    const alternate = catalogA.structuredContent.projects.find((project) => project.name === 'alternate-project');
+    const primary = catalogB.structuredContent.projects.find((project) => project.sources?.includes?.('default'));
+    if (!alternate || !primary) throw new Error(`project catalogs did not contain both routing targets: ${JSON.stringify(catalogA.structuredContent)}`);
+    await Promise.all([
+      callTool(bindingClientA, 'select_project', { project_id: alternate.project_id, include_tree: false }),
+      callTool(bindingClientB, 'select_project', { project_id: primary.project_id, include_tree: false })
+    ]);
+    const [readA, readB] = await Promise.all([
+      callTool(bindingClientA, 'read', { path: 'routing.txt' }),
+      callTool(bindingClientB, 'read', { path: 'routing.txt' })
+    ]);
+    if (!readA.structuredContent.text?.includes('alternate-chat-binding')) throw new Error('chat A did not retain its selected project binding');
+    if (!readB.structuredContent.text?.includes('default-chat-binding')) throw new Error('chat B did not retain an independent project binding');
+  } finally {
+    await Promise.allSettled([bindingClientA.close(), bindingClientB.close()]);
+  }
 
   await withClient(mcpUrl, async (client) => {
     const result = await callTool(client, 'open_workspace', {
@@ -547,11 +583,11 @@ try {
   });
 
   await withClient(mcpUrl, async (client) => {
-    const inventory = await callTool(client, 'codexpro_inventory', {
+    const inventory = await callTool(client, 'codexflow_inventory', {
       include_global_skills: false,
       include_mcp_servers: false
     });
-    if (inventory.structuredContent.codexpro_tool !== 'codexpro_inventory') {
+    if (inventory.structuredContent.codexflow_tool !== 'codexflow_inventory') {
       throw new Error('HTTP inventory result was not tagged for widget rendering');
     }
     const loadedSkill = await callTool(client, 'load_skill', {
@@ -617,34 +653,34 @@ try {
   await waitForExit(child).catch(() => {});
 }
 
-const disabledRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-http-disabled-tools-'));
+const disabledRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-http-disabled-tools-'));
 const disabledPort = await getFreePort();
-const disabledToken = 'codexpro-http-disabled-token';
+const disabledToken = 'codexflow-http-disabled-token';
 const disabledChild = spawn('node', ['dist/http.js'], {
   cwd: path.resolve('.'),
   env: {
     ...process.env,
-    CODEXPRO_ROOT: disabledRoot,
-    CODEXPRO_ALLOWED_ROOTS: disabledRoot,
-    CODEXPRO_PORT: String(disabledPort),
-    CODEXPRO_HTTP_TOKEN: disabledToken,
-    CODEXPRO_BASH_MODE: 'off',
-    CODEXPRO_WRITE_MODE: 'off',
-    CODEXPRO_TOOL_MODE: 'full'
+    CODEXFLOW_ROOT: disabledRoot,
+    CODEXFLOW_ALLOWED_ROOTS: disabledRoot,
+    CODEXFLOW_PORT: String(disabledPort),
+    CODEXFLOW_HTTP_TOKEN: disabledToken,
+    CODEXFLOW_BASH_MODE: 'off',
+    CODEXFLOW_WRITE_MODE: 'off',
+    CODEXFLOW_TOOL_MODE: 'full'
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
 try {
   await waitForListening(disabledChild);
   const disabledBase = `http://127.0.0.1:${disabledPort}`;
-  const disabledTools = await listTools(`${disabledBase}/mcp?codexpro_token=${encodeURIComponent(disabledToken)}`);
+  const disabledTools = await listTools(`${disabledBase}/mcp?codexflow_token=${encodeURIComponent(disabledToken)}`);
   const disabledToolNames = toolNames(disabledTools);
   for (const hiddenTool of ['bash', 'write', 'edit']) {
     if (disabledToolNames.includes(hiddenTool)) {
       throw new Error(`HTTP disabled mode should not advertise ${hiddenTool}; got ${disabledToolNames.join(', ')}`);
     }
   }
-  await withClient(`${disabledBase}/mcp?codexpro_token=${encodeURIComponent(disabledToken)}`, async (client) => {
+  await withClient(`${disabledBase}/mcp?codexflow_token=${encodeURIComponent(disabledToken)}`, async (client) => {
     const config = await callTool(client, 'server_config');
     if (config.structuredContent.bashMode !== 'off' || config.structuredContent.writeMode !== 'off') {
       throw new Error(`HTTP disabled mode server_config mismatch: ${JSON.stringify(config.structuredContent)}`);
@@ -655,11 +691,11 @@ try {
   await waitForExit(disabledChild).catch(() => {});
 }
 
-const cliRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-cli-http-smoke-'));
+const cliRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-cli-http-smoke-'));
 await fs.mkdir(path.join(cliRoot, '.codex'), { recursive: true });
 const cliPort = await getFreePort();
 const badNoAuth = spawn(process.execPath, [
-  'scripts/codexpro.mjs',
+  'scripts/codexflow.mjs',
   'start',
   '--root',
   cliRoot,
@@ -674,7 +710,7 @@ const badNoAuth = spawn(process.execPath, [
   cwd: path.resolve('.'),
   env: {
     ...process.env,
-    CODEXPRO_HOME: await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-cli-http-bad-home-'))
+    CODEXFLOW_HOME: await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-cli-http-bad-home-'))
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
@@ -683,7 +719,7 @@ if (badNoAuthExit.code === 0 || !badNoAuthExit.stderr.includes('--no-auth is onl
   throw new Error(`non-loopback --no-auth was not rejected\n${badNoAuthExit.stderr}`);
 }
 const cliChild = spawn(process.execPath, [
-  'scripts/codexpro.mjs',
+  'scripts/codexflow.mjs',
   'start',
   '--root',
   cliRoot,
@@ -700,7 +736,7 @@ const cliChild = spawn(process.execPath, [
   cwd: path.resolve('.'),
   env: {
     ...process.env,
-    CODEXPRO_HOME: await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-cli-http-home-'))
+    CODEXFLOW_HOME: await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-cli-http-home-'))
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
@@ -721,7 +757,7 @@ try {
 const connectionTestPort = await getFreePort();
 let connectionTestStderr = '';
 const connectionTestChild = spawn(process.execPath, [
-  'scripts/codexpro.mjs',
+  'scripts/codexflow.mjs',
   'connection-test',
   '--root',
   cliRoot,
@@ -735,7 +771,7 @@ const connectionTestChild = spawn(process.execPath, [
   cwd: path.resolve('.'),
   env: {
     ...process.env,
-    CODEXPRO_HOME: await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-connection-test-home-'))
+    CODEXFLOW_HOME: await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-connection-test-home-'))
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
@@ -749,7 +785,7 @@ try {
   for (const expected of ['read', 'tree', 'search', 'load_skill']) {
     if (!names.includes(expected)) throw new Error(`connection-test missing ${expected}; got ${names.join(', ')}`);
   }
-  for (const hidden of ['codexpro', 'codexpro_self_test', 'write', 'edit', 'apply_patch', 'bash', 'export_pro_context', 'handoff_to_agent', 'handoff_to_codex']) {
+  for (const hidden of ['codexflow', 'codexflow_self_test', 'write', 'edit', 'apply_patch', 'bash', 'export_pro_context', 'handoff_to_agent', 'handoff_to_codex']) {
     if (names.includes(hidden)) throw new Error(`connection-test exposed ${hidden}; got ${names.join(', ')}`);
   }
   for (const tool of tools) {
@@ -765,7 +801,7 @@ try {
     }
   });
   await new Promise((resolve) => setTimeout(resolve, 100));
-  if (!connectionTestStderr.includes('[CodexPro] POST /mcp received')) {
+  if (!connectionTestStderr.includes('[CodexFlow] POST /mcp received')) {
     throw new Error(`connection-test did not print request-arrival logs\n${connectionTestStderr}`);
   }
 } finally {

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { CodexProConfig } from "./config.js";
+import type { CodexFlowConfig } from "./config.js";
 import { isSubpath, type Workspace } from "./guard.js";
 
 export interface SkillInventoryItem {
@@ -29,7 +29,19 @@ export interface McpServerInventoryItem {
   source: string;
 }
 
+export interface PluginInventoryItem {
+  name: string;
+  version?: string;
+  description?: string;
+  source: string;
+  capabilities: string[];
+  hasSkills: boolean;
+  hasApps: boolean;
+  hasMcpServers: boolean;
+}
+
 const MAX_MCP_SERVER_INVENTORY = 120;
+const MAX_PLUGIN_INVENTORY = 80;
 
 function unique<T>(items: T[], key: (item: T) => string): T[] {
   const seen = new Set<string>();
@@ -322,20 +334,62 @@ export async function discoverMcpServers(workspace: Workspace): Promise<McpServe
     .slice(0, MAX_MCP_SERVER_INVENTORY);
 }
 
-export async function codexproInventory(
-  config: CodexProConfig,
+async function findPluginManifests(root: string, depth: number, out: string[]): Promise<void> {
+  if (depth < 0 || out.length >= MAX_PLUGIN_INVENTORY * 3) return;
+  for (const entry of await safeReaddir(root)) {
+    if (!entry.isDirectory()) continue;
+    const child = path.join(root, entry.name);
+    const manifest = path.join(child, ".codex-plugin", "plugin.json");
+    if (fs.existsSync(manifest)) out.push(manifest);
+    else await findPluginManifests(child, depth - 1, out);
+  }
+}
+
+export async function discoverPluginInventory(): Promise<PluginInventoryItem[]> {
+  const cacheRoot = path.join(os.homedir(), ".codex", "plugins", "cache");
+  const manifests: string[] = [];
+  await findPluginManifests(cacheRoot, 4, manifests);
+  const plugins: PluginInventoryItem[] = [];
+  for (const manifest of manifests) {
+    try {
+      const parsed = JSON.parse(await safeReadText(manifest, 100_000));
+      if (!parsed?.name) continue;
+      const relative = path.relative(cacheRoot, manifest).split(path.sep);
+      plugins.push({
+        name: String(parsed.name),
+        ...(parsed.version ? { version: String(parsed.version) } : {}),
+        ...(parsed.description ? { description: String(parsed.description).slice(0, 240) } : {}),
+        source: relative[0] || "plugin cache",
+        capabilities: Array.isArray(parsed.interface?.capabilities) ? parsed.interface.capabilities.map(String) : [],
+        hasSkills: Boolean(parsed.skills),
+        hasApps: Boolean(parsed.apps),
+        hasMcpServers: Boolean(parsed.mcpServers)
+      });
+    } catch {
+      // Ignore invalid or partially installed plugin manifests.
+    }
+  }
+  return unique(plugins, (plugin) => `${plugin.source}:${plugin.name}`)
+    .sort((a, b) => a.name.localeCompare(b.name) || a.source.localeCompare(b.source))
+    .slice(0, MAX_PLUGIN_INVENTORY);
+}
+
+export async function codexflowInventory(
+  config: CodexFlowConfig,
   workspace: Workspace,
   options: { includeGlobalSkills?: boolean; includeMcpServers?: boolean; maxSkills?: number } = {}
 ): Promise<{
   text: string;
   skills: SkillInventoryItem[];
   mcpServers: McpServerInventoryItem[];
+  plugins: PluginInventoryItem[];
 }> {
   const skills = await discoverSkillInventory(workspace, {
     includeGlobal: options.includeGlobalSkills !== false,
     maxSkills: options.maxSkills
   });
   const mcpServers = options.includeMcpServers === false ? [] : await discoverMcpServers(workspace);
+  const plugins = options.includeGlobalSkills === false ? [] : await discoverPluginInventory();
 
   const bySource = skills.reduce<Record<string, number>>((acc, skill) => {
     acc[skill.source] = (acc[skill.source] ?? 0) + 1;
@@ -349,7 +403,7 @@ export async function codexproInventory(
     ? mcpServers.map((server) => `- ${server.name} (${server.source})`).join("\n")
     : "- none discovered";
 
-  const text = `# CodexPro Inventory
+  const text = `# CodexFlow Inventory
 
 Workspace: ${workspace.root}
 Bash mode: ${config.bashMode}
@@ -369,7 +423,11 @@ ${skillLines}
 ## MCP servers
 
 ${mcpLines}
+
+## Plugins
+
+${plugins.length ? plugins.map((plugin) => `- ${plugin.name}${plugin.version ? ` ${plugin.version}` : ""} (${plugin.source})`).join("\n") : "- none discovered"}
 `;
 
-  return { text, skills, mcpServers };
+  return { text, skills, mcpServers, plugins };
 }

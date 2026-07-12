@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 function run(args, options = {}) {
-  const result = spawnSync(process.execPath, ['scripts/codexpro.mjs', ...args], {
+  const result = spawnSync(process.execPath, ['scripts/codexflow.mjs', ...args], {
     cwd: path.resolve('.'),
     env: { ...process.env, NO_COLOR: '1' },
     encoding: 'utf8',
@@ -23,7 +23,7 @@ function quoteArg(value) {
   return `"${String(value).replaceAll('"', '\\"')}"`;
 }
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-execute-handoff-'));
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-execute-handoff-'));
 await fs.mkdir(path.join(root, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(root, '.ai-bridge', 'current-plan.md'), '# Test plan\n\nAppend the implementation marker.\n', 'utf8');
 await fs.writeFile(path.join(root, 'app.txt'), 'start\n', 'utf8');
@@ -134,14 +134,14 @@ if (!runState.plan_hash || !runState.started_at || !runState.finished_at || runS
   throw new Error(`handoff-run-state missing lifecycle fields\n${runStateRaw}`);
 }
 
-const fakeCodexBin = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-fake-codex-bin-'));
+const fakeCodexBin = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-fake-codex-bin-'));
 const fakeCodexLog = path.join(root, 'fake-codex-args.json');
 const fakeCodexScript = path.join(root, 'fake-codex.mjs');
 await fs.writeFile(fakeCodexScript, `
 import fs from 'node:fs';
 
 const args = process.argv.slice(2);
-fs.writeFileSync(process.env.CODEXPRO_FAKE_CODEX_LOG, JSON.stringify(args, null, 2));
+fs.writeFileSync(process.env.CODEXFLOW_FAKE_CODEX_LOG, JSON.stringify(args, null, 2));
 if (args[0] !== 'exec') throw new Error('expected codex exec');
 if (!args.includes('--ephemeral')) throw new Error('missing --ephemeral');
 if (!args.includes('workspace-write')) throw new Error('missing workspace-write sandbox');
@@ -169,7 +169,7 @@ if (process.platform === 'win32') {
 const fakeCodexEnv = {
   ...process.env,
   NO_COLOR: '1',
-  CODEXPRO_FAKE_CODEX_LOG: fakeCodexLog,
+  CODEXFLOW_FAKE_CODEX_LOG: fakeCodexLog,
   PATH: `${fakeCodexBin}${path.delimiter}${process.env.PATH ?? process.env.Path ?? ''}`,
   Path: `${fakeCodexBin}${path.delimiter}${process.env.Path ?? process.env.PATH ?? ''}`
 };
@@ -216,7 +216,7 @@ if (!codexApp.includes('codex adapter executed')) {
   throw new Error(`codex adapter did not execute fake codex\n${codexApp}`);
 }
 
-const executeStagedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-execute-staged-untracked-'));
+const executeStagedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-execute-staged-untracked-'));
 await fs.mkdir(path.join(executeStagedRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(executeStagedRoot, '.ai-bridge', 'current-plan.md'), '# Staged plan\n\nStage one edit and create one file.\n', 'utf8');
 await fs.writeFile(path.join(executeStagedRoot, 'app.txt'), 'base\n', 'utf8');
@@ -244,7 +244,7 @@ if (!executeStagedDiff.includes('# Staged diff') || !executeStagedDiff.includes(
   throw new Error(`execute-handoff diff missed staged or untracked changes\n${executeStagedDiff}`);
 }
 
-const timeoutRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-execute-timeout-'));
+const timeoutRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-execute-timeout-'));
 await fs.mkdir(path.join(timeoutRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(timeoutRoot, '.ai-bridge', 'current-plan.md'), '# Timeout plan\n\nSleep too long.\n', 'utf8');
 await fs.writeFile(path.join(timeoutRoot, 'slow-agent.mjs'), `setTimeout(() => {}, 5000);\n`, 'utf8');
@@ -269,7 +269,7 @@ if (!timeoutState.includes('"state": "timed_out"') || !timeoutState.includes('"e
 }
 
 if (process.platform !== 'win32') {
-  const stubbornRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-execute-stubborn-timeout-'));
+  const stubbornRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-execute-stubborn-timeout-'));
   await fs.mkdir(path.join(stubbornRoot, '.ai-bridge'), { recursive: true });
   await fs.writeFile(path.join(stubbornRoot, '.ai-bridge', 'current-plan.md'), '# Stubborn timeout plan\n\nIgnore SIGTERM.\n', 'utf8');
   await fs.writeFile(path.join(stubbornRoot, 'stubborn-agent.mjs'), `
@@ -300,7 +300,7 @@ setInterval(() => {}, 1000);
   }
 }
 
-const noisyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-execute-noisy-'));
+const noisyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-execute-noisy-'));
 await fs.mkdir(path.join(noisyRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(noisyRoot, '.ai-bridge', 'current-plan.md'), '# Noisy plan\n\nPrint a lot, then edit.\n', 'utf8');
 await fs.writeFile(path.join(noisyRoot, 'app.txt'), 'base\n', 'utf8');
@@ -327,7 +327,7 @@ if (!noisyApp.includes('after noisy output') || !noisyStatus.includes('[output t
   throw new Error(`execute-handoff output cap killed or failed to truncate\napp:\n${noisyApp}\nstatus:\n${noisyStatus}`);
 }
 
-const watchRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-watch-handoff-'));
+const watchRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-watch-handoff-'));
 await fs.mkdir(path.join(watchRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(watchRoot, '.ai-bridge', 'current-plan.md'), '# Current Plan\n\nNo plan written yet.\n', 'utf8');
 await fs.writeFile(path.join(watchRoot, 'app.txt'), 'start\n', 'utf8');
@@ -389,7 +389,7 @@ if (!watchState.includes('lastPlanHash') || !watchLog.includes('"event":"watch_h
   throw new Error(`watch did not write state/log\nstate:\n${watchState}\nlog:\n${watchLog}`);
 }
 
-const watchTimeoutRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-watch-timeout-'));
+const watchTimeoutRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-watch-timeout-'));
 await fs.mkdir(path.join(watchTimeoutRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(watchTimeoutRoot, '.ai-bridge', 'current-plan.md'), '# Watch timeout\n\nSleep too long.\n', 'utf8');
 await fs.writeFile(path.join(watchTimeoutRoot, 'slow-agent.mjs'), `setTimeout(() => {}, 5000);\n`, 'utf8');
@@ -416,7 +416,7 @@ if (!watchTimeoutState.includes('"state": "timed_out"') || !watchTimeoutState.in
   throw new Error(`watch-handoff timeout state was wrong\n${watchTimeoutState}`);
 }
 
-const loopRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-handoff-'));
+const loopRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-handoff-'));
 await fs.mkdir(path.join(loopRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(loopRoot, '.ai-bridge', 'current-plan.md'), '# Loop plan 1\n\nAppend loop first marker.\n', 'utf8');
 await fs.writeFile(path.join(loopRoot, 'app.txt'), 'start\n', 'utf8');
@@ -443,9 +443,9 @@ fs.readFileSync(process.argv[statusIndex + 1], 'utf8');
 fs.readFileSync(process.argv[diffIndex + 1], 'utf8');
 if (!plan.includes('Loop fix plan')) {
   fs.writeFileSync(planPath, '# Loop fix plan\\n\\nAppend loop fix marker.\\n');
-  console.log('CODEXPRO_REVIEW=FAIL');
+  console.log('CODEXFLOW_REVIEW=FAIL');
 } else {
-  console.log('CODEXPRO_REVIEW=PASS');
+  console.log('CODEXFLOW_REVIEW=PASS');
 }
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: loopRoot, encoding: 'utf8' }), 'loop git init');
@@ -484,7 +484,7 @@ if (!loopState.includes('"iteration": 2') || !loopLog.includes('"event":"loop_ha
   throw new Error(`loop did not write state/log\nstate:\n${loopState}\nlog:\n${loopLog}`);
 }
 
-const failedExecutorRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-failed-executor-'));
+const failedExecutorRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-failed-executor-'));
 await fs.mkdir(path.join(failedExecutorRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(failedExecutorRoot, '.ai-bridge', 'current-plan.md'), '# Failed executor plan\n\nAppend marker and fail.\n', 'utf8');
 await fs.writeFile(path.join(failedExecutorRoot, 'app.txt'), 'start\n', 'utf8');
@@ -495,7 +495,7 @@ console.log('agent changed file then failed');
 process.exit(2);
 `, 'utf8');
 await fs.writeFile(path.join(failedExecutorRoot, 'pass-reviewer.mjs'), `
-console.log('CODEXPRO_REVIEW=PASS');
+console.log('CODEXFLOW_REVIEW=PASS');
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: failedExecutorRoot, encoding: 'utf8' }), 'failed executor git init');
 requireSuccess(spawnSync('git', ['add', 'app.txt'], { cwd: failedExecutorRoot, encoding: 'utf8' }), 'failed executor git add');
@@ -522,7 +522,7 @@ if (!failedExecutorState.includes('"verdict": "FAIL"') || !failedExecutorState.i
   throw new Error(`loop did not reject reviewer PASS after failed executor\nstate:\n${failedExecutorState}\nlog:\n${failedExecutorLog}`);
 }
 
-const failedReviewerRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-failed-reviewer-'));
+const failedReviewerRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-failed-reviewer-'));
 await fs.mkdir(path.join(failedReviewerRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(failedReviewerRoot, '.ai-bridge', 'current-plan.md'), '# Failed reviewer plan\n\nAppend marker.\n', 'utf8');
 await fs.writeFile(path.join(failedReviewerRoot, 'app.txt'), 'start\n', 'utf8');
@@ -532,7 +532,7 @@ fs.appendFileSync('app.txt', 'changed before failed reviewer\\n');
 console.log('agent changed file');
 `, 'utf8');
 await fs.writeFile(path.join(failedReviewerRoot, 'failed-reviewer.mjs'), `
-console.log('CODEXPRO_REVIEW=PASS');
+console.log('CODEXFLOW_REVIEW=PASS');
 process.exit(3);
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: failedReviewerRoot, encoding: 'utf8' }), 'failed reviewer git init');
@@ -559,7 +559,7 @@ if (!failedReviewerState.includes('"rejectedPassReason": "reviewer_failed"') || 
   throw new Error(`loop did not reject reviewer PASS after failed reviewer process\nstate:\n${failedReviewerState}\nlog:\n${failedReviewerLog}`);
 }
 
-const barePassRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-bare-pass-'));
+const barePassRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-bare-pass-'));
 await fs.mkdir(path.join(barePassRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(barePassRoot, '.ai-bridge', 'current-plan.md'), '# Bare pass plan\n\nAppend marker.\n', 'utf8');
 await fs.writeFile(path.join(barePassRoot, 'app.txt'), 'start\n', 'utf8');
@@ -593,7 +593,7 @@ if (!barePassLog.includes('"stop_reason":"unknown_verdict"')) {
   throw new Error(`loop did not reject bare PASS as unknown verdict\nlog:\n${barePassLog}`);
 }
 
-const loopStagedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-staged-change-'));
+const loopStagedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-staged-change-'));
 await fs.mkdir(path.join(loopStagedRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(loopStagedRoot, '.ai-bridge', 'current-plan.md'), '# Staged plan\n\nStage a change.\n', 'utf8');
 await fs.writeFile(path.join(loopStagedRoot, 'app.txt'), 'start\n', 'utf8');
@@ -609,7 +609,7 @@ import fs from 'node:fs';
 const diffPath = process.argv[process.argv.indexOf('--diff') + 1];
 const diff = fs.readFileSync(diffPath, 'utf8');
 if (!diff.includes('# Staged diff') || !diff.includes('staged change')) process.exit(4);
-console.log('CODEXPRO_REVIEW=PASS');
+console.log('CODEXFLOW_REVIEW=PASS');
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: loopStagedRoot, encoding: 'utf8' }), 'staged git init');
 requireSuccess(spawnSync('git', ['add', 'app.txt'], { cwd: loopStagedRoot, encoding: 'utf8' }), 'staged git add');
@@ -629,7 +629,7 @@ const stagedRun = run([
 ]);
 requireSuccess(stagedRun, 'loop-handoff staged-only change');
 
-const untrackedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-untracked-change-'));
+const untrackedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-untracked-change-'));
 await fs.mkdir(path.join(untrackedRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(untrackedRoot, '.ai-bridge', 'current-plan.md'), '# Untracked plan\n\nCreate a new file.\n', 'utf8');
 await fs.writeFile(path.join(untrackedRoot, 'app.txt'), 'start\n', 'utf8');
@@ -642,7 +642,7 @@ import fs from 'node:fs';
 const diffPath = process.argv[process.argv.indexOf('--diff') + 1];
 const diff = fs.readFileSync(diffPath, 'utf8');
 if (!diff.includes('# Untracked files') || !diff.includes('new-feature.txt')) process.exit(5);
-console.log('CODEXPRO_REVIEW=PASS');
+console.log('CODEXFLOW_REVIEW=PASS');
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: untrackedRoot, encoding: 'utf8' }), 'untracked git init');
 requireSuccess(spawnSync('git', ['add', 'app.txt'], { cwd: untrackedRoot, encoding: 'utf8' }), 'untracked git add');
@@ -662,7 +662,7 @@ const untrackedRun = run([
 ]);
 requireSuccess(untrackedRun, 'loop-handoff untracked file change');
 
-const boundedUntrackedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-bounded-untracked-'));
+const boundedUntrackedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-bounded-untracked-'));
 await fs.mkdir(path.join(boundedUntrackedRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(boundedUntrackedRoot, '.ai-bridge', 'current-plan.md'), '# Bounded untracked plan\n\nCreate symlink and large untracked files.\n', 'utf8');
 await fs.writeFile(path.join(boundedUntrackedRoot, 'app.txt'), 'start\n', 'utf8');
@@ -679,7 +679,7 @@ const linkLine = diff.split(/\\r?\\n/).find((line) => line.includes('app-link.tx
 if (!linkLine || !linkLine.includes('(symlink, target=app.txt') || linkLine.includes('sha256')) process.exit(6);
 if (!diff.includes('large-artifact.bin') || !diff.includes('sha256_first_65536=') || !diff.includes('fingerprint_truncated=true')) process.exit(7);
 if (Buffer.byteLength(diff, 'utf8') > 4500) process.exit(8);
-console.log('CODEXPRO_REVIEW=PASS');
+console.log('CODEXFLOW_REVIEW=PASS');
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: boundedUntrackedRoot, encoding: 'utf8' }), 'bounded untracked git init');
 requireSuccess(spawnSync('git', ['add', 'app.txt'], { cwd: boundedUntrackedRoot, encoding: 'utf8' }), 'bounded untracked git add');
@@ -701,7 +701,7 @@ const boundedUntrackedRun = run([
 ]);
 requireSuccess(boundedUntrackedRun, 'loop-handoff bounded untracked fingerprints');
 
-const dirtyBaselineRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-dirty-baseline-'));
+const dirtyBaselineRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-dirty-baseline-'));
 await fs.mkdir(path.join(dirtyBaselineRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(dirtyBaselineRoot, '.ai-bridge', 'current-plan.md'), '# Dirty baseline plan\n\nDo nothing.\n', 'utf8');
 await fs.writeFile(path.join(dirtyBaselineRoot, 'app.txt'), 'start\n', 'utf8');
@@ -709,7 +709,7 @@ await fs.writeFile(path.join(dirtyBaselineRoot, 'noop-agent.mjs'), `
 console.log('noop agent');
 `, 'utf8');
 await fs.writeFile(path.join(dirtyBaselineRoot, 'reviewer.mjs'), `
-console.log('CODEXPRO_REVIEW=PASS');
+console.log('CODEXFLOW_REVIEW=PASS');
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: dirtyBaselineRoot, encoding: 'utf8' }), 'dirty baseline git init');
 requireSuccess(spawnSync('git', ['add', 'app.txt'], { cwd: dirtyBaselineRoot, encoding: 'utf8' }), 'dirty baseline git add');
@@ -736,7 +736,7 @@ if (!dirtyBaselineLog.includes('"stop_reason":"no_files_changed"')) {
   throw new Error(`loop did not stop no-op executor against dirty baseline\nlog:\n${dirtyBaselineLog}`);
 }
 
-const repeatedSameRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-repeated-same-'));
+const repeatedSameRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-repeated-same-'));
 await fs.mkdir(path.join(repeatedSameRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(repeatedSameRoot, '.ai-bridge', 'current-plan.md'), '# Repeated same plan\n\nWrite final content.\n', 'utf8');
 await fs.writeFile(path.join(repeatedSameRoot, 'app.txt'), 'base\n', 'utf8');
@@ -755,9 +755,9 @@ const planPath = process.argv[process.argv.indexOf('--plan-file') + 1];
 const plan = fs.readFileSync(planPath, 'utf8');
 if (plan.includes('Repeated same plan')) {
   fs.writeFileSync(planPath, '# Repeated same follow-up\\n\\nRewrite identical content.\\n');
-  console.log('CODEXPRO_REVIEW=FAIL');
+  console.log('CODEXFLOW_REVIEW=FAIL');
 } else {
-  console.log('CODEXPRO_REVIEW=PASS');
+  console.log('CODEXFLOW_REVIEW=PASS');
 }
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: repeatedSameRoot, encoding: 'utf8' }), 'repeated same git init');
@@ -786,7 +786,7 @@ if (!repeatedSameLog.includes('"stop_reason":"no_files_changed"')) {
   throw new Error(`loop did not stop on repeated identical content write\nlog:\n${repeatedSameLog}`);
 }
 
-const subdirRepoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-subdir-repo-'));
+const subdirRepoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-subdir-repo-'));
 const subdirRoot = path.join(subdirRepoRoot, 'packages', 'demo');
 await fs.mkdir(path.join(subdirRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(subdirRoot, '.ai-bridge', 'current-plan.md'), '# Subdir plan\n\nAppend the first marker.\n', 'utf8');
@@ -802,17 +802,17 @@ import fs from 'node:fs';
 const planPath = process.argv[process.argv.indexOf('--plan-file') + 1];
 const app = fs.readFileSync('app.txt', 'utf8');
 if (app.includes('second subdir change')) {
-  console.log('CODEXPRO_REVIEW=PASS');
+  console.log('CODEXFLOW_REVIEW=PASS');
 } else if (app.includes('first subdir change')) {
   fs.writeFileSync(planPath, '# Subdir follow-up\\n\\nAppend the second marker.\\n');
-  console.log('CODEXPRO_REVIEW=FAIL');
+  console.log('CODEXFLOW_REVIEW=FAIL');
 } else {
   process.exit(9);
 }
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: subdirRepoRoot, encoding: 'utf8' }), 'subdir repo git init');
 requireSuccess(spawnSync('git', ['add', 'packages/demo/app.txt', 'packages/demo/agent.mjs', 'packages/demo/reviewer.mjs'], { cwd: subdirRepoRoot, encoding: 'utf8' }), 'subdir repo git add');
-requireSuccess(spawnSync('git', ['-c', 'user.email=codexpro@example.invalid', '-c', 'user.name=CodexPro Smoke', 'commit', '-m', 'init'], { cwd: subdirRepoRoot, encoding: 'utf8' }), 'subdir repo git commit');
+requireSuccess(spawnSync('git', ['-c', 'user.email=codexflow@example.invalid', '-c', 'user.name=CodexFlow Smoke', 'commit', '-m', 'init'], { cwd: subdirRepoRoot, encoding: 'utf8' }), 'subdir repo git commit');
 
 const subdirRun = run([
   'loop-handoff',
@@ -832,7 +832,7 @@ const subdirRun = run([
 ]);
 requireSuccess(subdirRun, 'loop-handoff workspace nested below git top-level');
 
-const subdirUntrackedRepoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-subdir-untracked-'));
+const subdirUntrackedRepoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-subdir-untracked-'));
 const subdirUntrackedRoot = path.join(subdirUntrackedRepoRoot, 'packages', 'demo');
 await fs.mkdir(path.join(subdirUntrackedRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(subdirUntrackedRoot, '.ai-bridge', 'current-plan.md'), '# Untracked subdir plan\n\nShould not start.\n', 'utf8');
@@ -848,7 +848,7 @@ const subdirUntrackedRun = run([
   '--command',
   `${quoteArg(process.execPath)} -e "process.exit(0)" --task-file {{plan_file}}`,
   '--review-command',
-  `${quoteArg(process.execPath)} -e "console.log('CODEXPRO_REVIEW=PASS')" --plan-file {{plan_file}}`,
+  `${quoteArg(process.execPath)} -e "console.log('CODEXFLOW_REVIEW=PASS')" --plan-file {{plan_file}}`,
   '--require-clean-git-start',
   '--yes'
 ]);
@@ -859,14 +859,14 @@ if (!subdirUntrackedRun.stderr.includes('--require-clean-git-start refused') || 
   throw new Error(`loop did not report nested untracked workspace file\nstdout:\n${subdirUntrackedRun.stdout}\nstderr:\n${subdirUntrackedRun.stderr}`);
 }
 
-const subdirOutsideUntrackedRepoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-subdir-outside-untracked-'));
+const subdirOutsideUntrackedRepoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-subdir-outside-untracked-'));
 const subdirOutsideUntrackedRoot = path.join(subdirOutsideUntrackedRepoRoot, 'packages', 'demo');
 await fs.mkdir(path.join(subdirOutsideUntrackedRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(subdirOutsideUntrackedRoot, '.ai-bridge', 'current-plan.md'), '# Outside untracked plan\n\nAppend a marker.\n', 'utf8');
 await fs.writeFile(path.join(subdirOutsideUntrackedRoot, 'app.txt'), 'base\n', 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: subdirOutsideUntrackedRepoRoot, encoding: 'utf8' }), 'subdir outside untracked repo git init');
 requireSuccess(spawnSync('git', ['add', 'packages/demo/app.txt'], { cwd: subdirOutsideUntrackedRepoRoot, encoding: 'utf8' }), 'subdir outside untracked repo git add');
-requireSuccess(spawnSync('git', ['-c', 'user.email=codexpro@example.invalid', '-c', 'user.name=CodexPro Smoke', 'commit', '-m', 'init'], { cwd: subdirOutsideUntrackedRepoRoot, encoding: 'utf8' }), 'subdir outside untracked repo git commit');
+requireSuccess(spawnSync('git', ['-c', 'user.email=codexflow@example.invalid', '-c', 'user.name=CodexFlow Smoke', 'commit', '-m', 'init'], { cwd: subdirOutsideUntrackedRepoRoot, encoding: 'utf8' }), 'subdir outside untracked repo git commit');
 const outsideGeneratedDir = path.join(
   subdirOutsideUntrackedRepoRoot,
   'packages',
@@ -889,13 +889,13 @@ const subdirOutsideUntrackedRun = run([
   '--command',
   `${quoteArg(process.execPath)} -e "require('node:fs').appendFileSync('app.txt', 'workspace change\\n')" -- --task-file {{plan_file}}`,
   '--review-command',
-  `${quoteArg(process.execPath)} -e "console.log('CODEXPRO_REVIEW=PASS')" -- --plan-file {{plan_file}}`,
+  `${quoteArg(process.execPath)} -e "console.log('CODEXFLOW_REVIEW=PASS')" -- --plan-file {{plan_file}}`,
   '--require-clean-git-start',
   '--yes'
 ]);
 requireSuccess(subdirOutsideUntrackedRun, 'loop-handoff ignores large untracked tree outside nested workspace');
 
-const largeDirtyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-large-dirty-'));
+const largeDirtyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-large-dirty-'));
 await fs.mkdir(path.join(largeDirtyRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(largeDirtyRoot, '.ai-bridge', 'current-plan.md'), '# Large dirty plan\n\nAppend to later file.\n', 'utf8');
 await fs.writeFile(path.join(largeDirtyRoot, 'aaa-large.txt'), 'base large\n', 'utf8');
@@ -905,11 +905,11 @@ import fs from 'node:fs';
 fs.appendFileSync('zzz-later.txt', 'executor changed later file\\n');
 `, 'utf8');
 await fs.writeFile(path.join(largeDirtyRoot, 'reviewer.mjs'), `
-console.log('CODEXPRO_REVIEW=PASS');
+console.log('CODEXFLOW_REVIEW=PASS');
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: largeDirtyRoot, encoding: 'utf8' }), 'large dirty git init');
 requireSuccess(spawnSync('git', ['add', 'aaa-large.txt', 'zzz-later.txt'], { cwd: largeDirtyRoot, encoding: 'utf8' }), 'large dirty git add');
-requireSuccess(spawnSync('git', ['-c', 'user.email=codexpro@example.invalid', '-c', 'user.name=CodexPro Smoke', 'commit', '-m', 'init'], { cwd: largeDirtyRoot, encoding: 'utf8' }), 'large dirty git commit');
+requireSuccess(spawnSync('git', ['-c', 'user.email=codexflow@example.invalid', '-c', 'user.name=CodexFlow Smoke', 'commit', '-m', 'init'], { cwd: largeDirtyRoot, encoding: 'utf8' }), 'large dirty git commit');
 await fs.writeFile(path.join(largeDirtyRoot, 'aaa-large.txt'), `${'preexisting dirty line\n'.repeat(9000)}`, 'utf8');
 
 const largeDirtyRun = run([
@@ -929,7 +929,7 @@ const largeDirtyRun = run([
 ]);
 requireSuccess(largeDirtyRun, 'loop-handoff large dirty baseline with later executor change');
 
-const unavailableDiffRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-unavailable-diff-'));
+const unavailableDiffRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-unavailable-diff-'));
 await fs.mkdir(path.join(unavailableDiffRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(unavailableDiffRoot, '.ai-bridge', 'current-plan.md'), '# Unavailable diff plan\n\nWrite a very large tracked diff.\n', 'utf8');
 await fs.writeFile(path.join(unavailableDiffRoot, 'huge.txt'), 'base\n', 'utf8');
@@ -938,7 +938,7 @@ import fs from 'node:fs';
 fs.writeFileSync('huge.txt', \`changed\\n\${'x'.repeat(2_500_000)}\\n\`);
 `, 'utf8');
 await fs.writeFile(path.join(unavailableDiffRoot, 'reviewer.mjs'), `
-console.log('CODEXPRO_REVIEW=PASS');
+console.log('CODEXFLOW_REVIEW=PASS');
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: unavailableDiffRoot, encoding: 'utf8' }), 'unavailable diff git init');
 requireSuccess(spawnSync('git', ['add', 'huge.txt'], { cwd: unavailableDiffRoot, encoding: 'utf8' }), 'unavailable diff git add');
@@ -964,7 +964,7 @@ if (!unavailableDiffArtifact.includes('# git changes unavailable')) {
   throw new Error(`unavailable diff smoke did not exercise the bounded diff artifact path\n${unavailableDiffArtifact.slice(0, 1000)}`);
 }
 
-const largePlanRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-large-plan-'));
+const largePlanRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-large-plan-'));
 const largePlanText = `# Large accepted plan\n\n${'Keep this valid plan above the output cap.\n'.repeat(160)}`;
 if (Buffer.byteLength(largePlanText, 'utf8') <= 4000) throw new Error('large plan smoke fixture is not larger than max-output cap');
 await fs.mkdir(path.join(largePlanRoot, '.ai-bridge'), { recursive: true });
@@ -975,7 +975,7 @@ import fs from 'node:fs';
 fs.appendFileSync('app.txt', 'changed with large plan\\n');
 `, 'utf8');
 await fs.writeFile(path.join(largePlanRoot, 'reviewer.mjs'), `
-console.log('CODEXPRO_REVIEW=PASS');
+console.log('CODEXFLOW_REVIEW=PASS');
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: largePlanRoot, encoding: 'utf8' }), 'large plan git init');
 requireSuccess(spawnSync('git', ['add', 'app.txt'], { cwd: largePlanRoot, encoding: 'utf8' }), 'large plan git add');
@@ -996,7 +996,7 @@ const largePlanRun = run([
 ]);
 requireSuccess(largePlanRun, 'loop-handoff valid plan larger than output cap');
 
-const stagedRenameRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-staged-rename-'));
+const stagedRenameRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-staged-rename-'));
 await fs.mkdir(path.join(stagedRenameRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(stagedRenameRoot, '.ai-bridge', 'current-plan.md'), '# Staged rename plan\n\nNo-op.\n', 'utf8');
 await fs.writeFile(path.join(stagedRenameRoot, 'src.txt'), 'tracked source\n', 'utf8');
@@ -1004,11 +1004,11 @@ await fs.writeFile(path.join(stagedRenameRoot, 'noop-agent.mjs'), `
 console.log('noop agent');
 `, 'utf8');
 await fs.writeFile(path.join(stagedRenameRoot, 'reviewer.mjs'), `
-console.log('CODEXPRO_REVIEW=PASS');
+console.log('CODEXFLOW_REVIEW=PASS');
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: stagedRenameRoot, encoding: 'utf8' }), 'staged rename git init');
 requireSuccess(spawnSync('git', ['add', 'src.txt'], { cwd: stagedRenameRoot, encoding: 'utf8' }), 'staged rename git add');
-requireSuccess(spawnSync('git', ['-c', 'user.email=codexpro@example.invalid', '-c', 'user.name=CodexPro Smoke', 'commit', '-m', 'init'], { cwd: stagedRenameRoot, encoding: 'utf8' }), 'staged rename git commit');
+requireSuccess(spawnSync('git', ['-c', 'user.email=codexflow@example.invalid', '-c', 'user.name=CodexFlow Smoke', 'commit', '-m', 'init'], { cwd: stagedRenameRoot, encoding: 'utf8' }), 'staged rename git commit');
 requireSuccess(spawnSync('git', ['mv', 'src.txt', '.ai-bridge/src.txt'], { cwd: stagedRenameRoot, encoding: 'utf8' }), 'staged rename git mv');
 
 const stagedRenameRun = run([
@@ -1031,7 +1031,7 @@ if (!stagedRenameRun.stderr.includes('--require-clean-git-start refused') || !st
   throw new Error(`loop did not report staged rename as non-handoff change\nstdout:\n${stagedRenameRun.stdout}\nstderr:\n${stagedRenameRun.stderr}`);
 }
 
-const deletedPlanRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-deleted-followup-'));
+const deletedPlanRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-deleted-followup-'));
 await fs.mkdir(path.join(deletedPlanRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(deletedPlanRoot, '.ai-bridge', 'current-plan.md'), '# Delete follow-up plan\n\nAppend marker.\n', 'utf8');
 await fs.writeFile(path.join(deletedPlanRoot, 'app.txt'), 'start\n', 'utf8');
@@ -1043,7 +1043,7 @@ await fs.writeFile(path.join(deletedPlanRoot, 'delete-plan-reviewer.mjs'), `
 import fs from 'node:fs';
 const planPath = process.argv[process.argv.indexOf('--plan-file') + 1];
 fs.rmSync(planPath);
-console.log('CODEXPRO_REVIEW=FAIL');
+console.log('CODEXFLOW_REVIEW=FAIL');
 `, 'utf8');
 requireSuccess(spawnSync('git', ['init'], { cwd: deletedPlanRoot, encoding: 'utf8' }), 'deleted plan git init');
 requireSuccess(spawnSync('git', ['add', 'app.txt'], { cwd: deletedPlanRoot, encoding: 'utf8' }), 'deleted plan git add');
@@ -1069,7 +1069,7 @@ if (!deletedPlanState.includes('"followupPlanExists": false') || !deletedPlanSta
   throw new Error(`loop did not stop cleanly after deleted follow-up plan\nstate:\n${deletedPlanState}\nlog:\n${deletedPlanLog}`);
 }
 
-const implicitDeletedPlanRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-loop-implicit-deleted-plan-'));
+const implicitDeletedPlanRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-loop-implicit-deleted-plan-'));
 await fs.mkdir(path.join(implicitDeletedPlanRoot, '.ai-bridge'), { recursive: true });
 await fs.writeFile(path.join(implicitDeletedPlanRoot, '.ai-bridge', 'current-plan.md'), '# Implicit delete plan\n\nAppend marker.\n', 'utf8');
 await fs.writeFile(path.join(implicitDeletedPlanRoot, 'app.txt'), 'start\n', 'utf8');

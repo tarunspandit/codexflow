@@ -8,8 +8,8 @@ function usage() {
   console.log(`Apply a planning-model response to the agent handoff file
 
 Usage:
-  codexpro pro-apply --root /path/to/repo --file plan.md
-  cat plan.md | codexpro pro-apply --root /path/to/repo --stdin
+  codexflow pro-apply --root /path/to/repo --file plan.md
+  cat plan.md | codexflow pro-apply --root /path/to/repo --stdin
 
 Options:
   --root <dir>       Workspace root. Default: current directory.
@@ -56,7 +56,7 @@ async function readStdin() {
 }
 
 function resolvePlanPath(args) {
-  const callerCwd = process.env.CODEXPRO_CALLER_CWD || process.cwd();
+  const callerCwd = process.env.CODEXFLOW_CALLER_CWD || process.cwd();
   return path.isAbsolute(args.file) ? args.file : path.resolve(callerCwd, args.file);
 }
 

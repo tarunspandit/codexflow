@@ -17,22 +17,22 @@ async function getFreePort() {
   });
 }
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-doctor-smoke-'));
-const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-doctor-home-'));
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-doctor-smoke-'));
+const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-doctor-home-'));
 const port = await getFreePort();
 const packageJson = JSON.parse(await fs.readFile(path.resolve('package.json'), 'utf8'));
 for (const args of [['--version'], ['-v'], ['version'], ['start', '--version']]) {
-  const version = spawnSync(process.execPath, ['scripts/codexpro.mjs', ...args], {
+  const version = spawnSync(process.execPath, ['scripts/codexflow.mjs', ...args], {
     cwd: path.resolve('.'),
-    env: { ...process.env, CODEXPRO_HOME: home },
+    env: { ...process.env, CODEXFLOW_HOME: home },
     encoding: 'utf8'
   });
   if (version.status !== 0 || version.stdout.trim() !== packageJson.version) {
-    throw new Error(`codexpro ${args.join(' ')} did not print version ${packageJson.version}\nstdout:\n${version.stdout}\nstderr:\n${version.stderr}`);
+    throw new Error(`codexflow ${args.join(' ')} did not print version ${packageJson.version}\nstdout:\n${version.stdout}\nstderr:\n${version.stderr}`);
   }
 }
 const result = spawnSync(process.execPath, [
-  'scripts/codexpro.mjs',
+  'scripts/codexflow.mjs',
   'doctor',
   '--root',
   root,
@@ -42,7 +42,7 @@ const result = spawnSync(process.execPath, [
   'none'
 ], {
   cwd: path.resolve('.'),
-  env: { ...process.env, CODEXPRO_HOME: home },
+  env: { ...process.env, CODEXFLOW_HOME: home },
   encoding: 'utf8'
 });
 
@@ -51,13 +51,13 @@ if (result.status !== 0) {
 }
 
 const output = `${result.stdout}\n${result.stderr}`;
-for (const expected of ['CodexPro doctor', 'Node', 'Build artifacts', 'Local port', 'Ready']) {
+for (const expected of ['CodexFlow doctor', 'Node', 'Build artifacts', 'Local port', 'Ready']) {
   if (!output.includes(expected)) {
     throw new Error(`doctor output missing ${expected}\n${output}`);
   }
 }
 
-const invalidRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-doctor-invalid-'));
+const invalidRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-doctor-invalid-'));
 const invalidRealRoot = await fs.realpath(invalidRoot);
 const invalidId = createHash('sha256').update(invalidRealRoot).digest('hex').slice(0, 24);
 await fs.mkdir(path.join(home, 'profiles'), { recursive: true });
@@ -71,7 +71,7 @@ await fs.writeFile(path.join(home, 'profiles', `${invalidId}.json`), JSON.string
   toolMode: 'banana'
 }, null, 2), 'utf8');
 const invalidDoctor = spawnSync(process.execPath, [
-  'scripts/codexpro.mjs',
+  'scripts/codexflow.mjs',
   'doctor',
   '--root',
   invalidRoot,
@@ -79,7 +79,7 @@ const invalidDoctor = spawnSync(process.execPath, [
   String(await getFreePort())
 ], {
   cwd: path.resolve('.'),
-  env: { ...process.env, CODEXPRO_HOME: home },
+  env: { ...process.env, CODEXFLOW_HOME: home },
   encoding: 'utf8'
 });
 const invalidOutput = `${invalidDoctor.stdout}\n${invalidDoctor.stderr}`;

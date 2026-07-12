@@ -1,6 +1,6 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
-import type { CodexProConfig } from "../config.js";
+import type { CodexFlowConfig } from "../config.js";
 import type { PathGuard, Workspace } from "../guard.js";
 import { detectRiskSignals } from "./classify.js";
 import { inspectWorkspace } from "./index.js";
@@ -93,7 +93,7 @@ async function nativeRecommendations(guard: PathGuard, workspace: Workspace): Pr
 }
 
 export async function reviewWorkspaceChanges(
-  config: CodexProConfig,
+  config: CodexFlowConfig,
   guard: PathGuard,
   workspace: Workspace,
   options: { changedPaths: string[] }

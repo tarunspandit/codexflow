@@ -1,23 +1,23 @@
 {
-  "name": "codexpro",
-  "version": "0.29.0-beta.1",
-  "description": "A local MCP/App SDK-style connector that lets ChatGPT inspect, edit, and hand off work to Codex inside a local dev workspace.",
+  "name": "@tarunspandit/codexflow",
+  "version": "0.29.0",
+  "description": "Independent one-command local coding backend that gives ChatGPT project, file, git, terminal, skill, and plugin access.",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rebel0789/codexpro.git"
+    "url": "git+https://github.com/tarunspandit/codexflow.git"
   },
   "bugs": {
-    "url": "https://github.com/rebel0789/codexpro/issues"
+    "url": "https://github.com/tarunspandit/codexflow/issues"
   },
-  "homepage": "https://rebel0789.github.io/codexpro/",
+  "homepage": "https://tarunspandit.github.io/codexflow/",
   "keywords": [
     "mcp",
     "chatgpt",
     "codex",
     "apps-sdk",
-    "codexpro",
+    "codexflow",
     "local-development",
     "cloudflare-tunnel",
     "ngrok",
@@ -35,6 +35,7 @@
     "PUBLIC_LAUNCH_CHECKLIST.md",
     "DOMAIN_SETUP.md",
     "LICENSE",
+    "NOTICE",
     "SECURITY.md",
     "CONTRIBUTING.md",
     "FAQ.md",
@@ -49,31 +50,30 @@
     "access": "public"
   },
   "bin": {
-    "codexpro": "scripts/codexpro.mjs",
-    "codexpro-mcp": "dist/stdio.js",
-    "codexpro-mcp-http": "dist/http.js"
+    "codexflow": "scripts/codexflow.mjs",
+    "codexflow-mcp": "dist/stdio.js",
+    "codexflow-mcp-http": "dist/http.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.json",
     "prepack": "npm run build",
     "start": "node dist/stdio.js",
     "start:stdio": "node dist/stdio.js",
     "start:http": "node dist/http.js",
     "dev:stdio": "tsx src/stdio.ts",
     "dev:http": "tsx src/http.ts",
-    "smoke": "node scripts/analysis-smoke.mjs && node scripts/analysis-cli-smoke.mjs && node scripts/smoke.mjs && node scripts/http-smoke.mjs && node scripts/pro-smoke.mjs && node scripts/doctor-smoke.mjs && node scripts/settings-smoke.mjs && node scripts/execute-handoff-smoke.mjs",
+    "smoke": "node scripts/analysis-smoke.mjs && node scripts/analysis-cli-smoke.mjs && node scripts/smoke.mjs && node scripts/http-smoke.mjs && node scripts/pro-smoke.mjs && node scripts/doctor-smoke.mjs && node scripts/settings-smoke.mjs && node scripts/cli-smoke.mjs && node scripts/execute-handoff-smoke.mjs",
     "stress": "npm run build && node scripts/stress.mjs",
     "analysis:smoke": "npm run build && node scripts/analysis-smoke.mjs",
     "analysis:cli-smoke": "npm run build && node scripts/analysis-cli-smoke.mjs",
-    "doctor": "node scripts/codexpro.mjs doctor",
-    "connect": "node scripts/codexpro.mjs",
-    "connect:setup": "node scripts/codexpro.mjs setup",
-    "connect:local": "node scripts/codexpro.mjs --tunnel none",
-    "connect:cloudflare": "node scripts/codexpro.mjs --tunnel cloudflare",
-    "connect:chatgpt": "node scripts/codexpro.mjs --tunnel cloudflare",
-    "connect:stable": "node scripts/codexpro.mjs --tunnel cloudflare-named",
-    "connect:ngrok": "node scripts/codexpro.mjs ngrok",
-    "connect:tailscale": "node scripts/codexpro.mjs tailscale",
+    "doctor": "node scripts/codexflow.mjs doctor",
+    "connect": "node scripts/codexflow.mjs",
+    "connect:local": "node scripts/codexflow.mjs --tunnel none",
+    "connect:cloudflare": "node scripts/codexflow.mjs --tunnel cloudflare",
+    "connect:chatgpt": "node scripts/codexflow.mjs --tunnel cloudflare",
+    "connect:stable": "node scripts/codexflow.mjs --tunnel cloudflare-named",
+    "connect:ngrok": "node scripts/codexflow.mjs ngrok",
+    "connect:tailscale": "node scripts/codexflow.mjs tailscale",
     "pro:bundle": "node scripts/pro-bundle.mjs",
     "pro:apply": "node scripts/pro-apply.mjs"
   },

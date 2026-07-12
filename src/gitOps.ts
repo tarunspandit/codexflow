@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import type { CodexProConfig } from "./config.js";
+import type { CodexFlowConfig } from "./config.js";
 import type { Workspace } from "./guard.js";
-import { CodexProError, PathGuard } from "./guard.js";
+import { CodexFlowError, PathGuard } from "./guard.js";
 import { redactSensitiveText } from "./redact.js";
 
 function runGit(workspace: Workspace, args: string[], maxOutputBytes: number): string {
@@ -38,7 +38,7 @@ function outputLines(output: string): string[] {
   return output.trim() === "(no output)" ? [] : output.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
-export function gitStatus(config: CodexProConfig, workspace: Workspace, guard?: PathGuard, filePath?: string, staged = false): string {
+export function gitStatus(config: CodexFlowConfig, workspace: Workspace, guard?: PathGuard, filePath?: string, staged = false): string {
   const args = staged ? ["diff", "--cached", "--name-status"] : ["status", "--short", "--branch"];
   if (filePath?.trim()) {
     if (!guard) return "path-scoped git status requires a path guard";
@@ -48,7 +48,7 @@ export function gitStatus(config: CodexProConfig, workspace: Workspace, guard?: 
   return runGit(workspace, args, config.maxOutputBytes);
 }
 
-export function gitDiff(config: CodexProConfig, guard: PathGuard, workspace: Workspace, filePath?: string, staged = false): string {
+export function gitDiff(config: CodexFlowConfig, guard: PathGuard, workspace: Workspace, filePath?: string, staged = false): string {
   const args = ["diff", "--no-color", "--no-ext-diff", "--no-textconv"];
   if (staged) args.push("--staged");
   if (filePath?.trim()) {
@@ -58,7 +58,7 @@ export function gitDiff(config: CodexProConfig, guard: PathGuard, workspace: Wor
   return runGit(workspace, args, config.maxOutputBytes);
 }
 
-export function gitDiffStatus(config: CodexProConfig, guard: PathGuard, workspace: Workspace, filePath?: string, staged = false): string {
+export function gitDiffStatus(config: CodexFlowConfig, guard: PathGuard, workspace: Workspace, filePath?: string, staged = false): string {
   const args = ["diff", "--name-status"];
   if (staged) args.push("--staged");
   const untrackedArgs = ["ls-files", "--others", "--exclude-standard"];
@@ -75,7 +75,7 @@ export function gitDiffStatus(config: CodexProConfig, guard: PathGuard, workspac
   return lines.length ? lines.join("\n") : "(no output)";
 }
 
-export function gitLog(config: CodexProConfig, workspace: Workspace, maxCount = 8): string {
+export function gitLog(config: CodexFlowConfig, workspace: Workspace, maxCount = 8): string {
   const count = Math.max(1, Math.min(Math.floor(maxCount), 30));
   return runGit(workspace, ["log", `--max-count=${count}`, "--oneline", "--decorate"], config.maxOutputBytes);
 }
