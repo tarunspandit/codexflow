@@ -1,19 +1,20 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { CodexProConfig } from "./config.js";
-import { WorkspaceManager, PathGuard, CodexProError, type Workspace } from "./guard.js";
+import type { CodexFlowConfig } from "./config.js";
+import { WorkspaceManager, PathGuard, CodexFlowError, type Workspace } from "./guard.js";
 import { repoTree, readTextFile, writeTextFile, editTextFile, ensureAiBridge } from "./fsOps.js";
 import { searchWorkspace } from "./searchOps.js";
 import { runBash } from "./bashOps.js";
 import { gitDiff, gitDiffStatus, gitLog, gitStatus } from "./gitOps.js";
 import { readAiBridgeContext, readCodexContext, workspaceSummary } from "./workspaceOps.js";
 import { buildProContext, exportProContext } from "./proContext.js";
-import { codexproInventory, loadSkill } from "./capabilitiesOps.js";
+import { codexflowInventory, loadSkill } from "./capabilitiesOps.js";
 import { listCodexSessions, readCodexSession } from "./codexSessions.js";
+import { discoverProjects } from "./projectCatalog.js";
 import { TOOL_CARD_LEGACY_URIS, TOOL_CARD_MIME_TYPE, TOOL_CARD_URI, toolCardWidgetHtml } from "./toolCardWidget.js";
 import { hasSecretValue, redactSensitiveText, redactStructured } from "./redact.js";
 import { inspectWorkspace, invalidateWorkspaceAnalysis, reviewWorkspaceChanges } from "./analysis/index.js";
@@ -54,7 +55,7 @@ function countTextLines(value: string | undefined): number {
   return value.split(/\r?\n/).filter((line) => line.length > 0).length;
 }
 
-function bashTextResult(config: CodexProConfig, result: Awaited<ReturnType<typeof runBash>>): string {
+function bashTextResult(config: CodexFlowConfig, result: Awaited<ReturnType<typeof runBash>>): string {
   if (config.bashTranscript === "full") {
     return `# Bash\n\n\`\`\`bash\n$ ${result.command}\n\`\`\`\n\nCWD: ${result.cwd}\nExit: ${result.exitCode}${result.signal ? ` (${result.signal})` : ""}\nDuration: ${result.durationMs} ms\n\n## stdout\n\n\`\`\`text\n${result.stdout || ""}\n\`\`\`\n\n## stderr\n\n\`\`\`text\n${result.stderr || ""}\n\`\`\``;
   }
@@ -71,7 +72,7 @@ function bashTextResult(config: CodexProConfig, result: Awaited<ReturnType<typeo
     `Duration: ${result.durationMs} ms`,
     `Output: stdout ${stdoutLines} line${stdoutLines === 1 ? "" : "s"}, stderr ${stderrLines} line${stderrLines === 1 ? "" : "s"}.`,
     "",
-    "Raw stdout/stderr are in the structured CodexPro card. Start with `--bash-transcript full` to print raw output in chat."
+    "Raw stdout/stderr are in the structured CodexFlow card. Start with `--bash-transcript full` to print raw output in chat."
   ].join("\n");
 }
 
@@ -98,7 +99,7 @@ function validateToolArgs(name: string, options: Record<string, unknown>, args: 
   const details = parsed.error.issues
     .map((issue) => `${issue.path.length ? issue.path.join(".") : "arguments"}: ${issue.message}`)
     .join("; ");
-  throw new CodexProError(`Invalid arguments for ${name}: ${details}`);
+  throw new CodexFlowError(`Invalid arguments for ${name}: ${details}`);
 }
 
 function tagToolResult(result: any, name: string, options: Record<string, unknown>): any {
@@ -109,8 +110,8 @@ function tagToolResult(result: any, name: string, options: Record<string, unknow
       ? structured
       : {};
   const tagged = {
-    codexpro_tool: name,
-    codexpro_title: options.title ?? name,
+    codexflow_tool: name,
+    codexflow_title: options.title ?? name,
     ...base
   };
   const meta = (options._meta as Record<string, unknown> | undefined) ?? {};
@@ -132,27 +133,28 @@ const OPTIONAL_TOOL_CARD_META = [
   "openai/toolInvocation/invoked"
 ] as const;
 
-function descriptorOptionsForConfig(config: CodexProConfig, options: Record<string, unknown>): Record<string, unknown> {
-  if (config.toolCards) return options;
-  const meta = { ...((options._meta as Record<string, unknown> | undefined) ?? {}) };
+function descriptorOptionsForConfig(config: CodexFlowConfig, options: Record<string, unknown>): Record<string, unknown> {
+  const originalMeta = (options._meta as Record<string, unknown> | undefined) ?? {};
+  if (config.toolCards || originalMeta["codexflow/alwaysWidget"] === true) return options;
+  const meta = { ...originalMeta };
   for (const key of OPTIONAL_TOOL_CARD_META) delete meta[key];
   return { ...options, _meta: meta };
 }
 
 function toolCallLoggingEnabled(): boolean {
-  return process.env.CODEXPRO_LOG_TOOL_CALLS === "1" || process.env.CODEXPRO_LOG_REQUESTS === "1";
+  return process.env.CODEXFLOW_LOG_TOOL_CALLS === "1" || process.env.CODEXFLOW_LOG_REQUESTS === "1";
 }
 
 function logToolCall(name: string, status: "ok" | "error", started: number): void {
   if (!toolCallLoggingEnabled()) return;
-  console.error(`[CodexProTool] ${name} ${status} ${Date.now() - started}ms`);
+  console.error(`[CodexFlowTool] ${name} ${status} ${Date.now() - started}ms`);
 }
 
-function registerToolCardResource(server: McpServer, config: CodexProConfig): void {
+function registerToolCardResource(server: McpServer, config: CodexFlowConfig): void {
   if (config.connectionTest) return;
   const s = server as any;
   if (typeof s.registerResource !== "function") {
-    throw new Error("Unsupported MCP SDK: CodexPro widgets require registerResource.");
+    throw new Error("Unsupported MCP SDK: CodexFlow widgets require registerResource.");
   }
 
   const registerUri = (uri: string, name: string): void => {
@@ -160,8 +162,8 @@ function registerToolCardResource(server: McpServer, config: CodexProConfig): vo
       name,
       uri,
       {
-        title: "CodexPro Tool Card",
-        description: "Compact visual renderer for CodexPro workspace orientation, source changes, and handoffs.",
+        title: "CodexFlow Tool Card",
+        description: "Compact visual renderer for CodexFlow workspace orientation, source changes, and handoffs.",
         mimeType: TOOL_CARD_MIME_TYPE
       },
       async () => ({
@@ -179,7 +181,7 @@ function registerToolCardResource(server: McpServer, config: CodexProConfig): vo
                   resourceDomains: []
                 }
               },
-              "openai/widgetDescription": "Renders CodexPro workspace orientation, diagnostics, file diffs, change reviews, terminal checks, Pro context exports, and handoff plans as compact developer cards with bounded previews.",
+              "openai/widgetDescription": "Renders CodexFlow workspace orientation, diagnostics, file diffs, change reviews, terminal checks, Pro context exports, and handoff plans as compact developer cards with bounded previews.",
               "openai/widgetPrefersBorder": true,
               "openai/widgetDomain": config.widgetDomain,
               "openai/widgetCSP": {
@@ -193,20 +195,20 @@ function registerToolCardResource(server: McpServer, config: CodexProConfig): vo
     );
   };
 
-  registerUri(TOOL_CARD_URI, "codexpro-tool-card");
+  registerUri(TOOL_CARD_URI, "codexflow-tool-card");
   for (const legacyUri of TOOL_CARD_LEGACY_URIS) {
-    registerUri(legacyUri, `codexpro-tool-card-${legacyUri.match(/v\d+/)?.[0] ?? "legacy"}`);
+    registerUri(legacyUri, `codexflow-tool-card-${legacyUri.match(/v\d+/)?.[0] ?? "legacy"}`);
   }
 }
 
 type CodexToolHandler = (args: any) => Promise<any> | any;
 
-const SUPERTOOL_NAME = "codexpro";
+const SUPERTOOL_NAME = "codexflow";
 const SUPERTOOL_ACTION_ALIASES: Record<string, string> = {
   actions: "list_actions",
   config: "server_config",
-  self_test: "codexpro_self_test",
-  inventory: "codexpro_inventory",
+  self_test: "codexflow_self_test",
+  inventory: "codexflow_inventory",
   open: "open_current_workspace",
   snapshot: "workspace_snapshot",
   changes: "show_changes",
@@ -236,22 +238,22 @@ function normalizeSupertoolAction(value: unknown): string {
 }
 
 
-function isContextPath(config: CodexProConfig, relPath: string): boolean {
+function isContextPath(config: CodexFlowConfig, relPath: string): boolean {
   const normalized = relPath.split(path.sep).join("/").replace(/^\.\//, "");
   const contextDir = config.contextDir.replace(/^\.\//, "").replace(/\/$/, "");
   return normalized === contextDir || normalized.startsWith(`${contextDir}/`);
 }
 
-function assertWriteToolAllowed(config: CodexProConfig, relPath: string): void {
+function assertWriteToolAllowed(config: CodexFlowConfig, relPath: string): void {
   if (config.writeMode === "workspace") return;
   if (config.writeMode === "handoff" && isContextPath(config, relPath)) return;
   if (config.writeMode === "handoff") {
-    throw new CodexProError(
-      `Source writes are disabled because CODEXPRO_WRITE_MODE=handoff. ` +
+    throw new CodexFlowError(
+      `Source writes are disabled because CODEXFLOW_WRITE_MODE=handoff. ` +
         `Use handoff_to_agent or handoff_to_codex, or write/edit/apply_patch only inside ${config.contextDir}/.`
     );
   }
-  throw new CodexProError("write/edit/apply_patch tools are disabled because CODEXPRO_WRITE_MODE=off. handoff_to_agent and handoff_to_codex are still available for planning.");
+  throw new CodexFlowError("write/edit/apply_patch tools are disabled because CODEXFLOW_WRITE_MODE=off. handoff_to_agent and handoff_to_codex are still available for planning.");
 }
 
 function registerToolCompat(
@@ -300,7 +302,10 @@ function registerToolCompat(
 const MINIMAL_TOOL_NAMES = [
   SUPERTOOL_NAME,
   "server_config",
-  "codexpro_self_test",
+  "codexflow_self_test",
+  "list_projects",
+  "select_project",
+  "load_skill",
   "open_current_workspace",
   "open_workspace",
   "read",
@@ -316,7 +321,6 @@ const STANDARD_TOOL_NAMES = [
   "inspect_workspace",
   "tree",
   "search",
-  "load_skill",
   "read_handoff",
   "wait_for_handoff",
   "export_pro_context",
@@ -326,8 +330,10 @@ const STANDARD_TOOL_NAMES = [
 const FULL_TOOL_NAMES = [
   SUPERTOOL_NAME,
   "server_config",
-  "codexpro_self_test",
-  "codexpro_inventory",
+  "codexflow_self_test",
+  "codexflow_inventory",
+  "list_projects",
+  "select_project",
   "load_skill",
   "list_workspaces",
   "open_current_workspace",
@@ -354,7 +360,7 @@ const FULL_TOOL_NAMES = [
 
 const CONNECTION_TEST_HIDDEN_TOOLS = new Set<string>([
   SUPERTOOL_NAME,
-  "codexpro_self_test",
+  "codexflow_self_test",
   "write",
   "edit",
   "apply_patch",
@@ -364,14 +370,14 @@ const CONNECTION_TEST_HIDDEN_TOOLS = new Set<string>([
   "handoff_to_codex"
 ]);
 
-function codexSessionToolNames(config: CodexProConfig): string[] {
+function codexSessionToolNames(config: CodexFlowConfig): string[] {
   if (config.codexSessions === "off") return [];
   return config.codexSessions === "read"
     ? ["codex_sessions", "read_codex_session"]
     : ["codex_sessions"];
 }
 
-function toolNamesForMode(config: CodexProConfig): string[] {
+function toolNamesForMode(config: CodexFlowConfig): string[] {
   const names: string[] =
     config.toolMode === "full"
       ? [...FULL_TOOL_NAMES]
@@ -420,7 +426,7 @@ function registeredToolNames(server: McpServer): string[] {
   return [...(registeredToolNamesByServer.get(server as object) ?? [])];
 }
 
-function shouldRegisterTool(config: CodexProConfig, name: string): boolean {
+function shouldRegisterTool(config: CodexFlowConfig, name: string): boolean {
   if (config.connectionTest && CONNECTION_TEST_HIDDEN_TOOLS.has(name)) return false;
   if (name === "bash" && config.bashMode === "off") return false;
   if ((name === "write" || name === "edit" || name === "apply_patch") && config.writeMode !== "workspace") return false;
@@ -434,7 +440,7 @@ function shouldRegisterTool(config: CodexProConfig, name: string): boolean {
 }
 
 function registerCodexTool(
-  config: CodexProConfig,
+  config: CodexFlowConfig,
   server: McpServer,
   name: string,
   options: Record<string, unknown>,
@@ -447,37 +453,38 @@ function registerCodexTool(
   rememberRegisteredToolHandler(server, name, validatedHandler);
 }
 
-function serverInstructions(config: CodexProConfig): string {
+function serverInstructions(config: CodexFlowConfig): string {
   const editInstruction =
     config.connectionTest
-      ? "4. Connection test mode is read-only. Write, patch, export, and handoff-writing tools are unavailable."
+      ? "5. Connection test mode is read-only. Write, patch, export, and handoff-writing tools are unavailable."
       : config.writeMode === "workspace"
-      ? "4. Edit source files with write/edit/apply_patch. After edits, call show_changes once for git status, diff stats, and review diff."
+      ? "5. Edit source files with write/edit/apply_patch. After edits, call show_changes once for git status, diff stats, and review diff."
       : config.writeMode === "handoff"
-        ? "4. Source writes are disabled and generic write/edit/apply_patch tools are unavailable. Use handoff_to_agent/handoff_to_codex for plans."
-        : "4. Write/edit/apply_patch tools are disabled. Do not attempt direct file writes; use handoff or context export workflows instead.";
+        ? "5. Source writes are disabled and generic write/edit/apply_patch tools are unavailable. Use handoff_to_agent/handoff_to_codex for plans."
+        : "5. Write/edit/apply_patch tools are disabled. Do not attempt direct file writes; use handoff or context export workflows instead.";
   const bashInstruction =
     config.bashMode === "off"
-      ? "5. Bash is disabled and the bash tool is unavailable. Do not attempt shell commands."
-      : "5. Use bash only for meaningful verification commands such as npm test, npm run build, lint, typecheck, or an existing project script.";
+      ? "6. Bash is disabled and the bash tool is unavailable. Do not attempt shell commands."
+      : "6. Use bash only for meaningful verification commands such as npm test, npm run build, lint, typecheck, or an existing project script.";
 
   return [
-    "CodexPro connects ChatGPT to one local development workspace.",
+    "CodexFlow gives this ChatGPT conversation Codex-style access to one selected local project while sharing a single local broker with other conversations.",
     "",
     "Preferred workflow:",
-    "1. Start with open_current_workspace. Use open_workspace only when the user gives a different root or asks to switch folders.",
-    "2. Follow any AGENTS.md-style instructions returned by the workspace open call before editing files.",
-    "3. Inspect with tree, search, and read. Do not use bash for git status, git diff, cat, sed, grep, rg, find, ls, or file reading.",
+    "1. At the start of a new coding conversation, call list_projects so the user can choose a project. Call select_project with their choice before doing project work. If the user already named an exact project, select it directly from the list.",
+    "2. The selected project is bound to this MCP conversation. Omit workspace_id on later calls; CodexFlow routes them to the bound project. Use select_project again only when the user explicitly switches projects.",
+    "3. Follow AGENTS.md and load relevant advertised skills returned by select_project before editing files.",
+    "4. Inspect with tree, search, and read. Do not use bash for git status, git diff, cat, sed, grep, rg, find, ls, or file reading.",
     editInstruction,
     bashInstruction,
-    "6. Keep tool calls minimal. Prefer one targeted search plus show_changes instead of repeated broad inspection calls.",
+    "7. Keep tool calls minimal. Prefer one targeted search plus show_changes instead of repeated broad inspection calls.",
     config.codexSessions !== "off"
-      ? `7. Codex session history access is enabled in ${config.codexSessions} mode. Use it only when the user asks for local Codex session history.`
+      ? `8. Codex session history access is enabled in ${config.codexSessions} mode. Use it only when the user asks for local Codex session history.`
       : "",
     config.requireBashSession && config.bashSessionId
-      ? `8. Bash session guard is enabled. Every bash call must include session_id="${config.bashSessionId}".`
+      ? `9. Bash session guard is enabled. Every bash call must include session_id="${config.bashSessionId}".`
       : config.bashSessionId
-        ? `8. Bash session label for this server is "${config.bashSessionId}".`
+        ? `9. Bash session label for this server is "${config.bashSessionId}".`
         : "",
     "",
     `Current modes: tool=${config.toolMode}, bash=${config.bashMode}, write=${config.writeMode}.`
@@ -520,7 +527,7 @@ function reviewFingerprint(status: string, diff: string): string {
   return createHash("sha256").update(status).update("\0").update(diff).digest("hex");
 }
 
-async function untrackedReviewFingerprint(config: CodexProConfig, guard: PathGuard, workspace: Workspace, changedFiles: string[]): Promise<string> {
+async function untrackedReviewFingerprint(config: CodexFlowConfig, guard: PathGuard, workspace: Workspace, changedFiles: string[]): Promise<string> {
   const hash = createHash("sha256");
   for (const line of changedFiles) {
     const match = line.match(/^\?\?\s+(.+)$/);
@@ -564,7 +571,7 @@ function decodeGitQuotedPath(pathText: string): string {
     }
     i += 1;
     const escaped = input[i];
-    if (escaped === undefined) throw new CodexProError(`Invalid quoted Git path: ${pathText}`);
+    if (escaped === undefined) throw new CodexFlowError(`Invalid quoted Git path: ${pathText}`);
     if (/[0-7]/.test(escaped)) {
       let octal = escaped;
       for (let j = 0; j < 2 && i + 1 < input.length && /[0-7]/.test(input[i + 1]); j += 1) {
@@ -618,24 +625,24 @@ function patchTouchedPaths(patch: string): string[] {
 }
 
 function applyWorkspacePatch(
-  config: CodexProConfig,
+  config: CodexFlowConfig,
   guard: PathGuard,
   workspace: Workspace,
   patch: string
 ): { paths: string[]; stdout: string; stderr: string; diff: string; additions: number; deletions: number; changed: boolean } {
-  if (!patch.trim()) throw new CodexProError("patch is required.");
+  if (!patch.trim()) throw new CodexFlowError("patch is required.");
   if (Buffer.byteLength(patch, "utf8") > config.maxWriteBytes) {
-    throw new CodexProError(`Patch is too large. Limit: ${config.maxWriteBytes} bytes.`);
+    throw new CodexFlowError(`Patch is too large. Limit: ${config.maxWriteBytes} bytes.`);
   }
   if (hasSecretValue(patch)) {
-    throw new CodexProError("Secret-looking content is blocked from apply_patch. Use placeholders such as [REDACTED_SECRET].");
+    throw new CodexFlowError("Secret-looking content is blocked from apply_patch. Use placeholders such as [REDACTED_SECRET].");
   }
   if (patchHasSymlinkMode(patch)) {
-    throw new CodexProError("Symlink patches are blocked from apply_patch.");
+    throw new CodexFlowError("Symlink patches are blocked from apply_patch.");
   }
 
   const paths = patchTouchedPaths(patch);
-  if (!paths.length) throw new CodexProError("Patch must include at least one file path.");
+  if (!paths.length) throw new CodexFlowError("Patch must include at least one file path.");
   for (const touchedPath of paths) {
     guard.resolve(workspace, touchedPath, { forWrite: true });
     assertWriteToolAllowed(config, touchedPath);
@@ -649,7 +656,7 @@ function applyWorkspacePatch(
     env: { ...process.env, NO_COLOR: "1" }
   });
   if (check.error || check.status !== 0) {
-    throw new CodexProError(redactSensitiveText(check.stderr?.trim() || check.stdout?.trim() || check.error?.message || "git apply --check failed"));
+    throw new CodexFlowError(redactSensitiveText(check.stderr?.trim() || check.stdout?.trim() || check.error?.message || "git apply --check failed"));
   }
 
   const applied = spawnSync("git", ["apply", "--whitespace=nowarn"], {
@@ -660,7 +667,7 @@ function applyWorkspacePatch(
     env: { ...process.env, NO_COLOR: "1" }
   });
   if (applied.error || applied.status !== 0) {
-    throw new CodexProError(redactSensitiveText(applied.stderr?.trim() || applied.stdout?.trim() || applied.error?.message || "git apply failed"));
+    throw new CodexFlowError(redactSensitiveText(applied.stderr?.trim() || applied.stdout?.trim() || applied.error?.message || "git apply failed"));
   }
 
   const diff = redactSensitiveText(patch.trimEnd());
@@ -728,7 +735,7 @@ function cleanOneLine(value: unknown, fallback: string, maxLength = 120): string
 function normalizeAgentId(value: unknown): string {
   const agent = cleanOneLine(value, "custom", 64).toLowerCase();
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(agent)) {
-    throw new CodexProError("agent must use only lowercase letters, numbers, dots, underscores, or hyphens.");
+    throw new CodexFlowError("agent must use only lowercase letters, numbers, dots, underscores, or hyphens.");
   }
   return agent;
 }
@@ -755,7 +762,7 @@ function agentCommandHint(agent: string, planPath: string, model?: string): stri
   return `Run your local implementation agent manually with ${planPath} as the task input.`;
 }
 
-async function readRawTextFileBounded(config: CodexProConfig, guard: PathGuard, workspace: Workspace, filePath: string): Promise<string> {
+async function readRawTextFileBounded(config: CodexFlowConfig, guard: PathGuard, workspace: Workspace, filePath: string): Promise<string> {
   const resolved = guard.resolve(workspace, filePath);
   await guard.assertTextFile(resolved.absPath, config.maxReadBytes);
   return fsp.readFile(resolved.absPath, "utf8");
@@ -795,7 +802,7 @@ ${options.plan.trim()}
 }
 
 async function writeAgentHandoff(
-  config: CodexProConfig,
+  config: CodexFlowConfig,
   guard: PathGuard,
   workspace: Workspace,
   options: {
@@ -825,7 +832,7 @@ async function writeAgentHandoff(
   const agentName = displayAgentName(agent, options.agentName);
   const model = options.model ? cleanOneLine(options.model, "", 120) : undefined;
   const plan = String(options.plan ?? "").trim();
-  if (!plan) throw new CodexProError("plan must not be empty.");
+  if (!plan) throw new CodexFlowError("plan must not be empty.");
   const planPath = `${config.contextDir}/current-plan.md`;
   const statusPath = `${config.contextDir}/agent-status.md`;
   const legacyCodexStatusPath = `${config.contextDir}/codex-status.md`;
@@ -899,7 +906,7 @@ const HANDOFF_WRITE_ANNOTATIONS = { readOnlyHint: false, openWorldHint: false, d
 
 const workspaceManagers = new Map<string, WorkspaceManager>();
 
-function workspaceManagerKey(config: CodexProConfig): string {
+function workspaceManagerKey(config: CodexFlowConfig): string {
   return JSON.stringify({
     defaultRoot: config.defaultRoot,
     allowedRoots: [...config.allowedRoots].sort(),
@@ -907,7 +914,7 @@ function workspaceManagerKey(config: CodexProConfig): string {
   });
 }
 
-function getSharedWorkspaceManager(config: CodexProConfig): WorkspaceManager {
+function getSharedWorkspaceManager(config: CodexFlowConfig): WorkspaceManager {
   const key = workspaceManagerKey(config);
   const existing = workspaceManagers.get(key);
   if (existing) return existing;
@@ -916,10 +923,38 @@ function getSharedWorkspaceManager(config: CodexProConfig): WorkspaceManager {
   return manager;
 }
 
-export function createCodexProServer(config: CodexProConfig): McpServer {
-  const workspaces = getSharedWorkspaceManager(config);
+export function createCodexFlowServer(config: CodexFlowConfig): McpServer {
+  const workspaceManager = getSharedWorkspaceManager(config);
+  const chatSessionId = `codexflow-chat-${randomUUID()}`;
+  let activeWorkspaceId: string | undefined;
+  const workspaces = {
+    defaultWorkspace(): Workspace {
+      const workspace = workspaceManager.defaultWorkspace();
+      activeWorkspaceId = workspace.id;
+      return workspace;
+    },
+    openWorkspace(root?: string): Workspace {
+      const workspace = workspaceManager.openWorkspace(root);
+      activeWorkspaceId = workspace.id;
+      return workspace;
+    },
+    getWorkspace(id?: string): Workspace {
+      if (id && activeWorkspaceId && id !== activeWorkspaceId) {
+        throw new CodexFlowError("This ChatGPT conversation is bound to a different project. Call select_project or open_workspace explicitly to switch it first.");
+      }
+      const workspace = workspaceManager.getWorkspace(id ?? activeWorkspaceId);
+      activeWorkspaceId = workspace.id;
+      return workspace;
+    },
+    listWorkspaces(): Workspace[] {
+      return workspaceManager.listWorkspaces();
+    },
+    activeWorkspace(): Workspace | undefined {
+      return activeWorkspaceId ? workspaceManager.getWorkspace(activeWorkspaceId) : undefined;
+    }
+  };
   const guard = new PathGuard(config);
-  const server = new McpServer({ name: "CodexPro", version: "0.29.0-beta.1" }, { instructions: serverInstructions(config) });
+  const server = new McpServer({ name: "CodexFlow", version: "0.29.0-beta.1" }, { instructions: serverInstructions(config) });
   registeredToolNamesByServer.set(server as object, []);
   registerToolCardResource(server, config);
 
@@ -928,18 +963,18 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
     server,
     SUPERTOOL_NAME,
     {
-      title: "CodexPro Supertool",
+      title: "CodexFlow Supertool",
       description:
-        "Stable wrapper for advanced ChatGPT connector setups. Pass action plus args to call an already-registered CodexPro tool without changing the visible schema; it cannot call tools disabled by the current mode.",
+        "Stable wrapper for advanced ChatGPT connector setups. Pass action plus args to call an already-registered CodexFlow tool without changing the visible schema; it cannot call tools disabled by the current mode.",
       inputSchema: {
         action: z.string().optional().describe("Action or registered tool name. Use list_actions to see what this server mode allows."),
-        args: z.record(z.any()).optional().describe("Arguments for the selected action. Same shape as the wrapped CodexPro tool.")
+        args: z.record(z.any()).optional().describe("Arguments for the selected action. Same shape as the wrapped CodexFlow tool.")
       },
       annotations: BASH_ANNOTATIONS,
       _meta: {
         ...toolCardMeta(),
-        "openai/toolInvocation/invoking": "Running CodexPro supertool action...",
-        "openai/toolInvocation/invoked": "CodexPro supertool action complete"
+        "openai/toolInvocation/invoking": "Running CodexFlow supertool action...",
+        "openai/toolInvocation/invoked": "CodexFlow supertool action complete"
       }
     },
     async (args) => {
@@ -947,9 +982,9 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       const names = registeredToolNames(server).filter((name) => name !== SUPERTOOL_NAME);
       if (action === "list_actions" || action === "help") {
         const text = [
-          "# CodexPro Supertool",
+          "# CodexFlow Supertool",
           "",
-          "Use `codexpro` only when a stable wrapper is useful for ChatGPT connector caching or custom workflows. The explicit tools remain the preferred default because they give clearer descriptions and validation.",
+          "Use `codexflow` only when a stable wrapper is useful for ChatGPT connector caching or custom workflows. The explicit tools remain the preferred default because they give clearer descriptions and validation.",
           "",
           "## Available actions",
           "",
@@ -972,14 +1007,14 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       }
 
       if (action === SUPERTOOL_NAME) {
-        throw new CodexProError("codexpro cannot call itself. Use action=list_actions to inspect available wrapped actions.");
+        throw new CodexFlowError("codexflow cannot call itself. Use action=list_actions to inspect available wrapped actions.");
       }
 
       const handler = registeredToolHandler(server, action);
       if (!handler) {
-        throw new CodexProError(
-          `CodexPro action is not available in the current mode: ${action}. ` +
-            "Call codexpro with action=list_actions, or restart CodexPro with a broader tool mode if that action should be exposed."
+        throw new CodexFlowError(
+          `CodexFlow action is not available in the current mode: ${action}. ` +
+            "Call codexflow with action=list_actions, or restart CodexFlow with a broader tool mode if that action should be exposed."
         );
       }
 
@@ -996,9 +1031,9 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       if (result && typeof result === "object") {
         const structured = result.structuredContent;
         result.structuredContent = {
-          codexpro_tool: action,
-          codexpro_title: action,
-          codexpro_super_action: action,
+          codexflow_tool: action,
+          codexflow_title: action,
+          codexflow_super_action: action,
           wrapped_tool: action,
           ...(structured && typeof structured === "object" && !Array.isArray(structured) ? structured : {})
         };
@@ -1013,13 +1048,13 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
     "server_config",
     {
       title: "Server Config",
-      description: "Show CodexPro server configuration, safety modes, limits, and blocked paths. Does not reveal auth tokens.",
+      description: "Show CodexFlow server configuration, safety modes, limits, and blocked paths. Does not reveal auth tokens.",
       inputSchema: {},
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: {
         ...toolCardMeta(),
-        "openai/toolInvocation/invoking": "Reading CodexPro server config...",
-        "openai/toolInvocation/invoked": "CodexPro server config ready"
+        "openai/toolInvocation/invoking": "Reading CodexFlow server config...",
+        "openai/toolInvocation/invoked": "CodexFlow server config ready"
       }
     },
     async () => {
@@ -1052,21 +1087,21 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
         registeredTools: registeredToolNames(server),
         registeredToolCount: registeredToolNames(server).length
       };
-      return textResult(`# CodexPro Server Config\n\n${JSON.stringify(safeConfig, null, 2)}`, safeConfig);
+      return textResult(`# CodexFlow Server Config\n\n${JSON.stringify(safeConfig, null, 2)}`, safeConfig);
     }
   );
 
   registerCodexTool(
     config,
     server,
-    "codexpro_self_test",
+    "codexflow_self_test",
     {
-      title: "CodexPro Self Test",
+      title: "CodexFlow Self Test",
       description:
-        "Run one controlled, local-only CodexPro diagnostic. It checks modes, expected tools, workspace access, skills, git, safe bash policy, selected-only Pro context, and optional .ai-bridge write/edit probe without touching source files.",
+        "Run one controlled, local-only CodexFlow diagnostic. It checks modes, expected tools, workspace access, skills, git, safe bash policy, selected-only Pro context, and optional .ai-bridge write/edit probe without touching source files.",
       inputSchema: {
         workspace_id: z.string().optional().describe("Workspace id from open_workspace. Omit to use default workspace."),
-        write_probe: z.boolean().optional().describe("Create/edit only .ai-bridge/codexpro-self-test.md. Default: true."),
+        write_probe: z.boolean().optional().describe("Create/edit only .ai-bridge/codexflow-self-test.md. Default: true."),
         bash_probe: z.boolean().optional().describe("Check bash policy with safe local commands only. Default: true."),
         pro_context_probe: z.boolean().optional().describe("Build a selected-only Pro context bundle in memory without writing pro-context.md. Default: true."),
         include_global_skills: z.boolean().optional().describe("Include user/plugin skill discovery in the inventory check. Default: true."),
@@ -1075,8 +1110,8 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       annotations: HANDOFF_WRITE_ANNOTATIONS,
       _meta: {
         ...toolCardMeta(),
-        "openai/toolInvocation/invoking": "Running CodexPro self-test...",
-        "openai/toolInvocation/invoked": "CodexPro self-test complete"
+        "openai/toolInvocation/invoking": "Running CodexFlow self-test...",
+        "openai/toolInvocation/invoked": "CodexFlow self-test complete"
       }
     },
     async (args) => {
@@ -1084,7 +1119,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       const started = Date.now();
       const checks: Array<{ name: string; status: "pass" | "warn" | "fail"; detail: string }> = [];
       const filesTouched: string[] = [];
-      const probePath = `${config.contextDir}/codexpro-self-test.md`;
+      const probePath = `${config.contextDir}/codexflow-self-test.md`;
 
       const check = (name: string, status: "pass" | "warn" | "fail", detail: string) => {
         checks.push({ name, status, detail: cleanOneLine(detail, detail, 260) });
@@ -1116,7 +1151,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       );
 
       try {
-        const inventory = await codexproInventory(config, workspace, {
+        const inventory = await codexflowInventory(config, workspace, {
           includeGlobalSkills: parseBool(args.include_global_skills, true),
           includeMcpServers: true,
           maxSkills: limitInt(args.max_skills, 40, 1, 120)
@@ -1137,12 +1172,12 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
 
       if (parseBool(args.write_probe, true)) {
         if (config.writeMode === "off") {
-          check("write/edit probe", "warn", "skipped because CODEXPRO_WRITE_MODE=off");
+          check("write/edit probe", "warn", "skipped because CODEXFLOW_WRITE_MODE=off");
         } else {
           try {
             assertWriteToolAllowed(config, probePath);
             const content = [
-              "# CodexPro Self Test",
+              "# CodexFlow Self Test",
               "",
               `Updated: ${new Date().toISOString()}`,
               `Workspace: ${workspace.root}`,
@@ -1152,7 +1187,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
             await writeTextFile(config, guard, workspace, probePath, content, { createDirs: true, overwrite: true });
             await editTextFile(config, guard, workspace, probePath, "marker: before", "marker: after", { expectedReplacements: 1 });
             const readBack = await readTextFile(config, guard, workspace, probePath, { maxBytes: 20_000 });
-            if (!readBack.text.includes("marker: after")) throw new CodexProError("self-test edit marker was not found after edit.");
+            if (!readBack.text.includes("marker: after")) throw new CodexFlowError("self-test edit marker was not found after edit.");
             const scopedStatus = gitStatus(config, workspace, guard, probePath);
             const scopedFiles = changedStatusLines(scopedStatus);
             filesTouched.push(probePath);
@@ -1175,7 +1210,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
             check("selected-only pro context", "warn", "skipped because write probe did not create the selected file");
           } else {
             const context = await buildProContext(config, guard, workspace, {
-              title: "CodexPro Self Test Context",
+              title: "CodexFlow Self Test Context",
               selectedPaths: [probePath],
               includeImportantFiles: false,
               includeChangedFiles: false,
@@ -1234,7 +1269,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       const passed = checks.filter((item) => item.status === "pass").length;
       const status = failed ? "fail" : warned ? "warn" : "pass";
       const text = [
-        "# CodexPro Self Test",
+        "# CodexFlow Self Test",
         "",
         `Status: ${status}`,
         `Workspace: ${workspace.root}`,
@@ -1249,7 +1284,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
         "",
         "## Terms Boundary",
         "",
-        "CodexPro exposes local repo tools to the ChatGPT session the user controls. It does not provide models, proxy model access, resell access, modify quotas, bypass limits, or run local implementation agents through remote MCP tools."
+        "CodexFlow exposes local repo tools to the ChatGPT session the user controls. It does not provide models, proxy model access, resell access, modify quotas, bypass limits, or run local implementation agents through remote MCP tools."
       ].join("\n");
 
       return textResult(text, {
@@ -1285,11 +1320,11 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
   registerCodexTool(
     config,
     server,
-    "codexpro_inventory",
+    "codexflow_inventory",
     {
-      title: "CodexPro Inventory",
+      title: "CodexFlow Inventory",
       description:
-        "List CodexPro modes plus discovered skill names and configured MCP server names. Use this early when planning needs local agent capabilities.",
+        "List CodexFlow modes plus discovered skills, locally available Codex plugin manifests, and configured MCP server names. Use this early when planning needs local agent capabilities.",
       inputSchema: {
         workspace_id: z.string().optional().describe("Workspace id from open_workspace. Omit to use default workspace."),
         include_global_skills: z.boolean().optional().describe("Include user and plugin skill folders. Default: true."),
@@ -1299,13 +1334,13 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: {
         ...toolCardMeta(),
-        "openai/toolInvocation/invoking": "Reading CodexPro inventory...",
-        "openai/toolInvocation/invoked": "CodexPro inventory ready"
+        "openai/toolInvocation/invoking": "Reading CodexFlow inventory...",
+        "openai/toolInvocation/invoked": "CodexFlow inventory ready"
       }
     },
     async (args) => {
       const workspace = workspaces.getWorkspace(args.workspace_id);
-      const inventory = await codexproInventory(config, workspace, {
+      const inventory = await codexflowInventory(config, workspace, {
         includeGlobalSkills: parseBool(args.include_global_skills, true),
         includeMcpServers: parseBool(args.include_mcp_servers, true),
         maxSkills: limitInt(args.max_skills, 120, 1, 500)
@@ -1318,6 +1353,8 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
         tool_mode: config.toolMode,
         skills: inventory.skills,
         skill_count: inventory.skills.length,
+        plugins: inventory.plugins,
+        plugin_count: inventory.plugins.length,
         mcp_servers: inventory.mcpServers,
         mcp_server_count: inventory.mcpServers.length,
         widget_uri: TOOL_CARD_URI
@@ -1335,7 +1372,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
         "Load the bounded SKILL.md body for a discovered workspace, user, or plugin skill by name. Does not accept arbitrary paths; use after open_current_workspace/open_workspace shows skill_inventory.",
       inputSchema: {
         workspace_id: z.string().optional().describe("Workspace id from open_workspace. Omit to use default workspace."),
-        name: z.string().describe("Exact skill name from skill_inventory or codexpro_inventory."),
+        name: z.string().describe("Exact skill name from skill_inventory or codexflow_inventory."),
         source: z.enum(["workspace", "user", "plugin", "other"]).optional().describe("Optional source when multiple skills share a name."),
         path: z.string().optional().describe("Exact sanitized path from skill_inventory when name/source are still ambiguous."),
         include_global_skills: z.boolean().optional().describe("Also scan installed user/plugin skills. Default: auto when source/path is not workspace."),
@@ -1381,23 +1418,159 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
   registerCodexTool(
     config,
     server,
+    "list_projects",
+    {
+      title: "Choose A Project",
+      description:
+        "Call this first in a new CodexFlow coding chat. It synchronizes configured folders with recent local Codex project folders and shows a project picker; it does not run the Codex CLI.",
+      inputSchema: {
+        refresh: z.boolean().optional().describe("Rescan configured roots and local Codex project metadata. Default: false."),
+        query: z.string().optional().describe("Optional case-insensitive filter over project name and path."),
+        max_projects: z.number().int().min(1).max(250).optional().describe("Maximum projects to show. Default: 100.")
+      },
+      annotations: SESSION_READ_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "codexflow/alwaysWidget": true,
+        "openai/widgetAccessible": true,
+        "openai/toolInvocation/invoking": "Synchronizing local projects...",
+        "openai/toolInvocation/invoked": "Choose a local project"
+      }
+    },
+    async (args) => {
+      const candidates = await discoverProjects(config, {
+        refresh: parseBool(args.refresh, false),
+        maxProjects: limitInt(args.max_projects, 100, 1, 250)
+      });
+      const query = String(args.query ?? "").trim().toLowerCase();
+      const projects = candidates.flatMap((candidate) => {
+        if (query && !`${candidate.name}\n${candidate.root}`.toLowerCase().includes(query)) return [];
+        const workspace = workspaceManager.openWorkspace(candidate.root);
+        return [{
+          project_id: workspace.id,
+          name: candidate.name,
+          root: candidate.root,
+          sources: candidate.sources,
+          last_active_at: candidate.lastActiveAt ?? null,
+          selected: workspace.id === activeWorkspaceId
+        }];
+      });
+      const rows = projects.length
+        ? projects.map((project) => `- ${project.project_id} — ${project.name} — ${project.root}${project.selected ? " (selected)" : ""}`).join("\n")
+        : "No projects found inside the configured allowed roots.";
+      return textResult(`# Select a project\n\nChoose one project before doing repository work.\n\n${rows}`, {
+        projects,
+        count: projects.length,
+        selected_project_id: activeWorkspaceId ?? null,
+        picker: true,
+        sync_sources: ["configured roots", "recent Codex project metadata"],
+        allowed_roots: config.allowedRoots
+      }, { "openai/widgetSessionId": chatSessionId });
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
+    "select_project",
+    {
+      title: "Select Project",
+      description:
+        "Bind this ChatGPT conversation to one synchronized local project. All later CodexFlow file, git, search, edit, and terminal tools route there when workspace_id is omitted.",
+      inputSchema: {
+        project_id: z.string().optional().describe("Project id returned by list_projects."),
+        name: z.string().optional().describe("Exact project name from list_projects when project_id is unavailable."),
+        include_tree: z.boolean().optional().describe("Include a compact initial tree. Default: true."),
+        max_depth: z.number().int().min(1).max(8).optional().describe("Initial tree depth. Default: 2.")
+      },
+      annotations: SESSION_READ_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "codexflow/alwaysWidget": true,
+        "openai/widgetAccessible": true,
+        "openai/toolInvocation/invoking": "Binding this chat to the project...",
+        "openai/toolInvocation/invoked": "Project selected"
+      }
+    },
+    async (args) => {
+      if (!args.project_id && !args.name) throw new CodexFlowError("project_id or name is required. Call list_projects first.");
+      const candidates = await discoverProjects(config, { maxProjects: 250 });
+      const choices = candidates.map((candidate) => ({ candidate, workspace: workspaceManager.openWorkspace(candidate.root) }));
+      let matches = args.project_id
+        ? choices.filter((choice) => choice.workspace.id === args.project_id)
+        : choices.filter((choice) => choice.candidate.name.toLowerCase() === String(args.name).trim().toLowerCase());
+      if (matches.length > 1) throw new CodexFlowError(`Multiple projects are named ${args.name}. Select one by project_id.`);
+      const selected = matches[0];
+      if (!selected) throw new CodexFlowError("Project not found in the synchronized catalog. Call list_projects with refresh=true.");
+      activeWorkspaceId = selected.workspace.id;
+      const [summary, inventory] = await Promise.all([
+        workspaceSummary(config, guard, selected.workspace, {
+          includeTree: parseBool(args.include_tree, true),
+          maxDepth: limitInt(args.max_depth, 2, 1, 8),
+          includeSkills: false,
+          bootstrapContext: false
+        }),
+        codexflowInventory(config, selected.workspace, { includeGlobalSkills: true, includeMcpServers: true, maxSkills: 120 })
+      ]);
+      const pluginSkills = inventory.skills.filter((skill) => skill.source === "plugin");
+      const text = [
+        `# Project selected: ${selected.candidate.name}`,
+        "",
+        `Project ID: ${selected.workspace.id}`,
+        `Root: ${selected.workspace.root}`,
+        "This ChatGPT conversation is now routed to this project. Omit workspace_id on subsequent calls.",
+        "",
+        summary.agentsLoaded ? `Repository instructions: ${summary.agentsPath}` : "Repository instructions: none found",
+        `Skills advertised: ${inventory.skills.length}`,
+        `Plugins advertised: ${inventory.plugins.length}`,
+        `Plugin skills advertised: ${pluginSkills.length}`,
+        `Configured MCP servers advertised: ${inventory.mcpServers.length}`
+      ].join("\n");
+      return textResult(text, {
+        selected: true,
+        project_id: selected.workspace.id,
+        workspace_id: selected.workspace.id,
+        name: selected.candidate.name,
+        root: selected.workspace.root,
+        sources: selected.candidate.sources,
+        agents_loaded: summary.agentsLoaded,
+        agents_path: summary.agentsPath,
+        tree: summary.tree,
+        git_status: summary.gitStatus,
+        skills: inventory.skills,
+        skill_count: inventory.skills.length,
+        plugins: inventory.plugins,
+        plugin_count: inventory.plugins.length,
+        plugin_skills: pluginSkills,
+        mcp_servers: inventory.mcpServers,
+        mcp_server_count: inventory.mcpServers.length,
+        bash_mode: config.bashMode,
+        write_mode: config.writeMode,
+        tool_mode: config.toolMode
+      }, { "openai/widgetSessionId": chatSessionId });
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
     "list_workspaces",
     {
       title: "List Workspaces",
-      description: "List currently opened CodexPro workspaces for this server/config.",
+      description: "List currently opened CodexFlow workspaces for this server/config.",
       inputSchema: {},
       annotations: READ_ONLY_ANNOTATIONS,
       _meta: {
         ...toolCardMeta(),
-        "openai/toolInvocation/invoking": "Listing CodexPro workspaces...",
-        "openai/toolInvocation/invoked": "CodexPro workspaces listed"
+        "openai/toolInvocation/invoking": "Listing CodexFlow workspaces...",
+        "openai/toolInvocation/invoked": "CodexFlow workspaces listed"
       }
     },
     async () => {
       const current = workspaces.listWorkspaces();
       const text = current.length
         ? current.map((workspace) => `- ${workspace.id} — ${workspace.root} (opened ${workspace.openedAt})`).join("\n")
-        : "No workspaces opened on this CodexPro server/config yet. Call open_workspace first.";
+        : "No workspaces opened on this CodexFlow server/config yet. Call open_workspace first.";
       return textResult(text, { workspaces: current, count: current.length });
     }
   );
@@ -1409,7 +1582,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
     {
       title: "Open Current Workspace",
       description:
-        "Use this once at the start to open the configured default workspace without accepting a path. Do not call open_workspace after this unless switching roots.",
+        "Open the project already selected for this ChatGPT conversation, or the configured default when no project has been selected yet.",
       inputSchema: {
         include_tree: z.boolean().optional().describe("Include a compact file tree. Default: false for speed."),
         max_depth: z.number().int().min(1).max(8).optional().describe("Tree depth when include_tree=true. Default: 2."),
@@ -1419,12 +1592,12 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       annotations: SESSION_READ_ANNOTATIONS,
       _meta: {
         ...toolCardMeta(),
-        "openai/toolInvocation/invoking": "Opening current CodexPro workspace...",
-        "openai/toolInvocation/invoked": "Current CodexPro workspace opened"
+        "openai/toolInvocation/invoking": "Opening current CodexFlow workspace...",
+        "openai/toolInvocation/invoked": "Current CodexFlow workspace opened"
       }
     },
     async (args) => {
-      const workspace = workspaces.defaultWorkspace();
+      const workspace = workspaces.activeWorkspace() ?? workspaces.defaultWorkspace();
       const summary = await workspaceSummary(config, guard, workspace, {
         includeTree: parseBool(args.include_tree, false),
         maxDepth: limitInt(args.max_depth, 2, 1, 8),
@@ -1456,9 +1629,9 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
     {
       title: "Open Workspace",
       description:
-        "Open a local project directory as a CodexPro workspace. Returns a workspace_id plus git status, AGENTS.md, and a compact file tree.",
+        "Open a local project directory as a CodexFlow workspace. Returns a workspace_id plus git status, AGENTS.md, and a compact file tree.",
       inputSchema: {
-        root: z.string().optional().describe("Project directory to open. Omit to use CODEXPRO_ROOT/current working directory. Supports ~/ paths."),
+        root: z.string().optional().describe("Project directory to open. Omit to use CODEXFLOW_ROOT/current working directory. Supports ~/ paths."),
         path: z.string().optional().describe("Alias for root. Useful for clients that naturally send path instead of root."),
         include_tree: z.boolean().optional().describe("Include a compact file tree. Default: true."),
         max_depth: z.number().int().min(1).max(8).optional().describe("Tree depth. Default: 3."),
@@ -1470,15 +1643,18 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       annotations: SESSION_READ_ANNOTATIONS,
       _meta: {
         ...toolCardMeta(),
-        "openai/toolInvocation/invoking": "Opening CodexPro workspace...",
-        "openai/toolInvocation/invoked": "CodexPro workspace opened"
+        "openai/toolInvocation/invoking": "Opening CodexFlow workspace...",
+        "openai/toolInvocation/invoked": "CodexFlow workspace opened"
       }
     },
     async (args) => {
       if (args.root && args.path && args.root !== args.path) {
-        throw new CodexProError("open_workspace accepts either root or path. If both are provided, they must match.");
+        throw new CodexFlowError("open_workspace accepts either root or path. If both are provided, they must match.");
       }
-      const workspace = workspaces.openWorkspace(args.root ?? args.path);
+      const requestedRoot = args.root ?? args.path;
+      const workspace = requestedRoot
+        ? workspaces.openWorkspace(requestedRoot)
+        : workspaces.activeWorkspace() ?? workspaces.defaultWorkspace();
       const summary = await workspaceSummary(config, guard, workspace, {
         includeTree: args.include_tree !== false,
         maxDepth: limitInt(args.max_depth, 3, 1, 8),
@@ -2434,7 +2610,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
         maxFileBytes: args.max_file_bytes,
         maxTotalBytes: args.max_total_bytes
       });
-      const text = `# Export Pro Context\n\nWrote ${result.path}.\nBytes: ${result.bytes}\nFiles included: ${result.filesIncluded.length}\nFiles skipped: ${result.filesSkipped.length}\nTruncated: ${result.truncated}\n\nPaste ${result.path} into a high-context planning model when MCP tools are unavailable, then save the returned plan with codexpro pro-apply.`;
+      const text = `# Export Pro Context\n\nWrote ${result.path}.\nBytes: ${result.bytes}\nFiles included: ${result.filesIncluded.length}\nFiles skipped: ${result.filesSkipped.length}\nTruncated: ${result.truncated}\n\nPaste ${result.path} into a high-context planning model when MCP tools are unavailable, then save the returned plan with codexflow pro-apply.`;
       return textResult(text, {
         workspace_id: workspace.id,
         root: workspace.root,
@@ -2525,6 +2701,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
         }
       );
     }
+
   }
 
   registerCodexTool(

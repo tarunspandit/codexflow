@@ -4,7 +4,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { minimatch } from "minimatch";
-import type { CodexProConfig } from "./config.js";
+import type { CodexFlowConfig } from "./config.js";
 import { expandHome } from "./config.js";
 
 export interface Workspace {
@@ -13,10 +13,10 @@ export interface Workspace {
   openedAt: string;
 }
 
-export class CodexProError extends Error {
+export class CodexFlowError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "CodexProError";
+    this.name = "CodexFlowError";
   }
 }
 
@@ -61,7 +61,7 @@ function closestExistingParent(absPath: string): string {
 export class WorkspaceManager {
   private readonly workspaces = new Map<string, Workspace>();
 
-  constructor(private readonly config: CodexProConfig) {}
+  constructor(private readonly config: CodexFlowConfig) {}
 
   defaultWorkspace(): Workspace {
     const existing = [...this.workspaces.values()].find((workspace) => workspace.root === this.config.defaultRoot);
@@ -72,16 +72,16 @@ export class WorkspaceManager {
     const requested = rootInput?.trim() ? expandHome(rootInput.trim()) : this.config.defaultRoot;
     const resolved = path.resolve(requested);
     if (!fs.existsSync(resolved)) {
-      throw new CodexProError(`Workspace root does not exist: ${resolved}`);
+      throw new CodexFlowError(`Workspace root does not exist: ${resolved}`);
     }
     const stat = fs.statSync(resolved);
     if (!stat.isDirectory()) {
-      throw new CodexProError(`Workspace root is not a directory: ${resolved}`);
+      throw new CodexFlowError(`Workspace root is not a directory: ${resolved}`);
     }
     const realRoot = fs.realpathSync(resolved);
     const allowed = this.config.allowedRoots.some((allowedRoot) => isSubpath(realRoot, allowedRoot));
     if (!allowed) {
-      throw new CodexProError(
+      throw new CodexFlowError(
         `Workspace root is outside allowed roots: ${realRoot}\nAllowed roots:\n${this.config.allowedRoots.map((r) => `- ${r}`).join("\n")}`
       );
     }
@@ -99,7 +99,7 @@ export class WorkspaceManager {
     if (!id) return this.defaultWorkspace();
     const workspace = this.workspaces.get(id);
     if (!workspace) {
-      throw new CodexProError(`Unknown workspace_id: ${id}. Call open_workspace first.`);
+      throw new CodexFlowError(`Unknown workspace_id: ${id}. Call open_workspace first.`);
     }
     return workspace;
   }
@@ -110,7 +110,7 @@ export class WorkspaceManager {
 }
 
 export class PathGuard {
-  constructor(private readonly config: CodexProConfig) {}
+  constructor(private readonly config: CodexFlowConfig) {}
 
   isBlockedRelativePath(relPath: string): boolean {
     const rel = normalizeRelPath(relPath).replace(/^\.\//, "");
@@ -123,7 +123,7 @@ export class PathGuard {
 
   assertNotBlocked(relPath: string): void {
     if (this.isBlockedRelativePath(relPath)) {
-      throw new CodexProError(`Path is blocked by safety rules: ${relPath}`);
+      throw new CodexFlowError(`Path is blocked by safety rules: ${relPath}`);
     }
   }
 
@@ -142,12 +142,12 @@ export class PathGuard {
         const parent = closestExistingParent(path.dirname(absPath));
         const realParent = maybeRealpath(parent);
         if (!realParent || !isSubpath(realParent, workspace.root)) {
-          throw new CodexProError(`Path escapes workspace root: ${inputPath}`);
+          throw new CodexFlowError(`Path escapes workspace root: ${inputPath}`);
         }
         absPath = path.resolve(realParent, path.relative(parent, absPath));
         relPath = displayPath(absPath, workspace.root);
       } else {
-        throw new CodexProError(`Path escapes workspace root: ${inputPath}`);
+        throw new CodexFlowError(`Path escapes workspace root: ${inputPath}`);
       }
     }
 
@@ -155,7 +155,7 @@ export class PathGuard {
 
     if (realTarget) {
       if (!isSubpath(realTarget, workspace.root)) {
-        throw new CodexProError(`Path resolves outside workspace root through a symlink: ${inputPath}`);
+        throw new CodexFlowError(`Path resolves outside workspace root through a symlink: ${inputPath}`);
       }
       const realRel = displayPath(realTarget, workspace.root);
       this.assertNotBlocked(realRel);
@@ -164,15 +164,15 @@ export class PathGuard {
     if (options.forWrite) {
       try {
         if (fs.lstatSync(absPath).isSymbolicLink()) {
-          throw new CodexProError(`Refusing to write through a symlink: ${inputPath}`);
+          throw new CodexFlowError(`Refusing to write through a symlink: ${inputPath}`);
         }
       } catch (error) {
-        if (error instanceof CodexProError) throw error;
+        if (error instanceof CodexFlowError) throw error;
       }
       const parent = closestExistingParent(path.dirname(absPath));
       const realParent = maybeRealpath(parent);
       if (realParent && !isSubpath(realParent, workspace.root)) {
-        throw new CodexProError(`Write path resolves through a parent outside the workspace: ${inputPath}`);
+        throw new CodexFlowError(`Write path resolves through a parent outside the workspace: ${inputPath}`);
       }
       if (realParent) {
         const realParentRel = displayPath(realParent, workspace.root);
@@ -186,10 +186,10 @@ export class PathGuard {
   async assertTextFile(absPath: string, maxBytes: number): Promise<void> {
     const stat = await fsp.stat(absPath);
     if (!stat.isFile()) {
-      throw new CodexProError(`Not a file: ${absPath}`);
+      throw new CodexFlowError(`Not a file: ${absPath}`);
     }
     if (stat.size > maxBytes) {
-      throw new CodexProError(`File is too large (${stat.size} bytes). Limit: ${maxBytes} bytes.`);
+      throw new CodexFlowError(`File is too large (${stat.size} bytes). Limit: ${maxBytes} bytes.`);
     }
     if (stat.size === 0) return;
     const handle = await fsp.open(absPath, "r");
@@ -200,7 +200,7 @@ export class PathGuard {
         const { bytesRead } = await handle.read(sample, 0, sample.length, offset);
         if (bytesRead === 0) break;
         if (sample.subarray(0, bytesRead).includes(0)) {
-          throw new CodexProError("Refusing to read binary file.");
+          throw new CodexFlowError("Refusing to read binary file.");
         }
         offset += bytesRead;
       }

@@ -1,6 +1,6 @@
 # Contributing
 
-CodexPro is early. Good contributions make it safer, faster, and easier to explain.
+codexflow is early. Good contributions make it safer, faster, and easier to explain.
 
 ## Local Setup
 
@@ -48,4 +48,4 @@ npm run connect -- --root /path/to/test/repo --bash safe --write handoff
 - Avoid hype.
 - Name the exact command, mode, flag, and failure case.
 - Make risk boundaries clear.
-- Prefer examples that use `/path/to/repo` and `codexpro.example.com`, not local machine paths.
+- Prefer examples that use `/path/to/repo` and `codexflow.example.com`, not local machine paths.

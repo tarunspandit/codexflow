@@ -1,11 +1,11 @@
-# CodexPro Domain Setup
+# CodexFlow Domain Setup
 
-This guide explains how to use a Namecheap domain, Cloudflare, or ngrok so CodexPro can keep a stable ChatGPT connector URL.
+This guide explains how to use a Namecheap domain, Cloudflare, or ngrok so CodexFlow can keep a stable ChatGPT connector URL.
 
 There are two different products hiding behind the phrase "one URL":
 
-- Personal stable URL: one developer runs CodexPro locally and keeps a stable URL such as `https://mcp.example.space/mcp`.
-- Hosted relay for all users: every user gets a stable CodexPro URL without managing Cloudflare. This requires a hosted service that routes each ChatGPT request to the correct user's local agent.
+- Personal stable URL: one developer runs CodexFlow locally and keeps a stable URL such as `https://mcp.example.space/mcp`.
+- Hosted relay for all users: every user gets a stable CodexFlow URL without managing Cloudflare. This requires a hosted service that routes each ChatGPT request to the correct user's local agent.
 
 The personal stable URL works now. The hosted relay is the product architecture to build before public launch.
 
@@ -16,13 +16,13 @@ A DNS hostname points traffic to one Cloudflare tunnel, load balancer, or hosted
 For public users, one shared domain needs one of these designs:
 
 - Per-user tunnel hostnames, such as `alice.mcp.example.space` and `bob.mcp.example.space`, each routed to that user's tunnel.
-- A hosted relay at `mcp.example.space` where each local CodexPro agent opens an outbound connection and authenticates. ChatGPT calls the relay URL, and the relay forwards each request to the right connected local agent.
+- A hosted relay at `mcp.example.space` where each local CodexFlow agent opens an outbound connection and authenticates. ChatGPT calls the relay URL, and the relay forwards each request to the right connected local agent.
 
 The hosted relay is the clean end-user experience:
 
 ```text
 User terminal
-  codexpro start --root .
+  CodexFlow --root .
   opens outbound session to your relay
 
 ChatGPT connector
@@ -30,7 +30,7 @@ ChatGPT connector
 
 Relay
   authenticates request
-  forwards MCP traffic to the correct user's local CodexPro agent
+  forwards MCP traffic to the correct user's local CodexFlow agent
 ```
 
 That is how you make the setup feel like one URL for everyone.
@@ -40,7 +40,7 @@ That is how you make the setup feel like one URL for everyone.
 Use subdomains instead of the apex domain:
 
 ```text
-codexpro.example.space       marketing/docs site
+codexflow.example.space       marketing/docs site
 app.example.space            future dashboard/login
 mcp.example.space            hosted relay entrypoint
 local.example.space          optional private dogfood tunnel
@@ -81,31 +81,31 @@ mcp.example.space
 Install or bootstrap `cloudflared`:
 
 ```bash
-codexpro install-cloudflared
+codexflow install-cloudflared
 ```
 
-That installs the official Cloudflare binary into `~/.codexpro/bin` on supported macOS, Windows, and Linux machines. You can also install `cloudflared` manually and keep it on PATH.
+That installs the official Cloudflare binary into `~/.codexflow/bin` on supported macOS, Windows, and Linux machines. You can also install `cloudflared` manually and keep it on PATH.
 
 Authenticate:
 
 ```bash
-~/.codexpro/bin/cloudflared tunnel login
+~/.codexflow/bin/cloudflared tunnel login
 ```
 
 Create a named tunnel:
 
 ```bash
-~/.codexpro/bin/cloudflared tunnel create codexpro-local
-~/.codexpro/bin/cloudflared tunnel route dns codexpro-local local.example.space
+~/.codexflow/bin/cloudflared tunnel create codexflow-local
+~/.codexflow/bin/cloudflared tunnel route dns codexflow-local local.example.space
 ```
 
-Start CodexPro with that stable hostname:
+Start CodexFlow with that stable hostname:
 
 ```bash
-codexpro stable \
+codexflow stable \
   --root /absolute/path/to/your/repo \
   --hostname local.example.space \
-  --tunnel-name codexpro-local \
+  --tunnel-name codexflow-local \
   --token replace-with-a-long-stable-token \
   --bash safe
 ```
@@ -113,9 +113,9 @@ codexpro stable \
 Add this once in ChatGPT Developer Mode:
 
 ```text
-Name: CodexPro
+Name: CodexFlow
 Connection: Server URL
-Server URL: https://local.example.space/mcp?codexpro_token=replace-with-a-long-stable-token
+Server URL: https://local.example.space/mcp?codexflow_token=replace-with-a-long-stable-token
 Authentication: None / No Authentication
 ```
 
@@ -126,19 +126,19 @@ After that, restart only the terminal command. You do not need to edit the ChatG
 If you create the tunnel in the Cloudflare dashboard, save the connector token locally:
 
 ```bash
-mkdir -p ~/.codexpro
-chmod 700 ~/.codexpro
-$EDITOR ~/.codexpro/cloudflare-tunnel-token
-chmod 600 ~/.codexpro/cloudflare-tunnel-token
+mkdir -p ~/.codexflow
+chmod 700 ~/.codexflow
+$EDITOR ~/.codexflow/cloudflare-tunnel-token
+chmod 600 ~/.codexflow/cloudflare-tunnel-token
 ```
 
 Then run:
 
 ```bash
-codexpro stable \
+codexflow stable \
   --root /absolute/path/to/your/repo \
   --hostname local.example.space \
-  --cloudflare-token-file ~/.codexpro/cloudflare-tunnel-token \
+  --cloudflare-token-file ~/.codexflow/cloudflare-tunnel-token \
   --token replace-with-a-long-stable-token \
   --bash safe
 ```
@@ -147,12 +147,12 @@ Do not confuse these two tokens:
 
 ```text
 Cloudflare tunnel token  lets cloudflared connect your machine to Cloudflare.
-CodexPro MCP token       protects the /mcp endpoint that ChatGPT calls.
+codexflow MCP token       protects the /mcp endpoint that ChatGPT calls.
 ```
 
 ## Ngrok Free Dev Domain
 
-Ngrok is the simpler personal stable URL for most users. A free ngrok account includes a dev domain, which can be saved once in CodexPro and reused every time the local server restarts.
+Ngrok is the simpler personal stable URL for most users. A free ngrok account includes a dev domain, which can be saved once in CodexFlow and reused every time the local server restarts.
 
 One-time setup:
 
@@ -170,7 +170,7 @@ your-domain.ngrok-free.dev
 Daily startup:
 
 ```bash
-codexpro ngrok \
+codexflow ngrok \
   --root /absolute/path/to/your/repo \
   --hostname your-domain.ngrok-free.dev \
   --token replace-with-a-long-stable-token \
@@ -180,13 +180,13 @@ codexpro ngrok \
 Add this once in ChatGPT Developer Mode:
 
 ```text
-Name: CodexPro
+Name: CodexFlow
 Connection: Server URL
-Server URL: https://your-domain.ngrok-free.dev/mcp?codexpro_token=replace-with-a-long-stable-token
+Server URL: https://your-domain.ngrok-free.dev/mcp?codexflow_token=replace-with-a-long-stable-token
 Authentication: None / No Authentication
 ```
 
-CodexPro starts the local MCP server, runs `ngrok http http://127.0.0.1:8787 --url https://your-domain.ngrok-free.dev`, waits for `/healthz`, copies the Server URL, and keeps both processes alive until you quit.
+CodexFlows the local MCP server, runs `ngrok http http://127.0.0.1:8787 --url https://your-domain.ngrok-free.dev`, waits for `/healthz`, copies the Server URL, and keeps both processes alive until you quit.
 
 ## Product Plan For All Users
 
@@ -199,7 +199,7 @@ For open-source users, support three modes:
 2. Bring-your-own tunnel
    User owns Cloudflare/ngrok/domain. Good for power users and contributors.
 
-3. CodexPro hosted relay
+3. CodexFlow hosted relay
    Best public UX. User runs one local command and gets a stable connector URL from your service.
 ```
 
@@ -208,7 +208,7 @@ The hosted relay needs:
 - User auth and device registration.
 - Per-device or per-workspace MCP URLs.
 - Local agent outbound WebSocket or HTTP/2 session to the relay.
-- Per-session CodexPro token rotation.
+- Per-session CodexFlow token rotation.
 - Audit log of tool names, durations, and file paths, without source contents by default.
 - Strict write modes: `workspace` by default for agent mode, `handoff` when the user chooses planning-only mode.
 - Workspace root allowlist enforced locally, not only at the relay.
@@ -221,7 +221,7 @@ For your own named tunnel, latency should be similar to the current quick tunnel
 For the hosted relay, there is one extra hop:
 
 ```text
-ChatGPT -> Cloudflare/relay -> user's local CodexPro agent
+ChatGPT -> Cloudflare/relay -> user's local CodexFlow agent
 ```
 
 That is usually fine for planning and file operations. The bigger speed win is reducing tool calls and response payloads:

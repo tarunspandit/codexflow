@@ -23,13 +23,13 @@ class McpStdioClient {
       env: {
         ...process.env,
         ...env,
-        CODEXPRO_ROOT: root,
-        CODEXPRO_ALLOWED_ROOTS: root,
-        CODEXPRO_TOOL_MODE: env.CODEXPRO_TOOL_MODE ?? 'full',
-        CODEXPRO_BASH_MODE: env.CODEXPRO_BASH_MODE ?? 'safe',
-        CODEXPRO_MAX_SEARCH_RESULTS: '2000',
-        CODEXPRO_MAX_OUTPUT_BYTES: '2000000',
-        CODEXPRO_TOOL_CARDS: env.CODEXPRO_TOOL_CARDS ?? '0'
+        CODEXFLOW_ROOT: root,
+        CODEXFLOW_ALLOWED_ROOTS: root,
+        CODEXFLOW_TOOL_MODE: env.CODEXFLOW_TOOL_MODE ?? 'full',
+        CODEXFLOW_BASH_MODE: env.CODEXFLOW_BASH_MODE ?? 'safe',
+        CODEXFLOW_MAX_SEARCH_RESULTS: '2000',
+        CODEXFLOW_MAX_OUTPUT_BYTES: '2000000',
+        CODEXFLOW_TOOL_CARDS: env.CODEXFLOW_TOOL_CARDS ?? '0'
       }
     });
     this.buffer = '';
@@ -88,7 +88,7 @@ async function initClient(root, env) {
   await client.request('initialize', {
     protocolVersion: '2024-11-05',
     capabilities: {},
-    clientInfo: { name: 'codexpro-stress', version: '0.1.0' }
+    clientInfo: { name: 'codexflow-stress', version: '0.1.0' }
   });
   client.notify('notifications/initialized');
   return client;
@@ -103,7 +103,7 @@ async function expectToolError(client, name, args, pattern) {
 }
 
 async function makeFixture() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-'));
   await fs.writeFile(path.join(root, 'AGENTS.md'), '# Stress Agents\n\nKeep checks local.\n', 'utf8');
   await fs.writeFile(path.join(root, 'demo.txt'), 'alpha\n--flag root\narrow -> value\n', 'utf8');
   await fs.writeFile(path.join(root, '.hidden.txt'), 'needle hidden\n', 'utf8');
@@ -133,16 +133,16 @@ async function runFullModeStress(root) {
   try {
     const tools = await client.request('tools/list', {});
     const names = tools.tools.map((tool) => tool.name);
-    for (const name of ['codexpro', 'codexpro_inventory', 'open_current_workspace', 'search', 'load_skill', 'wait_for_handoff', 'export_pro_context', 'bash']) {
+    for (const name of ['codexflow', 'codexflow_inventory', 'open_current_workspace', 'search', 'load_skill', 'wait_for_handoff', 'export_pro_context', 'bash']) {
       assert(names.includes(name), `full mode missing ${name}`);
     }
 
     const config = await client.request('tools/call', { name: 'server_config', arguments: {} });
     assert(config.structuredContent.toolMode === 'full', `expected full tool mode, got ${config.structuredContent.toolMode}`);
-    assert(config.structuredContent.registeredTools.includes('codexpro'), 'server_config missing codexpro supertool');
+    assert(config.structuredContent.registeredTools.includes('codexflow'), 'server_config missing codexflow supertool');
 
     const superActions = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'list_actions' }
     });
     assert(superActions.structuredContent.actions.includes('search'), 'supertool actions missing search');
@@ -153,7 +153,7 @@ async function runFullModeStress(root) {
     const ws = opened.structuredContent.workspace_id;
 
     const superOpened = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'open', args: { include_tree: false } }
     });
     assert(superOpened.structuredContent.wrapped_tool === 'open_current_workspace', 'supertool open alias did not wrap open_current_workspace');
@@ -173,7 +173,7 @@ async function runFullModeStress(root) {
     assert(loaded.structuredContent.text.includes('# Stress Skill'), 'load_skill did not return skill body');
 
     const inventory = await client.request('tools/call', {
-      name: 'codexpro_inventory',
+      name: 'codexflow_inventory',
       arguments: { workspace_id: ws, include_global_skills: false, include_mcp_servers: false, max_skills: 140 }
     });
     assert(inventory.structuredContent.skill_count === 140, `expected 140 inventory skills, got ${inventory.structuredContent.skill_count}`);
@@ -214,16 +214,16 @@ async function runFullModeStress(root) {
     assert(colonSearch.structuredContent.matches.some((match) => match.path === 'visible:123:file.txt' && match.line === 1), `colon path search parsed incorrectly: ${JSON.stringify(colonSearch.structuredContent.matches)}`);
 
     const superRead = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'read', args: { workspace_id: ws, path: 'demo.txt', start_line: 1, end_line: 3 } }
     });
-    assert(superRead.structuredContent.codexpro_tool === 'read' && superRead.structuredContent.wrapped_tool === 'read' && superRead.structuredContent.text.includes('--flag root'), 'supertool read failed');
+    assert(superRead.structuredContent.codexflow_tool === 'read' && superRead.structuredContent.wrapped_tool === 'read' && superRead.structuredContent.text.includes('--flag root'), 'supertool read failed');
 
     const superSearch = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'search', args: { workspace_id: ws, query: 'stress-needle-3', path: 'many', max_results: 20 } }
     });
-    assert(superSearch.structuredContent.codexpro_tool === 'search' && superSearch.structuredContent.wrapped_tool === 'search', 'supertool search did not report wrapped tool');
+    assert(superSearch.structuredContent.codexflow_tool === 'search' && superSearch.structuredContent.wrapped_tool === 'search', 'supertool search did not report wrapped tool');
     assert(superSearch.structuredContent.matches.length === 20, `supertool search returned ${superSearch.structuredContent.matches.length} matches`);
 
     const safePwd = await client.request('tools/call', {
@@ -242,10 +242,10 @@ async function runFullModeStress(root) {
 
     const newlineSuperTarget = path.join(root, 'newline-supertool-owned');
     const blockedSuperNewline = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'bash', args: { workspace_id: ws, command: 'pwd\ntouch newline-supertool-owned' } }
     });
-    assert(blockedSuperNewline.isError === true && blockedSuperNewline.structuredContent.codexpro_tool === 'bash', 'supertool safe bash newline error was not tagged as bash');
+    assert(blockedSuperNewline.isError === true && blockedSuperNewline.structuredContent.codexflow_tool === 'bash', 'supertool safe bash newline error was not tagged as bash');
     assert(!(await pathExists(newlineSuperTarget)), 'supertool safe bash newline command created a file');
 
     const blockedOutputFlag = await client.request('tools/call', {
@@ -256,10 +256,10 @@ async function runFullModeStress(root) {
     assert(!(await pathExists(path.join(root, 'safe-bash-owned.patch'))), 'safe bash git output path created a file');
 
     const blockedDollarExpansion = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'bash', args: { workspace_id: ws, command: "git diff $'--output=supertool-owned.patch'" } }
     });
-    assert(blockedDollarExpansion.isError === true && blockedDollarExpansion.structuredContent.codexpro_tool === 'bash', 'supertool safe bash allowed dollar-quoted expansion');
+    assert(blockedDollarExpansion.isError === true && blockedDollarExpansion.structuredContent.codexflow_tool === 'bash', 'supertool safe bash allowed dollar-quoted expansion');
     assert(!(await pathExists(path.join(root, 'supertool-owned.patch'))), 'supertool dollar-quoted git output path created a file');
 
     const blockedFindFprint0 = await client.request('tools/call', {
@@ -304,10 +304,10 @@ async function runFullModeStress(root) {
     assert(String(completed.structuredContent.status_excerpt ?? '').includes('PASS stress handoff'), 'wait_for_handoff missed status excerpt');
 
     const superWait = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'handoff_poll', args: { workspace_id: ws, plan_hash: 'stress-plan', since_iteration: 6, max_wait_seconds: 1, poll_ms: 250 } }
     });
-    assert(superWait.structuredContent.codexpro_tool === 'wait_for_handoff' && superWait.structuredContent.wrapped_tool === 'wait_for_handoff' && superWait.structuredContent.succeeded === true, 'supertool handoff_poll failed');
+    assert(superWait.structuredContent.codexflow_tool === 'wait_for_handoff' && superWait.structuredContent.wrapped_tool === 'wait_for_handoff' && superWait.structuredContent.succeeded === true, 'supertool handoff_poll failed');
 
     const mismatch = await client.request('tools/call', {
       name: 'wait_for_handoff',
@@ -339,7 +339,7 @@ async function runFullModeStress(root) {
     assert(exactExport.structuredContent.files_included.length === 1 && exactExport.structuredContent.files_included[0] === 'demo.txt', `exact Pro export included wrong files: ${JSON.stringify(exactExport.structuredContent.files_included)}`);
 
     const superExport = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: {
         action: 'pro_export',
         args: {
@@ -354,7 +354,7 @@ async function runFullModeStress(root) {
         }
       }
     });
-    assert(superExport.structuredContent.codexpro_tool === 'export_pro_context' && superExport.structuredContent.wrapped_tool === 'export_pro_context', 'supertool pro_export did not wrap export_pro_context');
+    assert(superExport.structuredContent.codexflow_tool === 'export_pro_context' && superExport.structuredContent.wrapped_tool === 'export_pro_context', 'supertool pro_export did not wrap export_pro_context');
     assert(superExport.structuredContent.files_included.length === 1 && superExport.structuredContent.files_included[0] === 'demo.txt', `supertool Pro export included wrong files: ${JSON.stringify(superExport.structuredContent.files_included)}`);
 
     const hiddenGlobExport = await client.request('tools/call', {
@@ -372,8 +372,8 @@ async function runFullModeStress(root) {
     });
     assert(hiddenGlobExport.structuredContent.files_included.includes('.github/workflows/ci.yml'), `Pro export extra_globs missed hidden path: ${JSON.stringify(hiddenGlobExport.structuredContent.files_included)}`);
 
-    const selfTest = await client.request('tools/call', { name: 'codexpro_self_test', arguments: { workspace_id: ws } });
-    assert(selfTest.structuredContent.status !== 'fail', `codexpro_self_test failed: ${JSON.stringify(selfTest.structuredContent.checks)}`);
+    const selfTest = await client.request('tools/call', { name: 'codexflow_self_test', arguments: { workspace_id: ws } });
+    assert(selfTest.structuredContent.status !== 'fail', `codexflow_self_test failed: ${JSON.stringify(selfTest.structuredContent.checks)}`);
   } finally {
     client.close();
   }
@@ -381,8 +381,8 @@ async function runFullModeStress(root) {
 
 async function runGlobalSkillStress(root) {
   void root;
-  const isolatedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-global-root-'));
-  const name = `000-codexpro-global-stress-${Date.now()}`;
+  const isolatedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-global-root-'));
+  const name = `000-codexflow-global-stress-${Date.now()}`;
   const dir = path.join(os.homedir(), '.codex', 'skills', name);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: Global stress skill.\n---\n\n# Global Only Skill\n`, 'utf8');
@@ -391,7 +391,7 @@ async function runGlobalSkillStress(root) {
     client = await initClient(isolatedRoot);
     const opened = await client.request('tools/call', { name: 'open_current_workspace', arguments: { include_tree: false } });
     const inventory = await client.request('tools/call', {
-      name: 'codexpro_inventory',
+      name: 'codexflow_inventory',
       arguments: { workspace_id: opened.structuredContent.workspace_id, include_mcp_servers: false, max_skills: 500 }
     });
     const skill = inventory.structuredContent.skills.find((item) => item.name === name);
@@ -413,10 +413,10 @@ async function runGlobalSkillStress(root) {
 }
 
 async function runRedactionStress() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-redact-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-redact-'));
   const ngrokToken = '2redactDEFghiJKLmnopQRSTuvWXyz_1234567890';
   const cloudflareToken = 'eyJhbGciOiJIUzI1NiJ9.eyJ0dW5uZWwiOiJzdHJlc3MifQ.signature1234567890';
-  const tokenFile = '/Users/rebel/.codexpro/cloudflare-tunnel-token';
+  const tokenFile = '/Users/rebel/.codexflow/cloudflare-tunnel-token';
   await fs.writeFile(path.join(root, 'tokens.txt'), [
     `ngrok config add-authtoken ${ngrokToken}`,
     `cloudflared tunnel run --token ${cloudflareToken}`,
@@ -428,7 +428,7 @@ async function runRedactionStress() {
     const opened = await client.request('tools/call', { name: 'open_current_workspace', arguments: { include_tree: false } });
     for (const request of [
       { name: 'read', arguments: { workspace_id: opened.structuredContent.workspace_id, path: 'tokens.txt' } },
-      { name: 'codexpro', arguments: { action: 'read', args: { workspace_id: opened.structuredContent.workspace_id, path: 'tokens.txt' } } }
+      { name: 'codexflow', arguments: { action: 'read', args: { workspace_id: opened.structuredContent.workspace_id, path: 'tokens.txt' } } }
     ]) {
       const result = await client.request('tools/call', request);
       const payload = JSON.stringify(result);
@@ -442,8 +442,8 @@ async function runRedactionStress() {
 }
 
 async function runMcpInventoryStress() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-mcp-root-'));
-  const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-mcp-home-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-mcp-root-'));
+  const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-mcp-home-'));
   await fs.mkdir(path.join(fakeHome, '.codex'), { recursive: true });
   await fs.mkdir(path.join(fakeHome, '.cursor'), { recursive: true });
   const toml = Array.from({ length: 80 }, (_, i) =>
@@ -460,15 +460,15 @@ async function runMcpInventoryStress() {
   try {
     const opened = await client.request('tools/call', { name: 'open_current_workspace', arguments: { include_tree: false } });
     const inventory = await client.request('tools/call', {
-      name: 'codexpro_inventory',
+      name: 'codexflow_inventory',
       arguments: { workspace_id: opened.structuredContent.workspace_id, include_global_skills: false, include_mcp_servers: true }
     });
     const superInventory = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'inventory', args: { workspace_id: opened.structuredContent.workspace_id, include_global_skills: false, include_mcp_servers: true } }
     });
     assert(inventory.structuredContent.mcp_server_count === 120, `MCP inventory was not capped: ${inventory.structuredContent.mcp_server_count}`);
-    assert(superInventory.structuredContent.codexpro_tool === 'codexpro_inventory' && superInventory.structuredContent.mcp_server_count === 120, 'supertool MCP inventory was not capped');
+    assert(superInventory.structuredContent.codexflow_tool === 'codexflow_inventory' && superInventory.structuredContent.mcp_server_count === 120, 'supertool MCP inventory was not capped');
     const payload = JSON.stringify([inventory, superInventory]);
     for (const leaked of [fakeHome, '~/.codex', '~/.cursor', '.cursor/mcp.json', '.codex/config.toml', 'secret-command', 'secret-arg']) {
       assert(!payload.includes(leaked), `MCP inventory leaked ${leaked}`);
@@ -480,53 +480,53 @@ async function runMcpInventoryStress() {
 
 async function runSupertoolModeStress(root) {
   const client = await initClient(root, {
-    CODEXPRO_TOOL_MODE: 'minimal',
-    CODEXPRO_BASH_MODE: 'off'
+    CODEXFLOW_TOOL_MODE: 'minimal',
+    CODEXFLOW_BASH_MODE: 'off'
   });
   try {
     const tools = await client.request('tools/list', {});
     const names = tools.tools.map((tool) => tool.name);
-    assert(names.includes('codexpro'), 'minimal mode missing codexpro supertool');
+    assert(names.includes('codexflow'), 'minimal mode missing codexflow supertool');
     assert(!names.includes('bash'), 'minimal no-bash mode exposed bash');
     assert(!names.includes('search'), 'minimal mode exposed search');
 
-    const actions = await client.request('tools/call', { name: 'codexpro', arguments: { action: 'list_actions' } });
+    const actions = await client.request('tools/call', { name: 'codexflow', arguments: { action: 'list_actions' } });
     assert(actions.structuredContent.actions.includes('read'), 'minimal supertool actions missing read');
     assert(!actions.structuredContent.actions.includes('bash'), 'minimal no-bash supertool actions exposed bash');
     assert(!actions.structuredContent.actions.includes('search'), 'minimal supertool actions exposed search');
 
     const opened = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'open', args: { include_tree: false } }
     });
     const read = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'read', args: { workspace_id: opened.structuredContent.workspace_id, path: 'demo.txt', start_line: 1, end_line: 2 } }
     });
-    assert(read.structuredContent.codexpro_tool === 'read' && read.structuredContent.wrapped_tool === 'read' && read.structuredContent.text.includes('alpha'), 'minimal supertool read failed');
+    assert(read.structuredContent.codexflow_tool === 'read' && read.structuredContent.wrapped_tool === 'read' && read.structuredContent.text.includes('alpha'), 'minimal supertool read failed');
 
     const blockedSearch = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'search', args: { workspace_id: opened.structuredContent.workspace_id, query: 'alpha' } }
     });
     assert(blockedSearch.isError === true && String(blockedSearch.structuredContent.error).includes('not available'), 'supertool allowed disabled search action');
 
     const missingRead = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'read', args: { workspace_id: opened.structuredContent.workspace_id, path: 'missing.txt' } }
     });
-    assert(missingRead.isError === true && missingRead.structuredContent.codexpro_tool === 'read' && missingRead.structuredContent.wrapped_tool === 'read', 'supertool failed read was not tagged as read');
+    assert(missingRead.isError === true && missingRead.structuredContent.codexflow_tool === 'read' && missingRead.structuredContent.wrapped_tool === 'read', 'supertool failed read was not tagged as read');
 
     const malformedRead = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'read', args: { workspace_id: opened.structuredContent.workspace_id, path: ['demo.txt'] } }
     });
     const malformedReadError = String(malformedRead.structuredContent.error ?? '');
-    assert(malformedRead.isError === true && malformedRead.structuredContent.codexpro_tool === 'read' && malformedRead.structuredContent.wrapped_tool === 'read', 'supertool malformed read was not tagged as read');
+    assert(malformedRead.isError === true && malformedRead.structuredContent.codexflow_tool === 'read' && malformedRead.structuredContent.wrapped_tool === 'read', 'supertool malformed read was not tagged as read');
     assert(malformedReadError.includes('Invalid arguments for read') && !malformedReadError.includes('TypeError'), `supertool malformed read leaked raw handler error: ${malformedReadError}`);
 
     const blockedBash = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'bash', args: { workspace_id: opened.structuredContent.workspace_id, command: 'pwd' } }
     });
     assert(blockedBash.isError === true && String(blockedBash.structuredContent.error).includes('not available'), 'supertool allowed disabled bash action');
@@ -536,11 +536,11 @@ async function runSupertoolModeStress(root) {
 }
 
 async function runMaxReadSearchStress() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-max-read-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-max-read-'));
   await fs.writeFile(path.join(root, 'many-lines.txt'), `${Array.from({ length: 1200 }, (_, i) => `x${i % 10}`).join('\n')}\n`, 'utf8');
   await fs.writeFile(path.join(root, 'large.txt'), `intro\n${'x'.repeat(4500)}\nneedle in large file\n`, 'utf8');
   await fs.writeFile(path.join(root, 'huge.txt'), `needle in huge file\n${'x'.repeat(20000)}\n`, 'utf8');
-  const client = await initClient(root, { CODEXPRO_MAX_READ_BYTES: '1000' });
+  const client = await initClient(root, { CODEXFLOW_MAX_READ_BYTES: '1000' });
   try {
     const opened = await client.request('tools/call', { name: 'open_current_workspace', arguments: { include_tree: false } });
     const manyLinesRead = await client.request('tools/call', {
@@ -570,7 +570,7 @@ async function runMaxReadSearchStress() {
 }
 
 async function runNodeFallbackSearchLimitStress() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-node-search-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-node-search-'));
   await fs.writeFile(path.join(root, 'exact.txt'), 'needle one\nneedle two\n', 'utf8');
   await fs.writeFile(path.join(root, 'overflow.txt'), 'needle one\nneedle two\nneedle three\n', 'utf8');
   const client = await initClient(root, { PATH: '/usr/bin:/bin' });
@@ -595,8 +595,8 @@ async function runNodeFallbackSearchLimitStress() {
 }
 
 async function runGuardEdgeStress() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-guard-'));
-  const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-outside-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-guard-'));
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-outside-'));
   await fs.writeFile(path.join(root, 'visible.txt'), 'needle visible\n', 'utf8');
   await fs.writeFile(path.join(root, 'late-null.txt'), Buffer.concat([
     Buffer.from('needle before\n'),
@@ -658,7 +658,7 @@ async function runGuardEdgeStress() {
 }
 
 async function runShowChangesStatsStress() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-git-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-git-'));
   await fs.writeFile(path.join(root, 'demo.txt'), 'alpha\n', 'utf8');
   await fs.writeFile(path.join(root, 'other.txt'), 'one\n', 'utf8');
   await fs.writeFile(path.join(root, 'staged file.txt'), 'one\n', 'utf8');
@@ -682,10 +682,10 @@ async function runShowChangesStatsStress() {
     });
     assert(scopedStatus.structuredContent.changed_files.length === 1 && scopedStatus.structuredContent.changed_files[0].includes('demo.txt'), `git_status path leaked unrelated files: ${JSON.stringify(scopedStatus.structuredContent.changed_files)}`);
     const superScopedStatus = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'git_status', args: { workspace_id: opened.structuredContent.workspace_id, path: 'demo.txt' } }
     });
-    assert(superScopedStatus.structuredContent.codexpro_tool === 'git_status' && superScopedStatus.structuredContent.changed_files.length === 1 && superScopedStatus.structuredContent.changed_files[0].includes('demo.txt'), `supertool git_status path leaked unrelated files: ${JSON.stringify(superScopedStatus.structuredContent.changed_files)}`);
+    assert(superScopedStatus.structuredContent.codexflow_tool === 'git_status' && superScopedStatus.structuredContent.changed_files.length === 1 && superScopedStatus.structuredContent.changed_files[0].includes('demo.txt'), `supertool git_status path leaked unrelated files: ${JSON.stringify(superScopedStatus.structuredContent.changed_files)}`);
     const changes = await client.request('tools/call', {
       name: 'show_changes',
       arguments: { workspace_id: opened.structuredContent.workspace_id, path: 'demo.txt', include_diff: false }
@@ -736,25 +736,25 @@ async function runShowChangesStatsStress() {
 
 async function runMinimalHandoffStress(root) {
   const client = await initClient(root, {
-    CODEXPRO_TOOL_MODE: 'minimal',
-    CODEXPRO_BASH_MODE: 'off',
-    CODEXPRO_WRITE_MODE: 'handoff'
+    CODEXFLOW_TOOL_MODE: 'minimal',
+    CODEXFLOW_BASH_MODE: 'off',
+    CODEXFLOW_WRITE_MODE: 'handoff'
   });
   try {
     const tools = await client.request('tools/list', {});
     const names = tools.tools.map((tool) => tool.name);
     assert(names.includes('handoff_to_agent'), 'minimal handoff mode missing handoff_to_agent');
     assert(!names.includes('write') && !names.includes('edit') && !names.includes('apply_patch'), 'minimal handoff mode exposed write/edit/apply_patch');
-    const actions = await client.request('tools/call', { name: 'codexpro', arguments: { action: 'list_actions' } });
+    const actions = await client.request('tools/call', { name: 'codexflow', arguments: { action: 'list_actions' } });
     assert(actions.structuredContent.actions.includes('handoff_to_agent'), 'minimal handoff supertool actions missing handoff_to_agent');
     assert(!actions.structuredContent.actions.includes('write') && !actions.structuredContent.actions.includes('edit') && !actions.structuredContent.actions.includes('apply_patch'), 'minimal handoff supertool actions exposed write/edit/apply_patch');
     const handoff = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'agent_handoff', args: { title: 'Stress Plan', plan: '- keep it narrow' } }
     });
-    assert(handoff.structuredContent.codexpro_tool === 'handoff_to_agent' && handoff.structuredContent.wrapped_tool === 'handoff_to_agent', 'minimal handoff supertool did not write plan');
+    assert(handoff.structuredContent.codexflow_tool === 'handoff_to_agent' && handoff.structuredContent.wrapped_tool === 'handoff_to_agent', 'minimal handoff supertool did not write plan');
     const blockedWrite = await client.request('tools/call', {
-      name: 'codexpro',
+      name: 'codexflow',
       arguments: { action: 'write', args: { path: 'demo.txt', content: 'bypass\n' } }
     });
     assert(blockedWrite.isError === true && String(blockedWrite.structuredContent.error).includes('not available'), 'minimal handoff supertool allowed disabled write');
@@ -764,7 +764,7 @@ async function runMinimalHandoffStress(root) {
 }
 
 async function runCardStress(root) {
-  const client = await initClient(root, { CODEXPRO_TOOL_CARDS: '1' });
+  const client = await initClient(root, { CODEXFLOW_TOOL_CARDS: '1' });
   try {
     await client.request('tools/list', {});
     const opened = await client.request('tools/call', { name: 'open_current_workspace', arguments: { include_tree: false } });
@@ -788,15 +788,15 @@ async function runCardStress(root) {
 }
 
 async function runAnalysisBudgetStress() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-analysis-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-stress-analysis-'));
   await fs.mkdir(path.join(root, 'src'), { recursive: true });
   for (let index = 0; index < 105; index += 1) {
     await fs.writeFile(path.join(root, 'src', `module-${String(index).padStart(3, '0')}.ts`), `export function module${index}() { return ${index}; }\n`, 'utf8');
   }
   await fs.writeFile(path.join(root, '.env'), 'PRIVATE_TOKEN=never-visible\n', 'utf8');
   const client = await initClient(root, {
-    CODEXPRO_ANALYSIS_MAX_INVENTORY_FILES: '100',
-    CODEXPRO_ANALYSIS_MAX_ANALYZED_FILES: '100'
+    CODEXFLOW_ANALYSIS_MAX_INVENTORY_FILES: '100',
+    CODEXFLOW_ANALYSIS_MAX_ANALYZED_FILES: '100'
   });
   try {
     const opened = await client.request('tools/call', { name: 'open_current_workspace', arguments: { include_tree: false } });

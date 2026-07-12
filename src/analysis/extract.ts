@@ -1,6 +1,6 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
-import type { CodexProConfig } from "../config.js";
+import type { CodexFlowConfig } from "../config.js";
 import type { PathGuard, Workspace } from "../guard.js";
 import type { AnalysisLanguage, AnalysisSymbol, AnalysisSymbolKind, InventoryFile } from "./types.js";
 
@@ -86,7 +86,7 @@ function resolveInternalImport(fromPath: string, specifier: string, files: Set<s
 }
 
 export async function extractWorkspaceFiles(
-  config: CodexProConfig,
+  config: CodexFlowConfig,
   guard: PathGuard,
   workspace: Workspace,
   inventoryFiles: InventoryFile[]

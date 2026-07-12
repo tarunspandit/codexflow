@@ -11,6 +11,7 @@ export type ConnectorMode = "agent" | "handoff" | "pro";
 export interface WorkspaceProfile {
   version?: number;
   root?: string;
+  allowRoots?: string[];
   updatedAt?: string;
   profilePath?: string;
   port?: string;
@@ -55,13 +56,13 @@ export interface RuntimeConnection {
   toolCards?: boolean;
 }
 
-export function codexProHome(): string {
-  const customHome = process.env.CODEXPRO_HOME;
-  return customHome ? path.resolve(expandHome(customHome)) : path.join(os.homedir(), ".codexpro");
+export function codexFlowHome(): string {
+  const customHome = process.env.CODEXFLOW_HOME;
+  return customHome ? path.resolve(expandHome(customHome)) : path.join(os.homedir(), ".codexflow");
 }
 
 export function profileDir(): string {
-  return path.join(codexProHome(), "profiles");
+  return path.join(codexFlowHome(), "profiles");
 }
 
 export function profileIdForRoot(root: string): string {
@@ -73,7 +74,7 @@ export function profilePathForRoot(root: string): string {
 }
 
 export function runtimeDir(): string {
-  return path.join(codexProHome(), "runtime");
+  return path.join(codexFlowHome(), "runtime");
 }
 
 export function runtimeStatusPathForRoot(root: string): string {

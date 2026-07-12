@@ -6,29 +6,29 @@ import os from 'node:os';
 import path from 'node:path';
 
 function run(args, env) {
-  const result = spawnSync(process.execPath, ['scripts/codexpro.mjs', ...args], {
+  const result = spawnSync(process.execPath, ['scripts/codexflow.mjs', ...args], {
     cwd: path.resolve('.'),
     env,
     encoding: 'utf8'
   });
   if (result.status !== 0) {
-    throw new Error(`codexpro ${args.join(' ')} failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    throw new Error(`codexflow ${args.join(' ')} failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   }
   return `${result.stdout}\n${result.stderr}`;
 }
 
 function runFail(args, env, pattern) {
-  const result = spawnSync(process.execPath, ['scripts/codexpro.mjs', ...args], {
+  const result = spawnSync(process.execPath, ['scripts/codexflow.mjs', ...args], {
     cwd: path.resolve('.'),
     env,
     encoding: 'utf8'
   });
   if (result.status === 0) {
-    throw new Error(`codexpro ${args.join(' ')} unexpectedly succeeded\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    throw new Error(`codexflow ${args.join(' ')} unexpectedly succeeded\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   }
   const output = `${result.stdout}\n${result.stderr}`;
   if (pattern && !pattern.test(output)) {
-    throw new Error(`codexpro ${args.join(' ')} failed for the wrong reason\n${output}`);
+    throw new Error(`codexflow ${args.join(' ')} failed for the wrong reason\n${output}`);
   }
   return output;
 }
@@ -72,8 +72,8 @@ async function waitForJson(filePath, predicate, label) {
   throw new Error(`timed out waiting for ${label}: ${lastError?.message ?? 'predicate not met'}`);
 }
 
-async function withStartedCodexPro(args, env, fn) {
-  const child = spawn(process.execPath, ['scripts/codexpro.mjs', 'start', ...args], {
+async function withStartedCodexFlow(args, env, fn) {
+  const child = spawn(process.execPath, ['scripts/codexflow.mjs', 'start', ...args], {
     cwd: path.resolve('.'),
     env,
     stdio: ['ignore', 'pipe', 'pipe']
@@ -110,7 +110,7 @@ function runInteractiveQuit(args, env) {
   if (!python) return false;
   const payload = JSON.stringify({
     cmd: process.execPath,
-    args: ['scripts/codexpro.mjs', 'start', ...args],
+    args: ['scripts/codexflow.mjs', 'start', ...args],
     cwd: path.resolve('.')
   });
   const code = `
@@ -135,7 +135,7 @@ while time.time() < deadline:
     if not chunk:
         break
     out.extend(chunk)
-    if not sent and b"codexpro> " in out:
+    if not sent and b"codexflow> " in out:
         os.write(master, b"q")
         sent = True
 if proc.poll() is None:
@@ -182,14 +182,14 @@ raise SystemExit(proc.returncode or 0)
   return true;
 }
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-root-'));
-const reuseRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-reuse-'));
-const policyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-policy-'));
-const runtimeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-runtime-'));
-const staleRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-stale-'));
-const ngrokRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-ngrok-'));
-const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-home-'));
-const env = { ...process.env, CODEXPRO_HOME: home };
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-root-'));
+const reuseRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-reuse-'));
+const policyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-policy-'));
+const runtimeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-runtime-'));
+const staleRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-stale-'));
+const ngrokRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-ngrok-'));
+const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-home-'));
+const env = { ...process.env, CODEXFLOW_HOME: home };
 function withoutProxyEnv(input) {
   const next = { ...input };
   for (const key of ['HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy', 'HTTP_PROXY', 'http_proxy']) delete next[key];
@@ -210,10 +210,12 @@ const saved = run([
   'set',
   '--root',
   root,
+  '--allow-root',
+  reuseRoot,
   '--tunnel',
   'ngrok',
   '--hostname',
-  'codexpro-test.ngrok-free.app',
+  'codexflow-test.ngrok-free.app',
   '--port',
   '19087',
   '--mode',
@@ -223,27 +225,27 @@ const saved = run([
   '--bash-transcript',
   'full',
   '--widget-domain',
-  'https://widgets.codexpro.test',
+  'https://widgets.codexflow.test',
   '--tool-cards',
   'on',
   '--token',
-  'codexpro-settings-token'
+  'codexflow-settings-token'
 ], env);
 if (!saved.includes('Saved workspace settings')) {
   throw new Error(`expected settings save output, got:\n${saved}`);
 }
 
 const shown = run(['settings', 'show', '--root', root], env);
-for (const expected of ['Tunnel', 'ngrok', 'codexpro-test.ngrok-free.app', '19087', 'Tool cards', 'on', 'Bash transcript', 'full', '<saved>']) {
+for (const expected of ['Tunnel', 'ngrok', 'codexflow-test.ngrok-free.app', '19087', 'Project roots', reuseRoot, 'Tool cards', 'on', 'Bash transcript', 'full', '<saved>']) {
   if (!shown.includes(expected)) {
     throw new Error(`settings show missing ${expected}\n${shown}`);
   }
 }
-if (shown.includes('codexpro-settings-token')) {
+if (shown.includes('codexflow-settings-token')) {
   throw new Error(`settings show leaked token\n${shown}`);
 }
 const profile = await readProfile(root, home);
-if (profile.toolMode !== 'full' || profile.toolCards !== true || profile.bashTranscript !== 'full' || profile.widgetDomain !== 'https://widgets.codexpro.test') {
+if (profile.toolMode !== 'full' || profile.toolCards !== true || profile.bashTranscript !== 'full' || profile.widgetDomain !== 'https://widgets.codexflow.test' || !profile.allowRoots?.includes(await fs.realpath(reuseRoot))) {
   throw new Error(`settings profile did not persist tool/widget options: ${JSON.stringify(profile)}`);
 }
 
@@ -255,7 +257,7 @@ runFail([
   '--tunnel',
   'cloudflare-named',
   '--hostname',
-  'codexpro.example.com',
+  'codexflow.example.com',
   '--cloudflare-token',
   'raw-cloudflare-token'
 ], env, /does not save raw --cloudflare-token/i);
@@ -313,10 +315,10 @@ run([
   '--tunnel',
   'tailscale',
   '--hostname',
-  'https://codexpro-test.tailnet.ts.net/mcp'
+  'https://codexflow-test.tailnet.ts.net/mcp'
 ], env);
 const tailscalePolicyProfile = await readProfile(policyRoot, home);
-if (tailscalePolicyProfile.tunnel !== 'tailscale' || tailscalePolicyProfile.hostname !== 'codexpro-test.tailnet.ts.net' || tailscalePolicyProfile.ngrokConfig) {
+if (tailscalePolicyProfile.tunnel !== 'tailscale' || tailscalePolicyProfile.hostname !== 'codexflow-test.tailnet.ts.net' || tailscalePolicyProfile.ngrokConfig) {
   throw new Error(`settings tailscale profile did not normalize/clear stale tunnel values: ${JSON.stringify(tailscalePolicyProfile)}`);
 }
 
@@ -328,7 +330,7 @@ run([
   '--tunnel',
   'cloudflare-named',
   '--hostname',
-  'codexpro-stale.example.com',
+  'codexflow-stale.example.com',
   '--tunnel-name',
   'stale-tunnel',
   '--cloudflare-config',
@@ -357,7 +359,7 @@ runFail([
   '--tunnel',
   'ngrok',
   '--hostname',
-  'codexpro-test.ngrok-free.app',
+  'codexflow-test.ngrok-free.app',
   '--require-bash-session'
 ], env, /requires --bash-session/i);
 
@@ -369,7 +371,7 @@ const guarded = run([
   '--tunnel',
   'ngrok',
   '--hostname',
-  'codexpro-test.ngrok-free.app',
+  'codexflow-test.ngrok-free.app',
   '--bash-session',
   'guarded-main',
   '--require-bash-session'
@@ -429,7 +431,7 @@ run([
   '--tool-cards',
   'on'
 ], env);
-await withStartedCodexPro([
+await withStartedCodexFlow([
   '--root',
   runtimeRoot
 ], env, async (child) => {
@@ -445,7 +447,7 @@ try {
   if (error?.code !== 'ENOENT') throw error;
 }
 
-const quitRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-quit-'));
+const quitRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-quit-'));
 const quitPort = await getFreePort();
 const quitRuntimePath = await runtimeStatusPath(quitRoot, home);
 if (runInteractiveQuit([
@@ -465,7 +467,7 @@ if (runInteractiveQuit([
   }
 }
 
-const cloudflareRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-cloudflare-'));
+const cloudflareRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-cloudflare-'));
 const cloudflarePort = await getFreePort();
 const cloudflarePath = await runtimeStatusPath(cloudflareRoot, home);
 const fakeCloudflared = path.join(home, 'fake-cloudflared.mjs');
@@ -473,11 +475,11 @@ await fs.writeFile(fakeCloudflared, [
   '#!/usr/bin/env node',
   "if (process.argv.includes('--version')) { console.log('cloudflared version 2026.6.0'); process.exit(0); }",
   "console.error('https://api.trycloudflare.com/tunnel');",
-  "setTimeout(() => console.error('https://real-codexpro.trycloudflare.com'), 100);",
+  "setTimeout(() => console.error('https://real-codexflow.trycloudflare.com'), 100);",
   'setInterval(() => {}, 1000);',
   ''
 ].join('\n'), { mode: 0o700 });
-await withStartedCodexPro([
+await withStartedCodexFlow([
   '--root',
   cloudflareRoot,
   '--tunnel',
@@ -487,19 +489,19 @@ await withStartedCodexPro([
   '--port',
   String(cloudflarePort),
   '--token',
-  'codexpro-cloudflare-token',
+  'codexflow-cloudflare-token',
   '--no-copy-url'
 ], withoutProxyEnv(env), async () => {
   const runtime = await waitForJson(cloudflarePath, (data) => data.endpoint?.includes('trycloudflare.com'), 'cloudflare runtime status');
-  if (runtime.endpoint.includes('api.trycloudflare.com') || !runtime.endpoint.startsWith('https://real-codexpro.trycloudflare.com/mcp')) {
+  if (runtime.endpoint.includes('api.trycloudflare.com') || !runtime.endpoint.startsWith('https://real-codexflow.trycloudflare.com/mcp')) {
     throw new Error(`quick tunnel saved the wrong endpoint: ${JSON.stringify(runtime)}`);
   }
 });
 
-const proxyCloudflareRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-cloudflare-proxy-'));
+const proxyCloudflareRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-cloudflare-proxy-'));
 const proxyCloudflarePort = await getFreePort();
 const proxyCloudflarePath = await runtimeStatusPath(proxyCloudflareRoot, home);
-const fakeBin = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-fake-bin-'));
+const fakeBin = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-fake-bin-'));
 const fakeCurl = path.join(fakeBin, 'curl');
 const curlArgsPath = path.join(home, 'fake-curl-args.json');
 const cloudflaredArgsPath = path.join(home, 'fake-cloudflared-proxy-args.json');
@@ -507,8 +509,8 @@ const fakeProxyCloudflared = path.join(home, 'fake-cloudflared-proxy.mjs');
 await fs.writeFile(fakeCurl, [
   '#!/usr/bin/env node',
   "const fs = require('node:fs');",
-  "fs.writeFileSync(process.env.CODEXPRO_FAKE_CURL_ARGS, JSON.stringify(process.argv.slice(2)));",
-  "console.log(JSON.stringify({ success: true, result: { id: 'proxy-tunnel-id', hostname: 'proxy-codexpro.trycloudflare.com', account_tag: 'account-tag', secret: 'proxy-secret-1234567890' } }));",
+  "fs.writeFileSync(process.env.CODEXFLOW_FAKE_CURL_ARGS, JSON.stringify(process.argv.slice(2)));",
+  "console.log(JSON.stringify({ success: true, result: { id: 'proxy-tunnel-id', hostname: 'proxy-codexflow.trycloudflare.com', account_tag: 'account-tag', secret: 'proxy-secret-1234567890' } }));",
   ''
 ].join('\n'), { mode: 0o700 });
 await fs.writeFile(fakeProxyCloudflared, [
@@ -516,14 +518,14 @@ await fs.writeFile(fakeProxyCloudflared, [
   "import fs from 'node:fs';",
   "if (process.argv.includes('--version')) { console.log('cloudflared version 2026.6.0'); process.exit(0); }",
   "const args = process.argv.slice(2);",
-  "fs.writeFileSync(process.env.CODEXPRO_FAKE_CLOUDFLARED_ARGS, JSON.stringify(args));",
+  "fs.writeFileSync(process.env.CODEXFLOW_FAKE_CLOUDFLARED_ARGS, JSON.stringify(args));",
   "const credentialsPath = args[args.indexOf('--credentials-file') + 1];",
   "const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));",
   "if (credentials.TunnelID !== 'proxy-tunnel-id' || credentials.AccountTag !== 'account-tag' || credentials.TunnelSecret !== 'proxy-secret-1234567890') process.exit(4);",
   "setInterval(() => {}, 1000);",
   ''
 ].join('\n'), { mode: 0o700 });
-await withStartedCodexPro([
+await withStartedCodexFlow([
   '--root',
   proxyCloudflareRoot,
   '--tunnel',
@@ -533,17 +535,17 @@ await withStartedCodexPro([
   '--port',
   String(proxyCloudflarePort),
   '--token',
-  'codexpro-cloudflare-proxy-token',
+  'codexflow-cloudflare-proxy-token',
   '--no-copy-url'
 ], {
   ...env,
   PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
   HTTPS_PROXY: 'http://proxy.example.test:8080',
-  CODEXPRO_FAKE_CURL_ARGS: curlArgsPath,
-  CODEXPRO_FAKE_CLOUDFLARED_ARGS: cloudflaredArgsPath
+  CODEXFLOW_FAKE_CURL_ARGS: curlArgsPath,
+  CODEXFLOW_FAKE_CLOUDFLARED_ARGS: cloudflaredArgsPath
 }, async () => {
-  const runtime = await waitForJson(proxyCloudflarePath, (data) => data.endpoint?.includes('proxy-codexpro.trycloudflare.com'), 'proxy cloudflare runtime status');
-  if (!runtime.endpoint.startsWith('https://proxy-codexpro.trycloudflare.com/mcp')) {
+  const runtime = await waitForJson(proxyCloudflarePath, (data) => data.endpoint?.includes('proxy-codexflow.trycloudflare.com'), 'proxy cloudflare runtime status');
+  if (!runtime.endpoint.startsWith('https://proxy-codexflow.trycloudflare.com/mcp')) {
     throw new Error(`proxy quick tunnel saved the wrong endpoint: ${JSON.stringify(runtime)}`);
   }
 });
@@ -563,7 +565,7 @@ try {
   if (error?.code !== 'ENOENT') throw error;
 }
 
-const proxyCloudflareFailRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-cloudflare-proxy-fail-'));
+const proxyCloudflareFailRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-cloudflare-proxy-fail-'));
 const proxyCloudflareFailPort = await getFreePort();
 const fakeFailingProxyCloudflared = path.join(home, 'fake-cloudflared-proxy-fail.mjs');
 await fs.writeFile(fakeFailingProxyCloudflared, [
@@ -584,19 +586,19 @@ const proxyFailure = runFail([
   '--port',
   String(proxyCloudflareFailPort),
   '--token',
-  'codexpro-cloudflare-proxy-token',
+  'codexflow-cloudflare-proxy-token',
   '--no-copy-url'
 ], {
   ...env,
   PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
   HTTPS_PROXY: 'http://proxy.example.test:8080',
-  CODEXPRO_FAKE_CURL_ARGS: path.join(home, 'fake-curl-fail-args.json')
+  CODEXFLOW_FAKE_CURL_ARGS: path.join(home, 'fake-curl-fail-args.json')
 }, /exited before startup completed/);
 if (!proxyFailure.includes('proxy tunnel startup failed')) {
   throw new Error(`proxy quick tunnel did not include cloudflared startup failure output\n${proxyFailure}`);
 }
 
-const namedCloudflareRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-cloudflare-named-'));
+const namedCloudflareRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-cloudflare-named-'));
 const namedCloudflarePort = await getFreePort();
 const fakeNamedCloudflared = path.join(home, 'fake-cloudflared-named.mjs');
 const cloudflareRawToken = 'cf_audit_secret_1234567890TOKEN';
@@ -614,7 +616,7 @@ const namedFailure = runFail([
   '--tunnel',
   'cloudflare-named',
   '--hostname',
-  'codexpro-audit.example.com',
+  'codexflow-audit.example.com',
   '--cloudflare-token',
   cloudflareRawToken,
   '--cloudflared',
@@ -622,7 +624,7 @@ const namedFailure = runFail([
   '--port',
   String(namedCloudflarePort),
   '--token',
-  'codexpro-named-http-token',
+  'codexflow-named-http-token',
   '--no-copy-url'
 ], env, /Recent cloudflared output/);
 if (namedFailure.includes(cloudflareRawToken) || !namedFailure.includes('TUNNEL_TOKEN= [REDACTED_SECRET]')) {
@@ -645,7 +647,7 @@ run([
   '--tunnel',
   'ngrok',
   '--hostname',
-  'codexpro-env.ngrok-free.app',
+  'codexflow-env.ngrok-free.app',
   '--ngrok-config',
   'old-ngrok.yml'
 ], env);
@@ -657,13 +659,13 @@ const ngrokFailure = runFail([
   '--tunnel',
   'ngrok',
   '--hostname',
-  'codexpro-env.ngrok-free.app',
+  'codexflow-env.ngrok-free.app',
   '--ngrok',
   fakeNgrok,
   '--port',
   String(ngrokPort),
   '--token',
-  'codexpro-ngrok-env-token',
+  'codexflow-ngrok-env-token',
   '--no-copy-url'
 ], { ...env, NGROK_CONFIG: 'new-ngrok.yml' }, /Recent ngrok output/);
 const realNgrokRoot = await fs.realpath(ngrokRoot);
@@ -679,7 +681,7 @@ await fs.writeFile(fakeTailscale, [
   'process.exit(2);',
   ''
 ].join('\n'), { mode: 0o700 });
-const tailscaleRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-tailscale-'));
+const tailscaleRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-tailscale-'));
 const tailscalePort = await getFreePort();
 const tailscaleFailure = runFail([
   'start',
@@ -688,19 +690,19 @@ const tailscaleFailure = runFail([
   '--tunnel',
   'tailscale',
   '--hostname',
-  'codexpro-env.tailnet.ts.net',
+  'codexflow-env.tailnet.ts.net',
   '--tailscale',
   fakeTailscale,
   '--port',
   String(tailscalePort),
   '--token',
-  'codexpro-tailscale-token',
+  'codexflow-tailscale-token',
   '--no-copy-url'
 ], env, /Recent tailscale output/);
 if (!tailscaleFailure.includes(`funnel|http://127.0.0.1:${tailscalePort}`)) {
   throw new Error(`tailscale start did not invoke Funnel against the local server\n${tailscaleFailure}`);
 }
-const tailscalePortRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-tailscale-port-'));
+const tailscalePortRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-settings-tailscale-port-'));
 const tailscalePort8443 = await getFreePort();
 const tailscalePortFailure = runFail([
   'start',
@@ -709,13 +711,13 @@ const tailscalePortFailure = runFail([
   '--tunnel',
   'tailscale',
   '--hostname',
-  'codexpro-env.tailnet.ts.net:8443',
+  'codexflow-env.tailnet.ts.net:8443',
   '--tailscale',
   fakeTailscale,
   '--port',
   String(tailscalePort8443),
   '--token',
-  'codexpro-tailscale-token',
+  'codexflow-tailscale-token',
   '--no-copy-url'
 ], env, /Recent tailscale output/);
 if (!tailscalePortFailure.includes(`funnel|--https=8443|http://127.0.0.1:${tailscalePort8443}`)) {
@@ -723,7 +725,7 @@ if (!tailscalePortFailure.includes(`funnel|--https=8443|http://127.0.0.1:${tails
 }
 
 const listed = run(['settings', 'list'], env);
-if (!listed.includes(root) || !listed.includes('codexpro-test.ngrok-free.app') || !listed.includes('codexpro-test.tailnet.ts.net')) {
+if (!listed.includes(root) || !listed.includes('codexflow-test.ngrok-free.app') || !listed.includes('codexflow-test.tailnet.ts.net')) {
   throw new Error(`settings list missing saved profile\n${listed}`);
 }
 
@@ -733,7 +735,7 @@ if (!reused.includes('Saved workspace settings from')) {
 }
 
 const reusedShown = run(['settings', 'show', '--root', reuseRoot], env);
-for (const expected of ['ngrok', 'codexpro-test.ngrok-free.app', '<saved>']) {
+for (const expected of ['ngrok', 'codexflow-test.ngrok-free.app', '<saved>']) {
   if (!reusedShown.includes(expected)) {
     throw new Error(`reused settings show missing ${expected}\n${reusedShown}`);
   }

@@ -1,19 +1,28 @@
 <p align="center">
-  <img src="docs/favicon.svg" width="72" height="72" alt="CodexPro logo">
+  <a href="https://tarunspandit.github.io/codexflow/"><img src="docs/og.png" width="900" alt="CodexFlow — One command. Every project. Any chat."></a>
 </p>
 
-<h1 align="center">CodexPro</h1>
-
-<p align="center">
-  Local coding tools for ChatGPT, scoped to one repo.
-</p>
+<h1 align="center">CodexFlow</h1>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/codexpro"><img alt="npm" src="https://img.shields.io/npm/v/codexpro?style=flat-square"></a>
-  <a href="https://github.com/rebel0789/codexpro/actions"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/rebel0789/codexpro/ci.yml?branch=main&style=flat-square"></a>
-  <a href="https://github.com/rebel0789/codexpro/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/rebel0789/codexpro?style=flat-square"></a>
-  <a href="https://rebel0789.github.io/codexpro/"><img alt="Website" src="https://img.shields.io/badge/site-GitHub%20Pages-67e8f9?style=flat-square"></a>
+  One command turns ChatGPT on the web into a project-aware coding agent for your local machine.
 </p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@tarunspandit/codexflow"><img alt="npm" src="https://img.shields.io/npm/v/@tarunspandit/codexflow?style=flat-square"></a>
+  <a href="https://github.com/tarunspandit/codexflow/actions"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/tarunspandit/codexflow/ci.yml?branch=main&style=flat-square"></a>
+  <a href="https://github.com/tarunspandit/codexflow/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/tarunspandit/codexflow?style=flat-square"></a>
+</p>
+
+<p align="center">
+  <a href="https://tarunspandit.github.io/codexflow/">Website</a> ·
+  <a href="https://www.npmjs.com/package/@tarunspandit/codexflow">npm</a> ·
+  <a href="FAQ.md">FAQ</a> ·
+  <a href="SECURITY.md">Security</a> ·
+  <a href="README_ZH.md">中文</a>
+</p>
+
+CodexFlow is an independent open-source project. It is not affiliated with, endorsed by, or sponsored by OpenAI. Codex, ChatGPT, and OpenAI are referenced only to explain compatibility and remain the property of their respective owner.
 
 ## Install
 
@@ -26,17 +35,16 @@ Requirements:
 Install the CLI:
 
 ```bash
-npm install -g codexpro
+npm install -g @tarunspandit/codexflow
 ```
 
-Run setup inside the repo you want ChatGPT to work on:
+Then run exactly one command from anywhere:
 
 ```bash
-cd /path/to/your/repo
-codexpro setup
+codexflow
 ```
 
-CodexPro prints and copies the Server URL. In ChatGPT, open:
+CodexFlow discovers project folders from local Codex metadata, starts the local broker and Cloudflare tunnel, then prints and copies the Server URL. In ChatGPT, open:
 
 ```text
 Settings -> Security and login -> Developer mode: on
@@ -44,17 +52,11 @@ Settings -> Plugins -> Create
 ```
 
 Paste the Server URL and choose `Authentication: No Authentication / None`.
-CodexPro uses its own URL token.
-
-Daily use from the same repo:
-
-```bash
-codexpro start
-```
+CodexFlow uses its own URL token.
 
 ## What It Does
 
-CodexPro starts a local MCP server for the current workspace. ChatGPT can then:
+CodexFlow starts one local MCP server for all discovered projects. Each ChatGPT conversation chooses its own project and can then:
 
 - read files and inspect the repo
 - search code
@@ -64,12 +66,12 @@ CodexPro starts a local MCP server for the current workspace. ChatGPT can then:
 - write handoff plans under `.ai-bridge`
 - export a selected context bundle for model surfaces that cannot call tools
 
-CodexPro is not a hosted service, model proxy, quota bypass, account pool, or OS sandbox.
+CodexFlow is not a hosted service, model proxy, quota bypass, account pool, or OS sandbox.
 It connects your own ChatGPT session to your own local repo through the official Developer Mode / MCP app path.
 
 ## Repository Analysis
 
-CodexPro builds a bounded repository map from local manifests, source declarations, imports, tests, and Git state. It provides:
+CodexFlow builds a bounded repository map from local manifests, source declarations, imports, tests, and Git state. It provides:
 
 - `inspect_workspace` for languages, project types, entrypoints, areas, symbols, and relationships
 - optional structured `search` intents: `text`, `symbol`, `references`, and `impact`
@@ -77,69 +79,70 @@ CodexPro builds a bounded repository map from local manifests, source declaratio
 - matching read-only terminal views:
 
 ```bash
-codexpro inspect --root /path/to/repo
-codexpro review --root /path/to/repo
-codexpro inspect --root /path/to/repo --json
+codexflow inspect --root /path/to/repo
+codexflow review --root /path/to/repo
+codexflow inspect --root /path/to/repo --json
 ```
 
 The analysis is deterministic and local. It uses confidence labels instead of claiming compiler precision, stays within configured file/byte/symbol limits, and falls back to normal lexical search and Git review when analysis is incomplete.
 
-Set `CODEXPRO_ANALYSIS=0` to disable repository analysis without changing the rest of the connector.
+Set `CODEXFLOW_ANALYSIS=0` to disable repository analysis without changing the rest of the connector.
 
 ## Normal Commands
 
 ```bash
-codexpro setup
-codexpro start
-codexpro start --root /path/to/repo
-codexpro doctor
-codexpro connection-test --root /path/to/repo
-codexpro settings
-codexpro inspect
-codexpro review
+codexflow
+codexflow --root /path/to/repo
+codexflow status
+codexflow status --json
+codexflow doctor
+codexflow connection-test --root /path/to/repo
+codexflow settings
+codexflow inspect
+codexflow review
 ```
 
 Useful modes:
 
 ```bash
-codexpro start --no-bash
-codexpro start --tool-mode minimal
-codexpro start --tool-mode full
-codexpro start --mode handoff
-codexpro start --mode pro
+codexflow --no-bash
+codexflow --tool-mode minimal
+codexflow --tool-mode full
+codexflow --mode handoff
+codexflow --mode pro
 ```
 
-If ChatGPT cannot create the plugin, run `codexpro connection-test`. It keeps
+If ChatGPT cannot create the plugin, run `codexflow connection-test`. It keeps
 the normal read, tree, search, and skill tools, disables writes, bash, and tool
 cards, and logs whether a request reached the local MCP endpoint.
 
 Tool cards are opt in:
 
 ```bash
-CODEXPRO_TOOL_CARDS=1 codexpro start
+CODEXFLOW_TOOL_CARDS=1 codexflow
 ```
 
 ## Public URL Options
 
-ChatGPT web needs a public HTTPS Server URL. CodexPro supports:
+ChatGPT web needs a public HTTPS Server URL. CodexFlow supports:
 
-- Fast demo URL: `codexpro start --tunnel cloudflare`
-- Stable ngrok domain: `codexpro ngrok --hostname your-domain.ngrok-free.dev`
-- Stable Cloudflare route: `codexpro stable --hostname codexpro.example.com --tunnel-name codexpro`
-- Tailscale Funnel: `codexpro tailscale --hostname your-device.your-tailnet.ts.net`
-- Local only: `codexpro start --tunnel none`
+- Fast demo URL: `codexflow --tunnel cloudflare`
+- Stable ngrok domain: `codexflow ngrok --hostname your-domain.ngrok-free.dev`
+- Stable Cloudflare route: `codexflow stable --hostname codexflow.example.com --tunnel-name codexflow`
+- Tailscale Funnel: `codexflow tailscale --hostname your-device.your-tailnet.ts.net`
+- Local only: `codexflow --tunnel none`
 
 Cloudflare quick tunnels honor `HTTPS_PROXY`, `ALL_PROXY`, or `HTTP_PROXY` when those env vars are set.
 
-Stable modes should use a stable CodexPro token:
+Stable modes should use a stable CodexFlow token:
 
 ```bash
-codexpro tailscale \
+codexflow tailscale \
   --hostname your-device.your-tailnet.ts.net \
   --token keep-this-token-stable
 ```
 
-Tailscale Funnel must already be allowed for your tailnet. It requires MagicDNS, HTTPS certificates, and Funnel policy support. CodexPro runs:
+Tailscale Funnel must already be allowed for your tailnet. It requires MagicDNS, HTTPS certificates, and Funnel policy support. CodexFlow runs:
 
 ```bash
 tailscale funnel http://127.0.0.1:8787
@@ -148,23 +151,23 @@ tailscale funnel http://127.0.0.1:8787
 Then ChatGPT uses:
 
 ```text
-https://your-device.your-tailnet.ts.net/mcp?codexpro_token=keep-this-token-stable
+https://your-device.your-tailnet.ts.net/mcp?codexflow_token=keep-this-token-stable
 ```
 
 ## Safety Defaults
 
-- Public tunnel mode requires a CodexPro HTTP token.
-- Generic writes are hidden unless `CODEXPRO_WRITE_MODE=workspace`.
+- Public tunnel mode requires a CodexFlow HTTP token.
+- Generic writes are hidden unless `CODEXFLOW_WRITE_MODE=workspace`.
 - Safe bash blocks broad shell patterns and secret/build/cache paths.
 - `apply_patch` is workspace-scoped and rejects blocked paths, symlink patches, and secret-looking patch content.
 - `show_changes` keeps a review checkpoint so repeated unchanged reviews collapse.
-- Tool-card metadata is off unless `CODEXPRO_TOOL_CARDS=1`.
+- Tool-card metadata is off unless `CODEXFLOW_TOOL_CARDS=1`.
 
-Read [SECURITY.md](SECURITY.md) before exposing CodexPro through any tunnel.
+Read [SECURITY.md](SECURITY.md) before exposing CodexFlow through any tunnel.
 
 ## RAM And ChatGPT Memory
 
-CodexPro can reduce what it sends to ChatGPT. Current local fixes:
+codexflow can reduce what it sends to ChatGPT. Current local fixes:
 
 - binary-file checks scan with a reusable 64 KiB buffer instead of allocating the whole file
 - ChatGPT tool-card structured payloads are compacted only for card output, not for normal tool data
@@ -174,7 +177,7 @@ That helps avoid oversized MCP/card payloads. It does not force Chrome, ChatGPT,
 
 ## Repo Context
 
-CodexPro uses explicit files, not hidden chat memory:
+codexflow uses explicit files, not hidden chat memory:
 
 ```text
 AGENTS.md
@@ -188,14 +191,14 @@ AGENTS.md
 For non-tool model surfaces:
 
 ```bash
-codexpro start --mode pro
+codexflow --mode pro
 ```
 
 Or from a local checkout:
 
 ```bash
-codexpro pro-bundle --root /path/to/repo --copy
-codexpro pro-apply --root /path/to/repo --file plan.md
+codexflow pro-bundle --root /path/to/repo --copy
+codexflow pro-apply --root /path/to/repo --file plan.md
 ```
 
 ## Handoff
@@ -203,33 +206,56 @@ codexpro pro-apply --root /path/to/repo --file plan.md
 ChatGPT can write a plan without executing a local agent:
 
 ```bash
-codexpro start --mode handoff
+codexflow --mode handoff
+```
+
+For scripts, CI, or a terminal without interactive controls, keep the server running with signals instead of the keyboard panel:
+
+```bash
+codexflow --non-interactive
+codexflow status --json
 ```
 
 Then you run execution locally:
 
 ```bash
-codexpro execute-handoff --agent codex --yes
-codexpro watch-handoff --agent codex --yes
+codexflow execute-handoff --agent codex --yes
+codexflow watch-handoff --agent codex --yes
 ```
 
-`handoff_to_agent` is planning-only over MCP. CodexPro does not expose arbitrary local agent execution as a remote ChatGPT tool.
+`handoff_to_agent` is planning-only over MCP. CodexFlow does not expose arbitrary local agent execution as a remote ChatGPT tool.
+
+## Codex-style web chats across projects
+
+One CodexFlow process and one tunnel can route many ChatGPT conversations to different local projects. ChatGPT supplies the model; CodexFlow supplies the repository, file, git, terminal, instructions, and skill tools. It never starts or resumes the Codex CLI.
+
+```bash
+codexflow --tool-mode full \
+  --root /path/to/default-repo --allow-root /path/to/projects
+```
+
+When CodexFlow is activated in a new ChatGPT conversation, `list_projects` opens a picker. It combines the default project, projects found below configured allowed roots, and recent project folders recorded in local Codex metadata. Choosing one calls `select_project` and binds that MCP conversation to the folder. Later file, search, edit, git, and bash calls can omit `workspace_id`; they route to the selected project. Other ChatGPT conversations keep independent selections through the same tunnel.
+
+Project selection also advertises repository instructions, workspace/user/plugin skills, and configured MCP server names. The model can load applicable skills with `load_skill`. CodexFlow does not execute the Codex CLI or claim that these ChatGPT conversations are native Codex sessions.
+
+No project registration is required. Local Codex session metadata supplies the project directories automatically; `--root` and `--allow-root` remain optional overrides.
 
 ## Troubleshooting
 
 Run:
 
 ```bash
-codexpro doctor
+codexflow doctor
 ```
 
 Common fixes:
 
-- Quick tunnel URL changed: rerun `codexpro start` and update the ChatGPT app Server URL.
-- Stable URL does not respond: check the tunnel provider first, then the CodexPro token.
+- Quick tunnel URL changed: rerun `codexflow` and update the ChatGPT app Server URL.
+- Stable URL does not respond: check the tunnel provider first, then the CodexFlow token.
 - ChatGPT cannot call tools in one model/chat: switch to a ChatGPT surface that supports Developer Mode app actions.
 - Local port is busy: start another repo with `--port 8788`.
 - Tool list looks stale: create a new ChatGPT app entry or change the connector URL token.
+- Check whether the launcher is still running with `codexflow status`; a stale runtime record means the original process exited.
 
 ## Development
 
@@ -245,7 +271,7 @@ Useful release checks:
 ```bash
 npm run build
 npm run smoke
-CODEXPRO_TOOL_CARDS=1 npm run smoke
+CODEXFLOW_TOOL_CARDS=1 npm run smoke
 npm audit --audit-level=high
 npm pack --dry-run
 git diff --check
@@ -253,7 +279,8 @@ git diff --check
 
 ## Docs
 
-- [Website](https://rebel0789.github.io/codexpro/)
+- [Product website](https://tarunspandit.github.io/codexflow/)
+- [GitHub repository](https://github.com/tarunspandit/codexflow)
 - [FAQ](FAQ.md)
 - [Security](SECURITY.md)
 - [Stable URL guide](DOMAIN_SETUP.md)

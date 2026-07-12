@@ -1,4 +1,4 @@
-import type { CodexProConfig } from "../config.js";
+import type { CodexFlowConfig } from "../config.js";
 import fsp from "node:fs/promises";
 import type { PathGuard, Workspace } from "../guard.js";
 import { redactSensitiveText } from "../redact.js";
@@ -10,7 +10,7 @@ import { inventoryWorkspace } from "./inventory.js";
 import { classifySearchIntent, emptySearchGroups, groupForFile, sortStructuredMatches } from "./rank.js";
 import type { AnalysisSearchIntent, StructuredSearchMatch, StructuredSearchResult, WorkspaceAnalysis } from "./types.js";
 
-function cacheKey(workspace: Workspace, fingerprint: string, config: CodexProConfig): string {
+function cacheKey(workspace: Workspace, fingerprint: string, config: CodexFlowConfig): string {
   return `${workspace.id}:${fingerprint}:${JSON.stringify(config.analysisLimits)}`;
 }
 
@@ -26,8 +26,8 @@ function areasFor(files: WorkspaceAnalysis["files"]): WorkspaceAnalysis["areas"]
   return [...counts.entries()].map(([areaPath, value]) => ({ path: areaPath, ...value })).sort((a, b) => b.files - a.files || a.path.localeCompare(b.path));
 }
 
-export async function inspectWorkspace(config: CodexProConfig, guard: PathGuard, workspace: Workspace): Promise<WorkspaceAnalysis> {
-  if (!config.analysisEnabled) throw new Error("Repository analysis is disabled by CODEXPRO_ANALYSIS=0.");
+export async function inspectWorkspace(config: CodexFlowConfig, guard: PathGuard, workspace: Workspace): Promise<WorkspaceAnalysis> {
+  if (!config.analysisEnabled) throw new Error("Repository analysis is disabled by CODEXFLOW_ANALYSIS=0.");
   const inventory = await inventoryWorkspace(config, guard, workspace);
   const key = cacheKey(workspace, inventory.fingerprint, config);
   const cached = getCachedWorkspaceAnalysis(key);
@@ -68,7 +68,7 @@ export async function inspectWorkspace(config: CodexProConfig, guard: PathGuard,
 }
 
 export async function searchWorkspaceStructured(
-  config: CodexProConfig,
+  config: CodexFlowConfig,
   guard: PathGuard,
   workspace: Workspace,
   options: { query: string; intent?: AnalysisSearchIntent; includeTests?: boolean; regex?: boolean; root?: string; maxResults?: number }
