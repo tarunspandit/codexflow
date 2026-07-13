@@ -304,13 +304,23 @@ try {
   if (favicon.status !== 200 || !favicon.headers.get('content-type')?.includes('image/svg+xml')) {
     throw new Error(`expected unauthenticated favicon to return SVG 200, got ${favicon.status} ${favicon.headers.get('content-type')}`);
   }
+  for (const [assetPath, contentType] of [
+    ['/brand/control.css', 'text/css'],
+    ['/brand/geologica.woff2', 'font/woff2'],
+    ['/brand/flow7-tech-dark.webp', 'image/webp']
+  ]) {
+    const asset = await fetch(`${baseUrl}${assetPath}`);
+    if (asset.status !== 200 || !asset.headers.get('content-type')?.includes(contentType)) {
+      throw new Error(`expected ${assetPath} to return ${contentType} 200, got ${asset.status} ${asset.headers.get('content-type')}`);
+    }
+  }
 
   const home = await fetch(`${baseUrl}/?codexflow_token=${encodeURIComponent(token)}`);
   const homeText = await home.text();
   if (home.status !== 200 || !home.headers.get('content-type')?.includes('text/html')) {
     throw new Error(`expected authenticated onboarding page to return HTML 200, got ${home.status}`);
   }
-  if (!homeText.includes('CodexFlow Local Control') || !homeText.includes('CLI controls') || !homeText.includes('Connect ChatGPT') || !homeText.includes('Runtime guardrails')) {
+  if (!homeText.includes('CodexFlow — Local control') || !homeText.includes('One workspace. Fully visible.') || !homeText.includes('CLI controls') || !homeText.includes('Connect ChatGPT') || !homeText.includes('Runtime guardrails')) {
     throw new Error('onboarding page did not include expected admin setup copy');
   }
   if (!homeText.includes('Connection profile') || !homeText.includes('data-profile-form')) {

@@ -7,8 +7,11 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Local code. Web intelligence.",
     start_url: "/",
     display: "standalone",
-    background_color: "#080a0c",
-    theme_color: "#080a0c",
-    icons: [{ src: "/favicon.svg", sizes: "any", type: "image/svg+xml" }],
+    background_color: "#08090b",
+    theme_color: "#08090b",
+    icons: [
+      { src: "/brand/favicon-64.png", sizes: "64x64", type: "image/png" },
+      { src: "/brand/favicon-180.png", sizes: "180x180", type: "image/png" },
+    ],
   };
 }
