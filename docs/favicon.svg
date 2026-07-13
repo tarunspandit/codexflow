@@ -1,5 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="CodexFlow mark">
-  <rect width="64" height="64" rx="14" fill="#0b1220"/>
-  <path d="M20 19h24v7H27v12h17v7H20V19Z" fill="#67e8f9"/>
-  <path d="M32 26h12v12H32v-6h6v-1h-6v-5Z" fill="#34d399"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" fill="none" role="img" aria-labelledby="flow7-tech-title" style="color:#f4eee7">
+  <title id="flow7-tech-title">Flow 7 Tech luminous orbit mark</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+    <path d="M128.7 39.6C141 52.8 146.5 70.8 143.4 88.4C140.2 106.7 129 122.4 112.7 132.3C96.8 142 77.3 144 59.6 137.2C41.3 130.1 27.5 115.6 21.8 97.2C16.6 80 19.4 61.5 30.5 46.9C41.2 32.8 57.8 23.6 75.4 21.6C95.2 19.3 115.7 26.1 128.7 39.6Z" stroke="currentColor" stroke-width="5" opacity=".11"/>
+    <path id="orbit" d="M128.7 39.6C141 52.8 146.5 70.8 143.4 88.4C140.2 106.7 129 122.4 112.7 132.3C96.8 142 77.3 144 59.6 137.2C41.3 130.1 27.5 115.6 21.8 97.2C16.6 80 19.4 61.5 30.5 46.9C41.2 32.8 57.8 23.6 75.4 21.6C95.2 19.3 115.7 26.1 128.7 39.6Z" stroke="currentColor" stroke-width="1.65" stroke-dasharray="367.154 17.300" stroke-dashoffset="-8.650"/>
+    <path d="M128.7 39.6C141 52.8 146.5 70.8 143.4 88.4C140.2 106.7 129 122.4 112.7 132.3C96.8 142 77.3 144 59.6 137.2C41.3 130.1 27.5 115.6 21.8 97.2C16.6 80 19.4 61.5 30.5 46.9C41.2 32.8 57.8 23.6 75.4 21.6C95.2 19.3 115.7 26.1 128.7 39.6Z" stroke="currentColor" stroke-width=".9" stroke-dasharray="88.424 296.030" stroke-dashoffset="-234.517" opacity=".62" transform="translate(-1.35 1.45) rotate(-2 80 80)"/>
+    <circle cx="132.4" cy="43.3" r="1.65" fill="#7db5da" stroke="none"/>
+    <g stroke="#7db5da" stroke-width="1.25">
+      <path d="M54 84L72 58L99 64L108 88L86 106L59 99Z"/>
+      <path d="M72 58L78 83L108 88M78 83L59 99M78 83L99 64M78 83L86 106"/>
+      <circle cx="78" cy="83" r="2.15" fill="#7db5da" stroke="none"/>
+    </g>
+  </g>
 </svg>

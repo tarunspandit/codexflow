@@ -1,77 +1,140 @@
-# Design - CodexFlow
+# CodexFlow visual system
 
-A locked product-system note for CodexFlow docs and the local admin surface.
-Every redesign should keep the same trust story: ChatGPT can act on one local
-workspace through a token-protected MCP bridge, while shell, writes, Codex
-history, and handoff execution stay explicit user choices.
+CodexFlow is a Flow7 Tech expression built on the Luminous Orbit identity. This
+contract applies to the public site, the local status and settings surface,
+social previews, and future product UI. Recognition comes from the orbit,
+Geologica, the seven-point cadence, hairline geometry, and calm state-led
+motion—not from generic developer-tool decoration.
 
-## Genre
+## Product idea
 
-modern-minimal developer tool
+**One command. Every project. Any chat.**
 
-## Positioning
+Explain the product in this order:
 
-Use ChatGPT like your local coding agent.
+1. Run `codexflow` once.
+2. Connect the generated Server URL to ChatGPT.
+3. Select one local project for each conversation.
+4. Work through bounded files, git, terminal, skills, and instructions.
+5. Keep the trust boundary visible: CodexFlow is a local MCP bridge, not the
+   Codex CLI, a model proxy, a quota bypass, or a hosted code service.
 
-codexflow should explain itself in this order:
+## Identity source
 
-1. Install the CLI.
-2. Run setup inside one repo.
-3. Paste the copied Server URL into ChatGPT Developer Mode.
-4. Let ChatGPT inspect, edit, verify, or hand off work inside that workspace.
-5. Keep the safety boundary visible: it is a local bridge, not a quota bypass,
-   model proxy, hosted SaaS, or OS sandbox.
+- System: Flow7 Luminous Orbit
+- Domain expression: Tech
+- Primary experiential mark: `docs/assets/brand/flow7-tech-dark.webp`
+- Daylight mark: `docs/assets/brand/flow7-tech-light.webp`
+- Parent endorsement: `docs/assets/brand/flow7-parent-{dark,light}.webp`
+- Micro fallback: `docs/favicon.svg`
+- Production typeface: local Geologica variable font
 
-## Macrostructure Family
+The generated raster mark is primary at normal display sizes. The deterministic
+SVG is reserved for favicons and constrained micro use. Do not redraw the orbit,
+close its phase seam, change its proportions, or replace its inner Tech glyph.
+Use no more than one dominant and one supporting orbit per composition.
 
-- Marketing/docs pages: left-led product workbench with a visible three-step
-  path, trust boundary, and reference sections below.
-- Local admin pages: compact control surface with connection profile first,
-  live runtime guardrails second, CLI-only controls below, and raw paths
-  visually secondary.
-- Content pages: long-document reference with short setup recipes first and
-  detailed options after.
+## Color
 
-## Theme
+Core dark:
 
-- Paper: near-white blue
-- Ink: deep neutral blue-black
-- Accent: Codex blue
-- Accent use: links, primary actions, selected tabs, status highlights
-- Avoid: orange/amber, purple gradients, fake terminal/browser frames, invented
-  metrics, and decorative glow.
+- Field `#08090B`
+- Deep field `#050608`
+- Surface `#101317`
+- Warm white `#F4EEE7`
+- Soft ink `#CBC5BE`
+- Muted ink `#928F8B`
+- Champagne light `#F4EAE0`
+- Orbit edge `#B4947A`
+- Phase point `#D4AE89`
+
+Tech expression:
+
+- Tech field `#1D2D3A`
+- Tech signal `#7DB5DA`
+
+Daylight:
+
+- Field `#EFEBE4`
+- Deep field `#E5DFD7`
+- Surface `#F8F5EF`
+- Raised surface `#FFFDF9`
+- Ink `#171719`
+- Soft ink `#454244`
+- Muted ink `#706C69`
+
+Domain color enters through state, focus, selected controls, and image grading.
+Do not introduce a rainbow capability palette, neon green, generic purple
+gradients, or decorative glow. Glow is atmosphere only; the underlying mark or
+control must remain legible without it.
 
 ## Typography
 
-- Display: Geist-like system sans, heavy weight, normal style.
-- Body: system sans, normal style.
-- Mono: system monospace for commands, paths, tool names, and IDs only.
-- Headings stay compact. Hero copy should be short enough to read in one scan.
+Geologica carries every display, editorial, and interface role. Use light or
+regular display weights with tight optical spacing, readable body copy at
+`1.45–1.65` line height, and tracked uppercase only for compact metadata.
+Monospace is restricted to commands, paths, identifiers, and comparable data.
 
-## Spacing
+Do not use Geist, an unrelated serif, novelty code type, or the archived Flow7
+Counter Display face in this expression.
 
-Use a 4-point rhythm. Dense admin controls can use row dividers and grouped
-fieldsets. Marketing sections can breathe, but the first viewport must still
-show installation and trust details.
+## Spatial rhythm
+
+Use the locked seven-point cadence:
+
+`7 / 14 / 21 / 28 / 42 / 56 / 84 / 112`
+
+Favor broad section structure, editorial alignment, and hairline boundaries.
+Alternate concentration and release. Avoid dense bento walls, cards nested
+inside cards, decorative grid noise, and pill-shaped containers everywhere.
+
+## Surface translation
+
+### Public site
+
+Use the cinematic dark material, one observed Tech image, one dominant orbit,
+short product-specific copy, and large quiet type. Product functionality should
+be shown through one coherent routing instrument and ledger-like sections—not
+fake browser chrome or a wall of disconnected feature cards.
+
+### Local control surface
+
+Translate the same system into daylight for dense operational use. Lead with
+live status, then connection profile, runtime boundary, ChatGPT path, and CLI
+controls. Raw paths and policy values remain visible because the surface is
+token-protected and opened by the local user. Use dark Luminous Orbit material
+only for the masthead and live-status moment.
 
 ## Motion
 
-No cinematic motion. Use hover, active press, copy confirmation, and reduced
-motion support. Animate transform and opacity only.
+Motion must communicate state:
 
-## Copy Rules
+`idle → awaken → orbit → align → focus → release`
 
-- Say what CodexFlow does, then say what it does not do.
-- Do not claim permanent ChatGPT memory. Say repo-backed context files.
-- Do not imply CodexFlow unlocks models, bypasses limits, or automates approval
-  gates.
-- Do not expose raw local paths as marketing proof. Local admin can show them
-  because it is token-protected and opened by the local user.
+- Micro feedback: `140–220ms`
+- Component state: `360–480ms`
+- Content reveal: `700–900ms`
+- Orbit transition: `1000–1400ms`
+- Primary ease: `cubic-bezier(.22, 1, .36, 1)`
 
-## Shared Components
+The orbit may brighten or resolve; it never bounces, wobbles, spins forever, or
+chases the pointer. Respect reduced motion and preserve the final state.
 
-- Primary action: blue filled button.
-- Secondary action: white button with blue border.
-- Trust boundary: compact list or table near setup.
-- Commands: real text blocks with copy buttons, no fake terminal chrome.
-- Admin panels: white surfaces, 1px blue-gray rules, no nested-card clutter.
+## Accessibility and trust
+
+- Meet WCAG AA contrast.
+- Keep pointer and keyboard targets at least 44 × 44 px.
+- Show visible focus and never encode state through color alone.
+- Preserve semantic landmarks, heading order, status announcements, and error
+  recovery.
+- Say what CodexFlow does and what it does not do.
+- Never imply permanent ChatGPT memory, hidden Codex execution, pooled accounts,
+  model unlocking, or bypassed approval gates.
+
+## Avoid
+
+Generic AI nodes, particle clouds, holographic brains, random glass cards,
+green-on-black hacker styling, fake terminal spectacle, invented metrics,
+constant ambient motion, and luxury effects without a functional state. The
+product should feel intelligent, cinematic, human, and precise because of its
+proportion and editing—not because it is loud.

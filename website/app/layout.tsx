@@ -1,17 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
@@ -22,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(origin),
     title: {
-      default: "CodexFlow — Local code. Web intelligence.",
+      default: "CodexFlow — One command. Every project. Any chat.",
       template: "%s · CodexFlow",
     },
     description:
@@ -45,17 +34,18 @@ export async function generateMetadata(): Promise<Metadata> {
       description:
         "Turn ChatGPT on the web into a project-aware coding agent for your local machine.",
       url: "/",
-      images: [{ url: "/og.png", width: 1200, height: 630, alt: "CodexFlow routing local projects into independent ChatGPT coding sessions" }],
+      images: [{ url: "/og.png", width: 1200, height: 630, alt: "CodexFlow Luminous Orbit Tech identity with the line One command. Every project. Any chat." }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "CodexFlow — Local code. Web intelligence.",
-      description: "One broker. Every local project. Independent ChatGPT coding sessions.",
+      title: "CodexFlow — One command. Every project. Any chat.",
+      description: "Local code. Web intelligence. One secure connection.",
       images: ["/og.png"],
     },
     icons: {
-      icon: "/favicon.svg",
-      shortcut: "/favicon.svg",
+      icon: [{ url: "/brand/favicon-64.png", type: "image/png", sizes: "64x64" }],
+      shortcut: "/brand/favicon-64.png",
+      apple: [{ url: "/brand/favicon-180.png", sizes: "180x180" }],
     },
     manifest: "/manifest.webmanifest",
     robots: {
@@ -68,7 +58,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="scroll-smooth">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
