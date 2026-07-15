@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.30.0 (2026-07-15)
+
 - Added a from-scratch native SwiftUI macOS application with Now, Projects, Chats, Connection, and Policy views, real broker discovery and lifecycle controls, workspace switching, authenticated runtime data, and no duplicate model composer or Codex CLI execution path.
 - Added a universal, ad-hoc-signed, self-contained `CodexFlow.app` to the npm package; first launch installs or refreshes it in `~/Applications`, while `codexflow app`, `gui`, `open`, and the terminal `o` control launch it even when the broker is offline.
 - Rebuilt the token-protected browser page as a deliberately compact recovery fallback that opens the native app and exposes only essential connection actions and bounded diagnostics.
@@ -10,6 +12,7 @@
 - Reworked the required ChatGPT project picker and optional tool cards into host-native, non-scrolling inline UI, added project filtering, and bumped the resource to `ui://widget/codexflow-tool-card-v11.html` while preserving v10/v9/v8 aliases.
 - Updated both hosted public editions and the static GitHub Pages mirror around the native desktop product, with a representative preview explicitly separated from private local runtime data.
 - Added runtime monitor, independent-session telemetry, native app lifecycle, bundle/signature/architecture, secret-key redaction, public-site render, and packaged asset coverage to the release tests.
+- Unified CLI, stdio MCP, HTTP broker, native app, and package version reporting through the release manifest.
 
 ## 0.29.0 (2026-07-13)
 

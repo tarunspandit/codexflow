@@ -2,8 +2,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfig } from "./config.js";
 import { createCodexFlowServer } from "./server.js";
-
-const CODEXFLOW_VERSION = "0.29.0-beta.1";
+import { CODEXFLOW_VERSION } from "./version.js";
 
 function printHelp(): void {
   console.log(`CodexFlow MCP stdio server
