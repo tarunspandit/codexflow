@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.30.1 (2026-07-15)
+
+- Replaced the oversized required result card with a dedicated, cache-busted project picker resource and made `select_project` independent of any result template.
+- Added explicit output schemas and modern app-call visibility metadata to project discovery and selection while retaining ChatGPT compatibility metadata.
+- Made project routing resilient when component rendering fails: every project list now carries a plain-chat fallback, and server instructions forbid referring only to a missing picker.
+- Removed the shared GitHub Pages iframe origin from zero-configuration launches; components now use ChatGPT's isolated sandbox unless a unique dedicated HTTPS origin is explicitly configured.
+- Corrected runtime telemetry so background MCP discovery and component-fetch transports are reported as connections rather than user chats; active-chat counts now require an actual project route.
+- Added visible model-compatibility guidance across the native app, website, README, and FAQ: ChatGPT's Pro model variants do not expose Apps, while a Pro subscription remains compatible through supported non-Pro models.
+- Bumped the optional general result card to `ui://widget/codexflow-tool-card-v12.html`, preserving v11/v10/v9/v8 compatibility resources.
+
 ## 0.30.0 (2026-07-15)
 
 - Added a from-scratch native SwiftUI macOS application with Now, Projects, Chats, Connection, and Policy views, real broker discovery and lifecycle controls, workspace switching, authenticated runtime data, and no duplicate model composer or Codex CLI execution path.

@@ -77,7 +77,8 @@ private struct NavigationRail: View {
                             Text(section.title)
                                 .font(FlowType.label(13))
                             Spacer()
-                            if section == .chats, let count = model.overview?.summary.activeSessions, count > 0 {
+                            if section == .chats, let summary = model.overview?.summary, summary.activeSessions + summary.pendingSessions > 0 {
+                                let count = summary.activeSessions + summary.pendingSessions
                                 Text("\(count)")
                                     .font(FlowType.mono(10))
                                     .foregroundStyle(FlowColor.signalBright)

@@ -43,6 +43,8 @@ export interface RuntimeMonitorSnapshot {
   sessions: RuntimeSessionSnapshot[];
   activity: RuntimeActivitySnapshot[];
   active_sessions: number;
+  pending_sessions: number;
+  open_connections: number;
   recent_sessions: number;
 }
 
@@ -169,7 +171,12 @@ export class RuntimeMonitor {
 
   snapshot(now = Date.now()): RuntimeMonitorSnapshot {
     this.prune(now);
-    const sessions = [...this.sessions.values()]
+    const records = [...this.sessions.values()];
+    // ChatGPT may open short-lived MCP transports for discovery, metadata, and
+    // component fetching. Those are connections, not user chats. Only expose a
+    // session as a chat after it has called a tool or selected a project.
+    const sessions = records
+      .filter((session) => session.toolCalls > 0 || Boolean(session.project))
       .sort((a, b) => {
         const aActive = a.state === "active" || a.state === "initializing" ? 1 : 0;
         const bActive = b.state === "active" || b.state === "initializing" ? 1 : 0;
@@ -193,7 +200,9 @@ export class RuntimeMonitor {
         ...event,
         project: event.project ? { ...event.project } : null
       })),
-      active_sessions: sessions.filter((session) => session.state !== "closed").length,
+      active_sessions: sessions.filter((session) => session.state !== "closed" && Boolean(session.project)).length,
+      pending_sessions: sessions.filter((session) => session.state !== "closed" && !session.project).length,
+      open_connections: records.filter((session) => session.state !== "closed").length,
       recent_sessions: sessions.length
     };
   }

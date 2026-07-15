@@ -32,6 +32,11 @@ Requirements:
 - A ChatGPT account with Apps / Developer Mode access
 - One HTTPS route to your local machine when connecting ChatGPT from the web
 
+> **Model compatibility:** use Extra High or another non-Pro model. ChatGPT's
+> Pro model variants do not expose Apps, even though a Pro subscription can use
+> Apps with supported models. If CodexFlow is absent from a reply, switch the
+> model—not the local broker.
+
 Install the CLI:
 
 ```bash
@@ -85,7 +90,7 @@ conversation. The native app makes the broker legible and controllable:
 
 - **Now** shows connection health, project count, active chats, and recent activity.
 - **Projects** shows the folders CodexFlow discovered automatically.
-- **Chats** shows independent project routing for current and recently closed MCP sessions.
+- **Chats** shows independent project routing for real tool-using conversations; background MCP discovery and component-fetch connections are deliberately hidden.
 - **Connection** provides the private Server URL without displaying its credential.
 - **Policy** shows the effective boundary and edits protected next-launch defaults.
 
@@ -147,7 +152,9 @@ If ChatGPT cannot create the plugin, run `codexflow connection-test`. It keeps
 the normal read, tree, search, and skill tools, disables writes, bash, and tool
 cards, and logs whether a request reached the local MCP endpoint.
 
-Rich result cards are opt in; the required project picker remains available:
+Rich result cards are opt in. The small project picker remains available, but it
+is never a prerequisite: if a client cannot render it, reply with the exact
+project name and CodexFlow routes the chat through the same `select_project` tool.
 
 ```bash
 CODEXFLOW_TOOL_CARDS=1 codexflow

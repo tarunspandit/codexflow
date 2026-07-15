@@ -187,7 +187,11 @@ function toolModeFrom(value: string | undefined): ToolMode {
 }
 
 function widgetDomainFrom(value: string | undefined): string {
-  const raw = value?.trim() || "https://tarunspandit.github.io";
+  const raw = value?.trim() || "";
+  // CodexFlow previously reused the public docs origin for every installation.
+  // Component origins must be unique per app; an omitted domain uses ChatGPT's
+  // isolated default sandbox and is the safe zero-configuration behavior.
+  if (!raw || raw === "https://tarunspandit.github.io") return "";
   let parsed: URL;
   try {
     parsed = new URL(raw);

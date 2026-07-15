@@ -341,6 +341,8 @@ try {
     !homeText.includes('CodexFlow — Browser fallback') ||
     !homeText.includes('CodexFlow lives') ||
     !homeText.includes('Native app is primary') ||
+    !homeText.includes('Use Extra High or another non-Pro model') ||
+    !homeText.includes('Pro model variants do not expose Apps') ||
     !homeText.includes('Fallback diagnostics') ||
     !homeText.includes('data-desktop-deep-link') ||
     !homeText.includes('codexflow://open?root=')
@@ -368,6 +370,8 @@ try {
     overviewBeforeJson.ok !== true ||
     !overviewBeforeJson.projects?.some?.((project) => project.name === 'alternate-project') ||
     overviewBeforeJson.summary?.active_sessions !== 0 ||
+    overviewBeforeJson.summary?.pending_sessions !== 0 ||
+    overviewBeforeJson.summary?.open_connections !== 0 ||
     overviewBeforeJson.broker?.auth_enabled !== true
   ) {
     throw new Error(`local companion overview was incomplete: ${overviewBefore.status} ${JSON.stringify(overviewBeforeJson)}`);
@@ -511,10 +515,20 @@ try {
       throw new Error(`HTTP handoff mode should not advertise ${hidden}; got ${queryToolNames.join(', ')}`);
     }
   }
-  const toolCardUri = 'ui://widget/codexflow-tool-card-v11.html';
+  const toolCardUri = 'ui://widget/codexflow-tool-card-v12.html';
+  const projectPickerUri = 'ui://widget/codexflow-project-picker-v1.html';
   for (const visualTool of queryToolNames) {
-    if (visualTool === 'list_projects' || visualTool === 'select_project') {
-      if (!hasWidgetMeta(queryTools, visualTool, toolCardUri)) throw new Error(`${visualTool} did not expose its required project picker widget`);
+    if (visualTool === 'list_projects') {
+      if (!hasWidgetMeta(queryTools, visualTool, projectPickerUri)) throw new Error('list_projects did not expose the dedicated project picker widget');
+      if (!queryTools.find((tool) => tool.name === visualTool)?.outputSchema) throw new Error('list_projects did not advertise structured output');
+      continue;
+    }
+    if (visualTool === 'select_project') {
+      const selectTool = queryTools.find((tool) => tool.name === visualTool);
+      const meta = selectTool?._meta ?? {};
+      if (hasWidgetMeta(queryTools, visualTool, toolCardUri) || meta['openai/outputTemplate']) throw new Error('select_project should not depend on a result template');
+      if (meta['openai/widgetAccessible'] !== true || !meta.ui?.visibility?.includes?.('app')) throw new Error('select_project was not callable from the picker');
+      if (!selectTool?.outputSchema) throw new Error('select_project did not advertise structured output');
       continue;
     }
     if (hasWidgetMeta(queryTools, visualTool, toolCardUri) || hasToolCardStatusMeta(queryTools, visualTool)) {
@@ -552,6 +566,10 @@ try {
     if (toolCard.mimeType !== 'text/html;profile=mcp-app') {
       throw new Error(`unexpected HTTP tool-card mime type: ${toolCard.mimeType}`);
     }
+    const projectPicker = resources.resources.find((resource) => resource.uri === projectPickerUri);
+    if (!projectPicker || projectPicker.mimeType !== 'text/html;profile=mcp-app') {
+      throw new Error(`HTTP MCP resources/list missing ${projectPickerUri}`);
+    }
     const legacyToolCardUri = 'ui://widget/codexflow-tool-card-v8.html';
     const legacyToolCard = resources.resources.find((resource) => resource.uri === legacyToolCardUri);
     if (!legacyToolCard) throw new Error(`HTTP MCP resources/list missing legacy ${legacyToolCardUri}`);
@@ -566,6 +584,11 @@ try {
     }
     if (widgetMeta.ui?.domain !== 'https://widgets.codexflow.test' || widgetMeta['openai/widgetDomain'] !== 'https://widgets.codexflow.test') {
       throw new Error('HTTP tool-card widget resource did not expose standard and ChatGPT widget domain metadata');
+    }
+    const pickerWidget = await client.readResource({ uri: projectPickerUri });
+    const pickerText = pickerWidget.contents?.[0]?.text ?? '';
+    if (!pickerText.includes('Choose this chat’s project') || !pickerText.includes('callTool("select_project"') || !pickerText.includes('reply in chat with an exact project name') || !pickerText.includes('ui/notifications/tool-result')) {
+      throw new Error('HTTP project-picker resource did not include the resilient Apps bridge and chat fallback');
     }
     const legacyWidget = await client.readResource({ uri: legacyToolCardUri });
     if (legacyWidget.contents?.[0]?.uri !== legacyToolCardUri) {

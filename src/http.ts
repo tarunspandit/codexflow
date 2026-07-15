@@ -110,7 +110,7 @@ function normalizePublicHostname(value: string | undefined): string {
 
 function normalizeWidgetDomain(value: string | undefined): string {
   const raw = value?.trim() ?? "";
-  if (!raw) return "";
+  if (!raw || raw === "https://tarunspandit.github.io") return "";
   const url = new URL(raw);
   if (url.protocol !== "https:") throw new Error("widgetDomain must use https.");
   if (url.pathname !== "/" || url.search || url.hash) {
@@ -160,7 +160,7 @@ function profileValues(config: CodexFlowConfig, profile = readWorkspaceProfile(c
     write,
     toolMode: oneOf(profile.toolMode ?? config.toolMode, TOOL_MODES, config.toolMode),
     toolCards: Boolean(profile.toolCards ?? config.toolCards),
-    widgetDomain: String(profile.widgetDomain ?? config.widgetDomain),
+    widgetDomain: normalizeWidgetDomain(String(profile.widgetDomain ?? config.widgetDomain)),
     noInstallCloudflared: Boolean(profile.noInstallCloudflared)
   };
 }
@@ -326,6 +326,8 @@ async function applicationOverview(
     summary: {
       projects: projects.length,
       active_sessions: monitored.active_sessions,
+      pending_sessions: monitored.pending_sessions,
+      open_connections: monitored.open_connections,
       recent_sessions: monitored.recent_sessions,
       activity_events: monitored.activity.length
     },
@@ -664,6 +666,8 @@ async function main(): Promise<void> {
       authEnabled: Boolean(config.authToken),
       authRequired: Boolean(config.authToken),
       activeSessions: monitor.active_sessions,
+      pendingSessions: monitor.pending_sessions,
+      openConnections: monitor.open_connections,
       recentSessions: monitor.recent_sessions,
       version: CODEXFLOW_VERSION
     });

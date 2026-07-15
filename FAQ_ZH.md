@@ -8,6 +8,14 @@
 
 codexflow 不解锁 Developer Mode，不解锁模型，不绕过账号限制，也不提供账号访问。它只连接你自己的 ChatGPT App 界面和你自己的本地仓库。
 
+账号权限与模型能力是两回事。Pro 订阅可以拥有 Apps / Developer Mode，但 ChatGPT 的 **Pro 模型变体不会开放 Apps**。使用 Extra High 或其他非 Pro 模型运行 CodexFlow。如果回复里没有 App，请切换模型，不要重启 broker。
+
+## 项目选择器无法显示时怎么办？
+
+直接回复准确的项目名称。选择器只是一个小型可选界面，项目发现与路由并不依赖它。CodexFlow 同时返回文本项目列表，ChatGPT 可以直接按名称或 project ID 调用 `select_project`。
+
+此时原生应用可能显示一个“正在选择项目”的聊天。ChatGPT 用于 metadata 或组件获取的后台 transport 会被隐藏，也不会被算作活跃聊天。
+
 ## 推荐安装方式是什么？
 
 注意：这个 FAQ 跟随 GitHub `main`。假设某个 `main` 功能已经进入 `codexflow@latest` 前，请先看 npm badge/version。
@@ -36,7 +44,7 @@ CodexFlow 会自动发现本机 Codex 使用过的项目，启动 broker 和 tun
 codexflow app
 ```
 
-它展示已发现项目、活跃与最近关闭的聊天路由、不包含内容的工具活动、连接健康、下次启动设置，以及当前进程真正生效的策略。它可以选择 workspace，启动、停止或重启本地 broker，并在明确操作时复制私有 Server URL。它没有模型输入框，不调用 Codex CLI，也不能偷偷把现有 ChatGPT 对话切换到另一个项目；项目选择仍由该对话里的 CodexFlow picker 完成。
+它展示已发现项目、活跃与最近关闭的聊天路由、不包含内容的工具活动、连接健康、下次启动设置，以及当前进程真正生效的策略。它可以选择 workspace，启动、停止或重启本地 broker，并在明确操作时复制私有 Server URL。它没有模型输入框，不调用 Codex CLI，也不能偷偷把现有 ChatGPT 对话切换到另一个项目；项目选择仍由该对话里的 CodexFlow picker 或准确项目名称回复完成。
 
 旧的 token 保护浏览器页面只保留为紧急 fallback，用于打开桌面应用和查看少量诊断，不再复制桌面产品。
 
@@ -85,7 +93,7 @@ codexflow 不绕过、不提升、不合并、不转售、不修改 ChatGPT、Co
 
 ## CodexFlow 可以使用 GPT-5.5 吗？
 
-前提是你的 ChatGPT 账号已经在 Web 产品里提供这个模型或同级更强模型，并且该模型界面可以调用 Developer Mode Apps。
+前提是你的 ChatGPT 账号已经提供该模型，并且所选模型支持 Apps。ChatGPT 的 Pro 模型变体不会开放 Apps；请使用 Extra High 或其他非 Pro 模型运行 CodexFlow。
 
 codexflow 不提供、不代理、不转售、也不解锁模型。它只给兼容的 ChatGPT 会话提供本地仓库工具。
 
@@ -101,7 +109,7 @@ codexflow pro-bundle --root /path/to/repo --copy
 
 账号权限和模型工具能力是两回事。
 
-Plus / Pro 可以暴露 Apps / Developer Mode，但某个具体模型界面仍然可能不能调用连接器或 MCP 工具。遇到这种情况时，用 `codexflow pro-bundle --copy` 导出上下文，再把计划交给本地代理执行。
+Pro 订阅可以暴露 Apps / Developer Mode，但 Pro 模型变体本身不会调用连接器或 MCP 工具。请切换到 Extra High 或其他非 Pro 模型；如果必须留在不支持工具的模型上，再用 `codexflow pro-bundle --copy` 导出上下文。
 
 ## ChatGPT 能通过 CodexFlow 看到什么？
 

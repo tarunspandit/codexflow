@@ -8,7 +8,13 @@ Current testing shows free and Go accounts do not expose the app flow needed for
 
 codexflow does not unlock Developer Mode, unlock models, bypass account limits, or provide account access. It connects to the ChatGPT app surface your account already has.
 
-Account access and model tool support are separate. An eligible account can have Apps / Developer Mode, while a specific model surface may still be unable to call connectors or MCP tools directly. If CodexFlow actions are unavailable in that chat, use another tool-capable ChatGPT surface or the Pro context fallback for that session.
+Account access and model tool support are separate. A Pro subscription can have Apps / Developer Mode, but ChatGPT's **Pro model variants do not expose Apps**. Use Extra High or another non-Pro model for CodexFlow. If the app is absent from the response, switch the model rather than restarting the broker.
+
+## What if the project picker fails to render?
+
+Reply with the exact project name. The picker is a small optional convenience; project discovery and routing do not depend on it. CodexFlow returns the same project list as text, and ChatGPT can call `select_project` directly by name or project ID.
+
+The native app may show one chat as “Choosing project” while this is happening. Background ChatGPT metadata and component-fetch transports are hidden and are never counted as active chats.
 
 ## How is CodexFlow different from generic workspace bridges?
 
@@ -44,7 +50,8 @@ tool activity, connection health, next-launch settings, and the policy active fo
 the current process. It can also choose a workspace and start, stop, or restart the
 existing CodexFlow broker. It does not contain a model composer, run the Codex CLI,
 or silently move an existing ChatGPT conversation to a different project. Project
-selection remains owned by that conversation through the CodexFlow project picker.
+selection remains owned by that conversation through the CodexFlow picker or an
+exact project-name reply.
 
 The token-protected browser page remains available as a compact recovery fallback.
 It opens the native app and exposes only essential connection diagnostics; it is
@@ -153,9 +160,7 @@ The useful part is that Codex and ChatGPT are different product surfaces. If one
 
 ## Can CodexFlow use GPT-5.5?
 
-Only if your ChatGPT account already exposes that exact model, or a similar stronger model, in the ChatGPT web product surface you are using, and that model surface can call Developer Mode apps.
-
-Some GPT-5.5 Pro or other model surfaces may not expose app actions in a given chat. If CodexFlow actions are unavailable there, CodexFlow cannot make that request reach the local server. CodexFlow does not provide, proxy, resell, or unlock models. It gives compatible ChatGPT sessions local repo tools.
+Only if your ChatGPT account exposes that model and the selected model supports Apps. ChatGPT's Pro model variants do not expose Apps; use Extra High or another non-Pro model for CodexFlow. CodexFlow cannot make an unsupported model send a request to the local server, and it does not provide, proxy, resell, or unlock models.
 
 For models that cannot call tools, generate a repo context bundle instead:
 
