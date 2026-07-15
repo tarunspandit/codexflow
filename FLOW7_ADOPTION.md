@@ -191,6 +191,8 @@ branded background.
   the public explanation of the local companion.
 - Package inspection verifies that the application HTML runtime and local CSS,
   JavaScript, type, and identity assets ship with the command-line package.
+- The exact validated public source is deployed at
+  `https://codexflow.tarunspandit.chatgpt.site`.
 
 ## External release prerequisite
 

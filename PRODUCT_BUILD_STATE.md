@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-Production publication and final handoff.
+Complete: implementation, verification, production publication, and handoff.
 
 ## Product truth
 
@@ -69,7 +69,7 @@ Production publication and final handoff.
 | INT-001 | OpenAI Apps SDK | Widget tools use supported MCP Apps result notifications and feature-detected `window.openai` APIs for tool calls, state, and follow-up messages. | Required | UI-002 | Implemented | `src/toolCardWidget.ts` | Widget source assertions and ChatGPT golden test prerequisite | Official docs reviewed 2026-07-15. |
 | INT-002 | README tunnel modes | Local-only, Cloudflare quick/named, ngrok, and Tailscale modes continue to produce the same MCP/app experience. | Required | CLI launcher | Implemented | `scripts/codexflow.mjs` | CLI/doctor/settings smoke; external provider live checks remain release gate | — |
 | OPS-001 | User direction | Package-shipped application assets are included in the npm tarball and require no separate local frontend install or dev server. | Required | Build/package files | Verified | `src/localAppPage.ts`, `docs/assets/brand/control.{css,js}` | `npm pack --dry-run --json` includes compiled app and all local assets | — |
-| OPS-002 | Sites metadata | The public React site and static GitHub Pages mirror remain buildable and deployable from repository source. | Required | Website | Verified | `docs/*`, `website/*` | Website lint, production build, bilingual render tests, Sites package/publish workflow | Production publication is in progress. |
+| OPS-002 | Sites metadata | The public React site and static GitHub Pages mirror remain buildable and deployable from repository source. | Required | Website | Verified | `docs/*`, `website/*` | Website lint, production build, bilingual render tests, Sites package/publish workflow | Production: `https://codexflow.tarunspandit.chatgpt.site`. |
 | OPS-003 | Completion contract | Maintainer documentation explains the product thesis, architecture, runtime data boundaries, app surfaces, setup, tests, and release operation. | Required | Completed implementation | Verified | `README.md`, `FLOW7_ADOPTION.md`, `SECURITY.md`, `design.md` | Documentation and adoption-checklist audit | — |
 | TEST-001 | PUBLIC_LAUNCH_CHECKLIST | Root build, smoke, stress-relevant paths, package inspection, audits, widget checks, responsive/static accessibility checks, and website build/render checks pass. | Required | All required implementation | Verified | Root and website suites | Build, smoke, stress, package, audit, lint, production build, rendered HTML, syntax, and whitespace checks pass | Live ChatGPT golden test is an external release prerequisite, not fabricated locally. |
 
@@ -98,6 +98,7 @@ Production publication and final handoff.
 - Hosted website lint, production build, English render test, Chinese render test, and absolute social metadata test pass with the local-companion preview.
 - Website dependency overrides remove the transitive PostCSS advisory; `npm audit --audit-level=high` reports zero known vulnerabilities after a successful production rebuild.
 - Static accessibility checks confirm semantic landmarks, keyboard focus paths, 44px interactive targets, reduced motion, announced status states, and a minimum 4.85:1 muted-text contrast on the deepest daylight surface.
+- The exact validated `website/` source was pushed to its Sites source repository, saved as production version 1, and successfully deployed to `https://codexflow.tarunspandit.chatgpt.site`.
 
 ## External prerequisites
 
@@ -107,8 +108,7 @@ Production publication and final handoff.
 
 - None.
 
-## Next executable steps
+## Remaining external release check
 
-1. Commit and publish the exact validated website source through Sites.
-2. Run the final post-commit source/package checks and record the deployed URL.
-3. Complete handoff; retain the live ChatGPT golden path as the only external release prerequisite.
+Use a configured ChatGPT account and public CodexFlow tunnel to run the documented
+two-conversation golden path. No local implementation or deployment work remains.
