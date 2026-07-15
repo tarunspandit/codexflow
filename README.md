@@ -69,23 +69,30 @@ CodexFlow starts one local MCP server for all discovered projects. Each ChatGPT 
 CodexFlow is not a hosted service, model proxy, quota bypass, account pool, or OS sandbox.
 It connects your own ChatGPT session to your own local repo through the official Developer Mode / MCP app path.
 
-## Local Companion
+## Native Desktop App
 
-Every running broker also serves a private local application. Press `o` in the
-CodexFlow terminal, or open it later from another terminal:
+On macOS 14 or newer, the first `codexflow` launch installs the bundled native
+app into `~/Applications` and opens it automatically. Press `o` in the CodexFlow
+terminal to bring it forward, or open it directly at any time—even before the
+broker is running:
 
 ```bash
 codexflow app
 ```
 
-The companion is not a second chat or model client. ChatGPT still owns the
-conversation. The local app makes the broker legible:
+The app is not a second chat or model client. ChatGPT still owns the
+conversation. The native app makes the broker legible and controllable:
 
 - **Now** shows connection health, project count, active chats, and recent activity.
 - **Projects** shows the folders CodexFlow discovered automatically.
 - **Chats** shows independent project routing for current and recently closed MCP sessions.
-- **Connection** provides the private Server URL and optional next-launch defaults.
-- **Policy** shows the exact write, terminal, tool, history, auth, and allowed-root boundary active for the process.
+- **Connection** provides the private Server URL without displaying its credential.
+- **Policy** shows the effective boundary and edits protected next-launch defaults.
+
+The app can choose a workspace, start, stop, and restart its broker, and switch
+among multiple local runtimes. It calls the existing CodexFlow broker and never
+uses the Codex CLI as an execution backend. The authenticated browser page is a
+small recovery fallback only; it no longer duplicates the application.
 
 Session telemetry stays in process memory, is bounded, and expires shortly after
 a chat closes. It contains only a non-actionable display fingerprint, selected
@@ -281,13 +288,15 @@ Common fixes:
 - Local port is busy: start another repo with `--port 8788`.
 - Tool list looks stale: create a new ChatGPT app entry or change the connector URL token.
 - Check whether the launcher is still running with `codexflow status`; a stale runtime record means the original process exited.
-- Reopen the private project/chat companion with `codexflow app` while the original broker is running.
+- Reopen the native desktop app with `codexflow app`; it can start the workspace broker if it is offline.
+- If the native app is unavailable, open the authenticated local browser URL shown by the running broker for compact fallback diagnostics.
 
 ## Development
 
 ```bash
 npm install
 npm run build
+npm run desktop:build
 npm run smoke
 npm run stress
 ```

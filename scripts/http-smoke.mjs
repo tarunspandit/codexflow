@@ -337,21 +337,18 @@ try {
   ) {
     throw new Error(`local companion security headers were incomplete: ${JSON.stringify(Object.fromEntries(home.headers))}`);
   }
-  if (!homeText.includes('CodexFlow — Local companion') || !homeText.includes('Your machine.') || !homeText.includes('Chats in motion') || !homeText.includes('Projects,') || !homeText.includes('Capability,')) {
-    throw new Error('local companion did not include the expected application views');
+  if (
+    !homeText.includes('CodexFlow — Browser fallback') ||
+    !homeText.includes('CodexFlow lives') ||
+    !homeText.includes('Native app is primary') ||
+    !homeText.includes('Fallback diagnostics') ||
+    !homeText.includes('data-desktop-deep-link') ||
+    !homeText.includes('codexflow://open?root=')
+  ) {
+    throw new Error('browser fallback did not identify and deep-link to the native CodexFlow app');
   }
-  for (const view of ['now', 'projects', 'chats', 'connection', 'policy']) {
-    if (!homeText.includes(`data-view-group="${view}"`)) {
-      throw new Error(`local companion did not include ${view} view`);
-    }
-  }
-  if (!homeText.includes('Next-launch profile') || !homeText.includes('data-profile-form')) {
-    throw new Error('local companion did not include the advanced profile editor');
-  }
-  for (const fieldName of ['tunnelName', 'ngrokConfig', 'cloudflareConfig', 'cloudflareTokenFile', 'toolCards', 'noInstallCloudflared']) {
-    if (!homeText.includes(`name="${fieldName}"`)) {
-      throw new Error(`onboarding page did not include profile field ${fieldName}`);
-    }
+  if (homeText.includes('data-view-group=') || homeText.includes('data-profile-form') || homeText.includes('Next-launch profile')) {
+    throw new Error('browser fallback still duplicated native application navigation or settings');
   }
   if (homeText.includes(token)) {
     throw new Error('onboarding page leaked the raw auth token');

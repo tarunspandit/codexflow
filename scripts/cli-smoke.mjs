@@ -46,6 +46,18 @@ const env = {
   CODEXFLOW_HOME: home
 };
 
+const desktopLaunchOutput = path.join(home, 'desktop-launches.jsonl');
+const fakeDesktopLauncher = path.join(home, 'fake-desktop-launcher.mjs');
+await fs.writeFile(fakeDesktopLauncher, [
+  '#!/usr/bin/env node',
+  "import fs from 'node:fs';",
+  "fs.appendFileSync(process.env.CODEXFLOW_DESKTOP_OUTPUT, `${JSON.stringify(process.argv.slice(2))}\\n`);",
+  ''
+].join('\n'), { mode: 0o700 });
+env.CODEXFLOW_DESKTOP_APP = path.join(projectRoot, 'desktop', 'prebuilt', 'CodexFlow.app');
+env.CODEXFLOW_DESKTOP_LAUNCHER = `${process.execPath} ${fakeDesktopLauncher}`;
+env.CODEXFLOW_DESKTOP_OUTPUT = desktopLaunchOutput;
+
 const codexDir = path.join(home, 'codex');
 const sessionDir = path.join(codexDir, 'sessions', '2026', '07', '12');
 const autoProjectA = path.join(home, 'project-a');
@@ -104,8 +116,21 @@ const beforePayload = JSON.parse(statusBefore.stdout);
 assert.equal(beforePayload.state, 'not_running');
 assert.equal(beforePayload.active, false);
 const appBefore = run(['app', '--root', root], env);
-assert.equal(appBefore.status, 1, appBefore.stderr || appBefore.stdout);
-assert.match(appBefore.stderr, /CodexFlow is not running/);
+assert.equal(appBefore.status, 0, appBefore.stderr || appBefore.stdout);
+assert.match(appBefore.stdout, /Opened the CodexFlow desktop app/);
+const firstDesktopLaunch = JSON.parse((await fs.readFile(desktopLaunchOutput, 'utf8')).trim().split('\n').at(-1));
+assert.equal(firstDesktopLaunch[0], env.CODEXFLOW_DESKTOP_APP);
+assert.equal(firstDesktopLaunch[1], await fs.realpath(root));
+const desktopConfigPath = path.join(home, 'desktop.json');
+const desktopConfig = JSON.parse(await fs.readFile(desktopConfigPath, 'utf8'));
+assert.equal(desktopConfig.defaultRoot, await fs.realpath(root));
+assert.equal(desktopConfig.nodePath, process.execPath);
+assert.equal(desktopConfig.launcherPath, path.join(projectRoot, 'scripts', 'codexflow.mjs'));
+assert.doesNotMatch(JSON.stringify(desktopConfig), /codexflow_token|localAuthToken|fixture-only-token/);
+if (process.platform !== 'win32') {
+  const desktopConfigMode = (await fs.stat(desktopConfigPath)).mode & 0o777;
+  assert.equal(desktopConfigMode, 0o600, 'desktop launch config must be owner-readable only');
+}
 
 const port = await getFreePort();
 const appToken = 'codexflow-cli-companion-token';
@@ -170,11 +195,24 @@ try {
 
   const appDuring = run(['app', '--root', root], {
     ...env,
-    CODEXFLOW_BROWSER: fakeBrowser,
-    CODEXFLOW_BROWSER_OUTPUT: browserOutput
+    CODEXFLOW_DESKTOP_OUTPUT: desktopLaunchOutput
   });
   assert.equal(appDuring.status, 0, appDuring.stderr || appDuring.stdout);
   assert.doesNotMatch(`${appDuring.stdout}${appDuring.stderr}`, new RegExp(appToken));
+  const nativeLaunches = (await fs.readFile(desktopLaunchOutput, 'utf8')).trim().split('\n').map(JSON.parse);
+  const lastNativeLaunch = nativeLaunches.at(-1);
+  assert.equal(lastNativeLaunch[1], await fs.realpath(root));
+  assert.doesNotMatch(JSON.stringify(lastNativeLaunch), new RegExp(appToken));
+
+  const fallbackDuring = run(['app', '--root', root], {
+    ...env,
+    CODEXFLOW_DISABLE_DESKTOP: '1',
+    CODEXFLOW_BROWSER: fakeBrowser,
+    CODEXFLOW_BROWSER_OUTPUT: browserOutput
+  });
+  assert.equal(fallbackDuring.status, 0, fallbackDuring.stderr || fallbackDuring.stdout);
+  assert.match(fallbackDuring.stdout, /browser fallback/);
+  assert.doesNotMatch(`${fallbackDuring.stdout}${fallbackDuring.stderr}`, new RegExp(appToken));
   const openedUrl = new URL(await fs.readFile(browserOutput, 'utf8'));
   assert.equal(openedUrl.origin, `http://127.0.0.1:${port}`);
   assert.equal(openedUrl.pathname, '/');

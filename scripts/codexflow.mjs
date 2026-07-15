@@ -112,6 +112,7 @@ Options:
   --no-copy-url             Do not copy the Server URL.
   --non-interactive          Keep the server running without terminal key controls; stop with SIGINT/SIGTERM.
   --no-control-panel         Alias for --non-interactive.
+  --no-open-app             Do not open the native CodexFlow app after the broker is ready.
   --open-chatgpt            Open ChatGPT connector settings after the URL is ready.
   --no-auth                 Disable bearer-token auth. Only allowed with --tunnel none.
   --log-requests            Print redacted HTTP request and tool-call logs from the local MCP server.
@@ -321,6 +322,7 @@ function parseArgs(argv) {
     else if (key === 'copy-url') out.copyUrl = true;
     else if (key === 'no-copy-url') out.noCopyUrl = true;
     else if (key === 'non-interactive' || key === 'no-control-panel') out.nonInteractive = true;
+    else if (key === 'no-open-app') out.noOpenApp = true;
     else if (key === 'dry-run') out.dryRun = true;
     else if (key === 'json') out.json = true;
     else if (key === 'staged') out.staged = true;
@@ -625,6 +627,158 @@ function runtimeDir() {
 
 function runtimeStatusPathForRoot(root) {
   return path.join(runtimeDir(), `${profileIdForRoot(root)}.json`);
+}
+
+function desktopConfigPath() {
+  return path.join(codexFlowHome(), 'desktop.json');
+}
+
+function writeDesktopConfig(root) {
+  const home = codexFlowHome();
+  const filePath = desktopConfigPath();
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+  const payload = {
+    version: 1,
+    nodePath: process.execPath,
+    launcherPath: fileURLToPath(import.meta.url),
+    defaultRoot: root,
+    codexflowHome: home,
+    path: process.env.PATH || '',
+    packageVersion: packageVersion(),
+    updatedAt: new Date().toISOString()
+  };
+  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
+  try {
+    fs.chmodSync(filePath, 0o600);
+  } catch {}
+  return filePath;
+}
+
+function desktopAppVersion(appPath) {
+  if (process.platform !== 'darwin') return '';
+  const plist = path.join(appPath, 'Contents', 'Info.plist');
+  if (!fs.existsSync(plist)) return '';
+  const result = spawnSync('/usr/bin/plutil', ['-extract', 'CFBundleShortVersionString', 'raw', '-o', '-', plist], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+    shell: false
+  });
+  return result.status === 0 ? result.stdout.trim() : '';
+}
+
+function desktopAppFingerprint(appPath) {
+  if (!fs.existsSync(appPath) || !fs.statSync(appPath).isDirectory()) return '';
+  const hash = createHash('sha256');
+  const visit = (directory, relative = '') => {
+    const entries = fs.readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+    for (const entry of entries) {
+      const absolute = path.join(directory, entry.name);
+      const child = relative ? path.join(relative, entry.name) : entry.name;
+      hash.update(child);
+      hash.update('\0');
+      if (entry.isDirectory()) {
+        visit(absolute, child);
+      } else if (entry.isSymbolicLink()) {
+        hash.update(`link:${fs.readlinkSync(absolute)}`);
+      } else if (entry.isFile()) {
+        hash.update(fs.readFileSync(absolute));
+      }
+      hash.update('\0');
+    }
+  };
+  try {
+    visit(appPath);
+    return hash.digest('hex');
+  } catch {
+    return '';
+  }
+}
+
+function bundledDesktopAppPath() {
+  const override = String(process.env.CODEXFLOW_DESKTOP_APP || '').trim();
+  return override ? path.resolve(expandHome(override)) : path.join(projectRoot, 'desktop', 'prebuilt', 'CodexFlow.app');
+}
+
+function installDesktopApp() {
+  const source = bundledDesktopAppPath();
+  if (!fs.existsSync(source) || !fs.statSync(source).isDirectory()) {
+    return { ok: false, reason: `Native app bundle is missing at ${source}. Reinstall CodexFlow or run npm run desktop:build.` };
+  }
+  if (process.env.CODEXFLOW_DESKTOP_APP) return { ok: true, appPath: source, installed: false };
+  if (process.platform !== 'darwin') return { ok: false, reason: 'The native CodexFlow app is currently available on macOS.' };
+
+  const applications = process.env.CODEXFLOW_DESKTOP_INSTALL_DIR
+    ? path.resolve(expandHome(process.env.CODEXFLOW_DESKTOP_INSTALL_DIR))
+    : path.join(os.homedir(), 'Applications');
+  const destination = path.join(applications, 'CodexFlow.app');
+  const expectedVersion = desktopAppVersion(source) || packageVersion();
+  const installedVersion = desktopAppVersion(destination);
+  if (installedVersion === expectedVersion) {
+    const sourceFingerprint = desktopAppFingerprint(source);
+    const installedFingerprint = desktopAppFingerprint(destination);
+    if (sourceFingerprint && sourceFingerprint === installedFingerprint) {
+      return { ok: true, appPath: destination, installed: false };
+    }
+  }
+
+  fs.mkdirSync(applications, { recursive: true, mode: 0o755 });
+  const temporary = path.join(applications, `.CodexFlow.app.install-${process.pid}`);
+  fs.rmSync(temporary, { recursive: true, force: true });
+  const copied = spawnSync('/usr/bin/ditto', [source, temporary], { stdio: 'ignore', shell: false });
+  if (copied.status !== 0) {
+    fs.rmSync(temporary, { recursive: true, force: true });
+    return { ok: false, reason: 'Could not copy CodexFlow into ~/Applications.' };
+  }
+  fs.rmSync(destination, { recursive: true, force: true });
+  fs.renameSync(temporary, destination);
+  return { ok: true, appPath: destination, installed: true };
+}
+
+function launchDesktopApp(appPath, root) {
+  const customLauncher = String(process.env.CODEXFLOW_DESKTOP_LAUNCHER || '').trim();
+  if (customLauncher) {
+    try {
+      const [bin, ...args] = splitCommandTemplate(customLauncher);
+      if (!bin) return false;
+      const result = spawnSync(bin, [...args, appPath, root, desktopConfigPath()], { stdio: 'ignore', shell: false });
+      return result.status === 0;
+    } catch {
+      return false;
+    }
+  }
+  if (process.platform !== 'darwin') return false;
+  const opened = spawnSync('/usr/bin/open', [appPath], { stdio: 'ignore', shell: false });
+  if (opened.status !== 0) return false;
+  const deepLink = `codexflow://open?root=${encodeURIComponent(root)}`;
+  spawnSync('/usr/bin/open', [deepLink], { stdio: 'ignore', shell: false });
+  return true;
+}
+
+function openDesktopApp(root) {
+  writeDesktopConfig(root);
+  if (process.env.CODEXFLOW_DISABLE_DESKTOP === '1') {
+    return { ok: false, reason: 'Native desktop launch is disabled by CODEXFLOW_DISABLE_DESKTOP.' };
+  }
+  if (process.platform !== 'darwin' && !process.env.CODEXFLOW_DESKTOP_LAUNCHER) {
+    return { ok: false, reason: 'The native CodexFlow app is currently available on macOS.' };
+  }
+  const installed = installDesktopApp();
+  if (!installed.ok) return installed;
+  if (!launchDesktopApp(installed.appPath, root)) {
+    return { ok: false, reason: `Could not open ${installed.appPath}.` };
+  }
+  return { ...installed, ok: true };
+}
+
+function activateRuntime(root, details, runtimeOptions, args) {
+  saveRuntimeConnection(root, details, runtimeOptions);
+  if (args.nonInteractive || args.noOpenApp || runtimeOptions.connectionTest || process.env.CI === 'true') return;
+  const result = openDesktopApp(root);
+  if (result.ok) {
+    statusLine('ok', `${result.installed ? 'Installed and opened' : 'Opened'} the CodexFlow desktop app`);
+  } else if (process.platform === 'darwin') {
+    statusLine('warn', `The broker is ready, but the desktop app did not open: ${result.reason}`);
+  }
 }
 
 function readJsonFile(filePath) {
@@ -2832,12 +2986,13 @@ function printConnectorBlock(endpoint, token, options = {}) {
   }
   if (interactive) {
     console.log('Next: press Enter to open ChatGPT, paste the copied Server URL, choose Authentication: None.');
-    console.log('Keys: Enter open | c copy | o status | h help | q quit');
+    console.log('The CodexFlow desktop app opens automatically.');
+    console.log('Keys: Enter ChatGPT | c copy | o app | h help | q quit');
   } else {
     console.log('Non-interactive mode: the connector stays running until SIGINT/SIGTERM.');
     console.log(`Check it with: ${shellCommandPreview(['codexflow', 'status', ...(options.root ? ['--root', options.root] : [])])}`);
   }
-  return { ...details, copied, opened, mode, toolMode: options.toolMode ?? 'standard' };
+  return { ...details, copied, opened, root: options.root ?? '', mode, toolMode: options.toolMode ?? 'standard' };
 }
 
 function printControlHelp() {
@@ -2846,7 +3001,7 @@ function printControlHelp() {
   console.log('  Enter  open ChatGPT connector settings in your browser');
   console.log('  c      copy Server URL again');
   console.log('  u      print Server URL only');
-  console.log('  o      open the local companion app');
+  console.log('  o      open the native CodexFlow app');
   console.log('  p      print Create App fields');
   console.log('  m      print mode help');
   console.log('  h      show controls');
@@ -3548,8 +3703,13 @@ async function runApp(argv) {
   const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? process.cwd());
   const profile = args.noProfile ? {} : loadWorkspaceProfile(root);
   const runtime = readJsonFile(runtimeStatusPathForRoot(root));
+  const native = openDesktopApp(root);
+  if (native.ok) {
+    statusLine('ok', `${native.installed ? 'Installed and opened' : 'Opened'} the CodexFlow desktop app.`);
+    return;
+  }
   if (!runtime || typeof runtime !== 'object' || Array.isArray(runtime) || runtime.root !== root || !processIsAlive(runtime.pid)) {
-    throw new Error('CodexFlow is not running for this workspace. Run codexflow first, then use codexflow app from any terminal.');
+    throw new Error(`${native.reason} No active browser fallback exists for this workspace. Start CodexFlow with codexflow.`);
   }
   const url = companionUrl(runtime, profile);
   const health = await probeRuntimeHealth(runtime, profile);
@@ -3557,7 +3717,7 @@ async function runApp(argv) {
     throw new Error(`The local companion is not ready: ${health.detail}`);
   }
   if (openUrl(url)) {
-    statusLine('ok', 'Opened the CodexFlow local companion.');
+    statusLine('warn', `Opened the authenticated browser fallback because the native app was unavailable: ${native.reason}`);
     return;
   }
   const copied = copyToClipboard(url);
@@ -3565,7 +3725,7 @@ async function runApp(argv) {
     statusLine('warn', `Could not open the browser automatically. The private companion URL was copied with ${copied.command}.`);
     return;
   }
-  throw new Error('Could not open or copy the private companion URL. In the original CodexFlow terminal, press o to open it.');
+  throw new Error('Could not open the native app or the authenticated browser fallback.');
 }
 
 async function runStatus(argv) {
@@ -3898,12 +4058,10 @@ function runControlPanel(details, cleanup = cleanupChildren, options = {}) {
         console.log(`\n${details.serverUrl}`);
         writeControlPrompt();
       } else if (normalized === 'o') {
-        if (!details.localStatusUrl) {
-          console.log('\nNo local status page URL is available for this run.');
-        } else {
-          const opened = openUrl(details.localStatusUrl);
-          console.log(opened ? '\nOpened the CodexFlow local companion.' : '\nCould not open automatically. Run codexflow app from another terminal or try again.');
-        }
+        const native = details.root ? openDesktopApp(details.root) : { ok: false, reason: 'No workspace was recorded for this run.' };
+        if (native.ok) console.log('\nOpened the CodexFlow desktop app.');
+        else if (details.localStatusUrl && openUrl(details.localStatusUrl)) console.log(`\nOpened the browser fallback because the native app was unavailable: ${native.reason}`);
+        else console.log(`\nCould not open the desktop app or browser fallback: ${native.reason}`);
         writeControlPrompt();
       } else if (normalized === 'p') {
         console.log('');
@@ -4029,6 +4187,7 @@ async function main() {
   const initialCodexDir = path.resolve(expandHome(args.codexDir ?? process.env.CODEXFLOW_CODEX_DIR ?? path.join(os.homedir(), '.codex')));
   const discoveredProjects = await discoverCodexProjectDirectories(initialCodexDir);
   const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? discoveredProjects[0] ?? process.cwd());
+  if (process.platform === 'darwin' || process.env.CODEXFLOW_DESKTOP_LAUNCHER) writeDesktopConfig(root);
   let profile = args.noProfile ? {} : loadWorkspaceProfile(root);
   const effectiveArgs = { ...profile, ...args };
   if (profile.profilePath && !args.noProfile) {
@@ -4196,7 +4355,7 @@ async function main() {
       connectionTest,
       nonInteractive: Boolean(args.nonInteractive)
     });
-    saveRuntimeConnection(root, details, runtimeOptions);
+    activateRuntime(root, details, runtimeOptions, args);
     await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
     return;
   }
@@ -4241,7 +4400,7 @@ async function main() {
       connectionTest,
       nonInteractive: Boolean(args.nonInteractive)
     });
-    saveRuntimeConnection(root, details, runtimeOptions);
+    activateRuntime(root, details, runtimeOptions, args);
     await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
     return;
   }
@@ -4287,7 +4446,7 @@ async function main() {
       connectionTest,
       nonInteractive: Boolean(args.nonInteractive)
     });
-    saveRuntimeConnection(root, details, runtimeOptions);
+    activateRuntime(root, details, runtimeOptions, args);
     await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
     return;
   }
@@ -4313,7 +4472,7 @@ async function main() {
       connectionTest,
       nonInteractive: Boolean(args.nonInteractive)
     });
-    saveRuntimeConnection(root, details, runtimeOptions);
+    activateRuntime(root, details, runtimeOptions, args);
     await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
     return;
   }
@@ -4357,7 +4516,7 @@ async function main() {
       connectionTest,
       nonInteractive: Boolean(args.nonInteractive)
     });
-    saveRuntimeConnection(root, details, runtimeOptions);
+    activateRuntime(root, details, runtimeOptions, args);
     await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
     return;
   }
@@ -4427,7 +4586,7 @@ async function main() {
     connectionTest,
     nonInteractive: Boolean(args.nonInteractive)
   });
-  saveRuntimeConnection(root, details, runtimeOptions);
+  activateRuntime(root, details, runtimeOptions, args);
   await runControlPanel(details, cleanup, { nonInteractive: Boolean(args.nonInteractive) });
 }
 

@@ -1,0 +1,476 @@
+import AppKit
+import Combine
+import Darwin
+import Foundation
+
+@MainActor
+final class AppModel: ObservableObject {
+    @Published var section: AppSection = .now
+    @Published private(set) var state: BrokerViewState = .discovering
+    @Published private(set) var runtimes: [RuntimeRecord] = []
+    @Published private(set) var overview: Overview?
+    @Published private(set) var profile: ProfileResponse?
+    @Published private(set) var desktopConfig: DesktopConfig?
+    @Published private(set) var selectedRuntimeID: String?
+    @Published private(set) var selectedRoot: String?
+    @Published var notice: String?
+    @Published var showingPolicyEditor = false
+    @Published var showingRuntimePicker = false
+
+    private let fileManager = FileManager.default
+    private let session: URLSession
+    private var pollTask: Task<Void, Never>?
+    private var launchedProcess: Process?
+    private var didStart = false
+    private var fixture: DesktopFixture?
+
+    private var launchHomeDirectory: URL? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "--home"), arguments.indices.contains(index + 1) else { return nil }
+        let value = arguments[index + 1].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        return URL(fileURLWithPath: value, isDirectory: true)
+    }
+
+    init() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 4
+        configuration.timeoutIntervalForResource = 6
+        configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        session = URLSession(configuration: configuration)
+    }
+
+    deinit {
+        pollTask?.cancel()
+    }
+
+    var selectedRuntime: RuntimeRecord? {
+        guard let selectedRuntimeID else { return nil }
+        return runtimes.first { $0.id == selectedRuntimeID }
+    }
+
+    var isFixture: Bool { fixture != nil }
+    var hasRunningProcess: Bool { selectedRuntime?.isAlive == true }
+    var hasLiveRuntime: Bool { selectedRuntime?.isAlive == true && overview != nil }
+    var workspaceName: String {
+        guard let root = overview?.broker.defaultRoot ?? selectedRoot else { return "No project selected" }
+        let name = URL(fileURLWithPath: root).lastPathComponent
+        return name.isEmpty ? root : name
+    }
+
+    var runtimeDirectory: URL {
+        homeDirectory.appendingPathComponent("runtime", isDirectory: true)
+    }
+
+    var logsDirectory: URL {
+        homeDirectory.appendingPathComponent("logs", isDirectory: true)
+    }
+
+    private var homeDirectory: URL {
+        if let launchHomeDirectory { return launchHomeDirectory }
+        if let configured = desktopConfig?.codexflowHome, !configured.isEmpty {
+            return URL(fileURLWithPath: configured, isDirectory: true)
+        }
+        if let environmentHome = ProcessInfo.processInfo.environment["CODEXFLOW_HOME"], !environmentHome.isEmpty {
+            return URL(fileURLWithPath: environmentHome, isDirectory: true)
+        }
+        return fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".codexflow", isDirectory: true)
+    }
+
+    func start() async {
+        guard !didStart else { return }
+        didStart = true
+        loadFixtureIfRequested()
+        if let fixture {
+            let file = URL(fileURLWithPath: "/fixture/runtime.json")
+            runtimes = [RuntimeRecord(fileURL: file, payload: fixture.runtime, isAlive: true)]
+            selectedRuntimeID = file.path
+            selectedRoot = fixture.runtime.root
+            overview = fixture.overview
+            profile = fixture.profile
+            state = .ready
+            return
+        }
+
+        loadDesktopConfig()
+        await refresh(forceProjectRefresh: false)
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                guard !Task.isCancelled else { return }
+                await self?.refresh(forceProjectRefresh: false)
+            }
+        }
+    }
+
+    func refresh(forceProjectRefresh: Bool = true) async {
+        guard fixture == nil else { return }
+        loadDesktopConfig()
+        let records = loadRuntimeRecords()
+        runtimes = records
+
+        let previous = selectedRuntimeID
+        if let selectedRoot,
+           let match = records.first(where: { $0.root == selectedRoot && $0.isAlive }) ?? records.first(where: { $0.root == selectedRoot }) {
+            selectedRuntimeID = match.id
+        } else if let previous, let match = records.first(where: { $0.id == previous }) {
+            selectedRuntimeID = match.id
+            selectedRoot = match.root
+        } else if let configuredRoot = desktopConfig?.defaultRoot,
+                  let match = records.first(where: { $0.root == configuredRoot && $0.isAlive }) ?? records.first(where: { $0.root == configuredRoot }) {
+            selectedRuntimeID = match.id
+            selectedRoot = match.root
+        } else if let first = records.first(where: \.isAlive) ?? records.first {
+            selectedRuntimeID = first.id
+            selectedRoot = first.root
+        } else {
+            selectedRuntimeID = nil
+            if selectedRoot == nil { selectedRoot = desktopConfig?.defaultRoot }
+        }
+
+        guard let runtime = selectedRuntime, runtime.isAlive else {
+            overview = nil
+            profile = nil
+            if state != .starting && state != .stopping { state = .offline }
+            return
+        }
+
+        selectedRoot = runtime.root
+        do {
+            async let nextOverview: Overview = request(runtime: runtime, path: "/api/overview", query: forceProjectRefresh ? [URLQueryItem(name: "refresh", value: "1")] : [])
+            async let nextProfile: ProfileResponse = request(runtime: runtime, path: "/admin/profile")
+            overview = try await nextOverview
+            profile = try await nextProfile
+            state = .ready
+        } catch {
+            overview = nil
+            profile = nil
+            if state != .starting && state != .stopping {
+                state = .degraded(error.localizedDescription)
+            }
+        }
+    }
+
+    func selectRuntime(_ runtime: RuntimeRecord) {
+        selectedRuntimeID = runtime.id
+        selectedRoot = runtime.root
+        UserDefaults.standard.set(runtime.root, forKey: "CodexFlowSelectedRoot")
+        showingRuntimePicker = false
+        state = runtime.isAlive ? .discovering : .offline
+        Task { await refresh(forceProjectRefresh: false) }
+    }
+
+    func chooseWorkspace() {
+        guard fixture == nil else { return }
+        let panel = NSOpenPanel()
+        panel.title = "Choose a CodexFlow project"
+        panel.message = "Select the project folder this broker should operate in."
+        panel.prompt = "Choose Project"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        if let root = selectedRoot { panel.directoryURL = URL(fileURLWithPath: root, isDirectory: true) }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        selectedRoot = url.resolvingSymlinksInPath().path
+        selectedRuntimeID = runtimes.first(where: { $0.root == selectedRoot })?.id
+        UserDefaults.standard.set(selectedRoot, forKey: "CodexFlowSelectedRoot")
+        if selectedRuntime?.isAlive != true {
+            overview = nil
+            profile = nil
+            state = .offline
+        }
+    }
+
+    func startBroker() {
+        guard fixture == nil else { return }
+        guard state != .starting else { return }
+        guard let config = desktopConfig else {
+            state = .degraded(CodexFlowError.missingDesktopConfig.localizedDescription)
+            return
+        }
+        guard let root = selectedRoot ?? nonEmpty(config.defaultRoot) else {
+            state = .degraded(CodexFlowError.missingWorkspace.localizedDescription)
+            return
+        }
+        if selectedRuntime?.isAlive == true {
+            notice = "A broker process is already running. Reconnecting…"
+            Task { await refresh(forceProjectRefresh: true) }
+            return
+        }
+
+        state = .starting
+        notice = "Starting CodexFlow for \(workspaceDisplayName(root))…"
+        do {
+            try prepareDirectory(homeDirectory, permissions: 0o700)
+            try prepareDirectory(logsDirectory, permissions: 0o700)
+            let logURL = logsDirectory.appendingPathComponent("desktop-\(safeLogName(root)).log")
+            if !fileManager.fileExists(atPath: logURL.path) {
+                fileManager.createFile(atPath: logURL.path, contents: nil, attributes: [.posixPermissions: 0o600])
+            }
+            let logHandle = try FileHandle(forWritingTo: logURL)
+            try logHandle.seekToEnd()
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: config.nodePath)
+            process.arguments = [
+                config.launcherPath,
+                "start",
+                "--root", root,
+                "--non-interactive",
+                "--no-copy-url",
+                "--no-open-app"
+            ]
+            var environment = ProcessInfo.processInfo.environment
+            environment["CODEXFLOW_HOME"] = config.codexflowHome
+            environment["PATH"] = config.path
+            environment["CODEXFLOW_DESKTOP_PARENT"] = String(ProcessInfo.processInfo.processIdentifier)
+            process.environment = environment
+            process.standardOutput = logHandle
+            process.standardError = logHandle
+            process.terminationHandler = { [weak self] process in
+                try? logHandle.close()
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if self.state == .starting && process.terminationStatus != 0 {
+                        self.state = .degraded("The broker exited before becoming ready. Open the local log for details.")
+                        self.notice = "CodexFlow stopped with status \(process.terminationStatus)."
+                    }
+                    await self.refresh(forceProjectRefresh: false)
+                }
+            }
+            try process.run()
+            launchedProcess = process
+            Task { [weak self] in
+                for _ in 0..<30 {
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    await self?.refresh(forceProjectRefresh: false)
+                    if self?.state == .ready { break }
+                }
+                if self?.state == .starting {
+                    self?.state = .degraded("The broker is taking longer than expected. Check the local log or try again.")
+                }
+            }
+        } catch {
+            state = .degraded(CodexFlowError.brokerLaunch(error.localizedDescription).localizedDescription)
+            notice = "CodexFlow could not start."
+        }
+    }
+
+    func stopBroker() {
+        guard fixture == nil, let runtime = selectedRuntime, let pid = runtime.pid, pid > 1 else { return }
+        state = .stopping
+        notice = "Stopping CodexFlow for \(runtime.projectName)…"
+        if Darwin.kill(pid, SIGTERM) != 0 {
+            state = .degraded("The broker process could not be stopped. It may have already exited.")
+            return
+        }
+        Task { [weak self] in
+            for _ in 0..<20 {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                await self?.refresh(forceProjectRefresh: false)
+                if self?.selectedRuntime?.isAlive != true { break }
+            }
+            if self?.selectedRuntime?.isAlive == true {
+                self?.state = .degraded("The broker did not stop within five seconds. You can stop it from its original terminal.")
+            } else {
+                self?.state = .offline
+                self?.notice = "CodexFlow stopped."
+            }
+        }
+    }
+
+    func restartBroker() {
+        guard fixture == nil else { return }
+        let root = selectedRoot
+        guard selectedRuntime?.isAlive == true else {
+            startBroker()
+            return
+        }
+        stopBroker()
+        Task { [weak self] in
+            for _ in 0..<24 {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                await self?.refresh(forceProjectRefresh: false)
+                if self?.selectedRuntime?.isAlive != true { break }
+            }
+            self?.selectedRoot = root
+            self?.startBroker()
+        }
+    }
+
+    func forgetStaleRuntime(_ runtime: RuntimeRecord) {
+        guard !runtime.isAlive, fixture == nil else { return }
+        try? fileManager.removeItem(at: runtime.fileURL)
+        if selectedRuntimeID == runtime.id { selectedRuntimeID = nil }
+        Task { await refresh(forceProjectRefresh: false) }
+    }
+
+    func copyServerURL() {
+        guard let runtime = selectedRuntime,
+              let endpoint = nonEmpty(runtime.endpoint),
+              var components = URLComponents(string: endpoint) else {
+            notice = CodexFlowError.invalidRuntime.localizedDescription
+            return
+        }
+        if let token = nonEmpty(runtime.localAuthToken) {
+            var items = components.queryItems ?? []
+            items.removeAll { $0.name == "codexflow_token" }
+            items.append(URLQueryItem(name: "codexflow_token", value: token))
+            components.queryItems = items
+        }
+        guard let privateURL = components.url?.absoluteString else {
+            notice = CodexFlowError.invalidRuntime.localizedDescription
+            return
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(privateURL, forType: .string)
+        notice = "Private Server URL copied. Its credential was not displayed."
+    }
+
+    func openChatGPTSettings() {
+        guard let url = URL(string: "https://chatgpt.com/#settings/Connectors") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func openBrowserFallback() {
+        guard let base = nonEmpty(selectedRuntime?.localBase), var components = URLComponents(string: base) else { return }
+        components.path = "/"
+        if let token = nonEmpty(selectedRuntime?.localAuthToken) {
+            components.queryItems = [URLQueryItem(name: "codexflow_token", value: token)]
+        }
+        if let url = components.url { NSWorkspace.shared.open(url) }
+    }
+
+    func revealLog() {
+        let root = selectedRoot ?? "codexflow"
+        let url = logsDirectory.appendingPathComponent("desktop-\(safeLogName(root)).log")
+        if fileManager.fileExists(atPath: url.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } else {
+            notice = "No desktop launch log exists for this project yet."
+        }
+    }
+
+    func saveProfile(_ draft: ProfileDraft) async -> Bool {
+        guard fixture == nil, let runtime = selectedRuntime else { return false }
+        do {
+            let payload = try JSONEncoder().encode(draft)
+            profile = try await request(runtime: runtime, path: "/admin/profile", method: "POST", body: payload)
+            notice = "Policy saved for the next launch. Restart CodexFlow to apply it."
+            await refresh(forceProjectRefresh: false)
+            return true
+        } catch {
+            notice = error.localizedDescription
+            return false
+        }
+    }
+
+    func handle(url: URL) {
+        guard url.scheme == "codexflow" else { return }
+        if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let root = components.queryItems?.first(where: { $0.name == "root" })?.value,
+           !root.isEmpty {
+            selectedRoot = root
+            if let runtime = runtimes.first(where: { $0.root == root }) { selectedRuntimeID = runtime.id }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        Task { await refresh(forceProjectRefresh: false) }
+    }
+
+    private func loadFixtureIfRequested() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "--fixture"), arguments.indices.contains(index + 1) else { return }
+        let url = URL(fileURLWithPath: arguments[index + 1])
+        guard let data = try? Data(contentsOf: url) else { return }
+        fixture = try? JSONDecoder.codexFlow.decode(DesktopFixture.self, from: data)
+    }
+
+    private func loadDesktopConfig() {
+        let environmentHome = ProcessInfo.processInfo.environment["CODEXFLOW_HOME"]
+        let base = launchHomeDirectory
+            ?? environmentHome.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".codexflow", isDirectory: true)
+        let url = base.appendingPathComponent("desktop.json")
+        guard let data = try? Data(contentsOf: url), let decoded = try? JSONDecoder().decode(DesktopConfig.self, from: data) else { return }
+        desktopConfig = decoded
+        if selectedRoot == nil {
+            selectedRoot = nonEmpty(UserDefaults.standard.string(forKey: "CodexFlowSelectedRoot")) ?? nonEmpty(decoded.defaultRoot)
+        }
+    }
+
+    private func loadRuntimeRecords() -> [RuntimeRecord] {
+        guard let urls = try? fileManager.contentsOfDirectory(at: runtimeDirectory, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else { return [] }
+        return urls
+            .filter { $0.pathExtension == "json" }
+            .compactMap { url -> RuntimeRecord? in
+                guard let data = try? Data(contentsOf: url),
+                      let payload = try? JSONDecoder().decode(RuntimeRecordPayload.self, from: data),
+                      !payload.root.isEmpty else { return nil }
+                return RuntimeRecord(fileURL: url, payload: payload, isAlive: processIsAlive(payload.pid))
+            }
+            .sorted {
+                if $0.isAlive != $1.isAlive { return $0.isAlive && !$1.isAlive }
+                return ($0.updatedAt ?? "") > ($1.updatedAt ?? "")
+            }
+    }
+
+    private func request<T: Decodable>(runtime: RuntimeRecord, path: String, query: [URLQueryItem] = [], method: String = "GET", body: Data? = nil) async throws -> T {
+        guard let base = nonEmpty(runtime.localBase), var components = URLComponents(string: base) else { throw CodexFlowError.invalidRuntime }
+        components.path = path
+        components.queryItems = query.isEmpty ? nil : query
+        guard let url = components.url else { throw CodexFlowError.invalidRuntime }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let token = nonEmpty(runtime.localAuthToken) {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw CodexFlowError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            let envelope = try? JSONDecoder.codexFlow.decode(APIErrorEnvelope.self, from: data)
+            throw CodexFlowError.http(http.statusCode, envelope?.error?.message ?? "")
+        }
+        do {
+            return try JSONDecoder.codexFlow.decode(T.self, from: data)
+        } catch {
+            throw CodexFlowError.invalidResponse
+        }
+    }
+
+    private func processIsAlive(_ pid: Int32?) -> Bool {
+        guard let pid, pid > 1 else { return false }
+        if Darwin.kill(pid, 0) == 0 { return true }
+        return errno == EPERM
+    }
+
+    private func prepareDirectory(_ url: URL, permissions: NSNumber) throws {
+        try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [.posixPermissions: permissions])
+        try? fileManager.setAttributes([.posixPermissions: permissions], ofItemAtPath: url.path)
+    }
+
+    private func nonEmpty(_ value: String?) -> String? {
+        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return value
+    }
+
+    private func workspaceDisplayName(_ root: String) -> String {
+        let name = URL(fileURLWithPath: root).lastPathComponent
+        return name.isEmpty ? root : name
+    }
+
+    private func safeLogName(_ root: String) -> String {
+        let base = workspaceDisplayName(root).lowercased()
+        let safe = base.map { character in
+            character.isLetter || character.isNumber || character == "-" || character == "_" ? character : "-"
+        }
+        return String(safe).prefix(64).description
+    }
+}

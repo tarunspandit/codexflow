@@ -24,19 +24,21 @@ npm install -g @tarunspandit/codexflow
 codexflow
 ```
 
-CodexFlow 会自动发现本机 Codex 使用过的项目，并启动 broker 和 tunnel。
+CodexFlow 会自动发现本机 Codex 使用过的项目，启动 broker 和 tunnel，并在 macOS 14 或更新版本安装、打开原生桌面应用。
 
 `npx codexflow@latest` 仍然可用，但普通用户更容易理解全局安装。
 
-## 本地伴随应用是什么？
+## 原生桌面应用是什么？
 
-服务 MCP 的同一个 broker，也会在本机提供一个私有、token 保护的应用。在运行中的终端按 `o`，或使用：
+它是 CodexFlow 的主要本地控制界面。在 macOS 14 或更新版本，第一次运行 `codexflow` 会自动安装并打开它。即使 broker 尚未运行，也可以使用：
 
 ```bash
 codexflow app
 ```
 
-它展示已发现项目、活跃与最近关闭的聊天路由、不包含内容的工具活动、连接健康、下次启动设置，以及当前进程真正生效的策略。它没有模型输入框，也不能在浏览器里偷偷把现有 ChatGPT 对话切换到另一个项目；项目选择仍由该对话里的 CodexFlow picker 完成。
+它展示已发现项目、活跃与最近关闭的聊天路由、不包含内容的工具活动、连接健康、下次启动设置，以及当前进程真正生效的策略。它可以选择 workspace，启动、停止或重启本地 broker，并在明确操作时复制私有 Server URL。它没有模型输入框，不调用 Codex CLI，也不能偷偷把现有 ChatGPT 对话切换到另一个项目；项目选择仍由该对话里的 CodexFlow picker 完成。
+
+旧的 token 保护浏览器页面只保留为紧急 fallback，用于打开桌面应用和查看少量诊断，不再复制桌面产品。
 
 活动 ledger 只存在于进程内存中并有上限。它保存项目、工具名称、结果、耗时和不可操作的显示指纹，不保存 prompts、arguments、文件内容、命令输出、tokens 或可用的 MCP transport identifiers。
 

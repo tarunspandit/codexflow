@@ -14,7 +14,9 @@ Run these before tagging a release:
 ```bash
 npm install --package-lock-only
 npm run build
+npm run desktop:build
 npm run smoke
+npm run stress
 npm pack --dry-run
 codexflow doctor --tunnel none
 npm view CodexFlow version dist-tags --json
@@ -43,9 +45,10 @@ Before announcing broadly:
 - Refresh actions after widget URI or metadata changes.
 - Confirm CSP stays enabled in Developer Mode.
 - Capture screenshots for:
-  - local companion Now, Projects, Chats, and Policy views
-  - local companion empty, active, recently closed, and unavailable states
-  - app connection screen
+  - native desktop Now, Projects, Chats, Connection, and Policy views
+  - native desktop offline, starting, live, degraded, error, and stopping states
+  - native app connection screen and workspace picker
+  - compact browser fallback at desktop and 320px widths
   - `server_config`
   - `open_current_workspace`
   - one `write`
@@ -81,7 +84,10 @@ Use CodexFlow. Run bash with pwd, then run bash with a blocked command. Report b
 - Do not broaden allowed roots during setup unless the user explicitly asks.
 - Do not log query strings, tokens, file contents, prompts, or full command output by default.
 - Confirm `/api/overview` and `/api/events` require auth and never expose prompts, arguments, source, command output, URL tokens, or actionable transport IDs.
-- Confirm `codexflow app` opens the authenticated local companion without printing its private URL.
+- Confirm the bundled app is universal, ad-hoc signed, self-contained, and contains no host-specific build metadata.
+- Confirm `codexflow app` opens the native app while the broker is offline or live without printing its private URL.
+- Confirm the native app can start, stop, restart, and reconnect to a broker in a temporary home.
+- Confirm the complete Server URL is only copied after an explicit action and is never rendered or logged.
 
 ## Onboarding Gate
 
@@ -98,7 +104,7 @@ The terminal must clearly show:
 - public URL strategy
 - that the Server URL is copied
 - that Enter opens ChatGPT connector settings
-- that `o` or `codexflow app` opens the local companion
+- that `o` or `codexflow app` opens the native desktop app
 - how to stop the process
 
 For stable URLs, `codexflow` must save enough profile state so future starts from the same workspace only need:
@@ -106,6 +112,11 @@ For stable URLs, `codexflow` must save enough profile state so future starts fro
 ```bash
 codexflow
 ```
+
+On macOS 14 or newer this same command must install or refresh the bundled app in
+`~/Applications`, open it automatically in an interactive terminal, and require
+no additional desktop setup. The authenticated browser page is a recovery
+fallback, not an onboarding destination.
 
 ## Known Non-Goals For The Current Local Package
 

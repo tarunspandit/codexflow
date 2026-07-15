@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleDisplayName</key><string>CodexFlow</string>
+  <key>CFBundleExecutable</key><string>CodexFlow</string>
+  <key>CFBundleIconFile</key><string>CodexFlow</string>
+  <key>CFBundleIdentifier</key><string>com.flow7.codexflow</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>CodexFlow</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>0.29.0</string>
+  <key>CFBundleVersion</key><string>0290</string>
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSLocalNetworkUsageDescription</key><string>CodexFlow connects to its authenticated broker running on this Mac.</string>
+  <key>NSAppTransportSecurity</key>
+  <dict><key>NSAllowsLocalNetworking</key><true/></dict>
+  <key>ATSApplicationFontsPath</key><string>.</string>
+  <key>UIAppFonts</key>
+  <array>
+    <string>Geologica-Regular.ttf</string>
+    <string>Geologica-Medium.ttf</string>
+    <string>Geologica-SemiBold.ttf</string>
+    <string>Geologica-Bold.ttf</string>
+  </array>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>CodexFlow Workspace</string>
+      <key>CFBundleURLSchemes</key><array><string>codexflow</string></array>
+    </dict>
+  </array>
+  <key>NSHumanReadableCopyright</key><string>CodexFlow contributors. MIT licensed.</string>
+</dict>
+</plist>
