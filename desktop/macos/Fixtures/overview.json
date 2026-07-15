@@ -1,0 +1,74 @@
+{
+  "runtime": {
+    "version": 1,
+    "root": "/Users/demo/Work/atlas-studio",
+    "pid": 61274,
+    "updatedAt": "2026-07-15T08:31:14.000Z",
+    "endpoint": "https://moss-river.trycloudflare.com/mcp",
+    "localAuthToken": "fixture-only-token",
+    "localBase": "http://127.0.0.1:8787",
+    "localStatusUrl": "http://127.0.0.1:8787/",
+    "tunnel": "cloudflare",
+    "mode": "agent",
+    "bash": "safe",
+    "bashTranscript": "compact",
+    "codexSessions": "metadata",
+    "write": "workspace",
+    "toolMode": "standard",
+    "toolCards": true
+  },
+  "overview": {
+    "ok": true,
+    "generated_at": "2026-07-15T08:31:14.000Z",
+    "broker": {
+      "state": "ready",
+      "version": "0.29.0",
+      "started_at": "2026-07-15T06:09:00.000Z",
+      "uptime_ms": 8534000,
+      "default_root": "/Users/demo/Work/atlas-studio",
+      "allowed_roots": ["/Users/demo/Work/atlas-studio", "/Users/demo/Work"],
+      "local_base": "http://127.0.0.1:8787",
+      "endpoint": "https://moss-river.trycloudflare.com/mcp",
+      "public_endpoint": "https://moss-river.trycloudflare.com/mcp",
+      "tunnel": "cloudflare",
+      "mode": "agent",
+      "auth_enabled": true,
+      "write_mode": "workspace",
+      "bash_mode": "safe",
+      "bash_transcript": "compact",
+      "tool_mode": "standard",
+      "tool_cards": true,
+      "codex_sessions": "metadata",
+      "analysis_enabled": true,
+      "max_sessions": 64,
+      "session_ttl_ms": 1800000
+    },
+    "projects": [
+      {"id":"project-atlas","name":"atlas-studio","root":"/Users/demo/Work/atlas-studio","sources":["default_root","codex_recent"],"last_active_at":"2026-07-15T08:30:14.000Z","is_default":true},
+      {"id":"project-orbit","name":"orbit-api","root":"/Users/demo/Work/orbit-api","sources":["nested_marker"],"last_active_at":"2026-07-15T07:18:00.000Z","is_default":false},
+      {"id":"project-signal","name":"signal-docs","root":"/Users/demo/Work/signal-docs","sources":["codex_recent"],"last_active_at":"2026-07-14T19:10:00.000Z","is_default":false},
+      {"id":"project-still","name":"still-life","root":"/Users/demo/Work/still-life","sources":["nested_marker"],"last_active_at":null,"is_default":false}
+    ],
+    "sessions": [
+      {"id":"chat-7bc91f2a","state":"active","created_at":"2026-07-15T08:05:03.000Z","last_seen_at":"2026-07-15T08:31:08.000Z","closed_at":null,"project":{"id":"project-atlas","name":"atlas-studio","root":"/Users/demo/Work/atlas-studio"},"tool_calls":18,"errors":0,"last_tool":"apply_patch","last_tool_status":"ok"},
+      {"id":"chat-e3290cd1","state":"active","created_at":"2026-07-15T08:12:22.000Z","last_seen_at":"2026-07-15T08:30:41.000Z","closed_at":null,"project":{"id":"project-orbit","name":"orbit-api","root":"/Users/demo/Work/orbit-api"},"tool_calls":9,"errors":1,"last_tool":"bash","last_tool_status":"ok"},
+      {"id":"chat-140ca7f8","state":"initializing","created_at":"2026-07-15T08:30:53.000Z","last_seen_at":"2026-07-15T08:30:53.000Z","closed_at":null,"project":null,"tool_calls":0,"errors":0,"last_tool":null,"last_tool_status":null}
+    ],
+    "activity": [
+      {"id":"evt-1","session_id":"chat-7bc91f2a","tool":"apply_patch","status":"ok","duration_ms":84,"at":"2026-07-15T08:31:08.000Z","project":{"id":"project-atlas","name":"atlas-studio","root":"/Users/demo/Work/atlas-studio"}},
+      {"id":"evt-2","session_id":"chat-e3290cd1","tool":"bash","status":"ok","duration_ms":1248,"at":"2026-07-15T08:30:41.000Z","project":{"id":"project-orbit","name":"orbit-api","root":"/Users/demo/Work/orbit-api"}},
+      {"id":"evt-3","session_id":"chat-7bc91f2a","tool":"show_changes","status":"ok","duration_ms":33,"at":"2026-07-15T08:29:55.000Z","project":{"id":"project-atlas","name":"atlas-studio","root":"/Users/demo/Work/atlas-studio"}},
+      {"id":"evt-4","session_id":"chat-e3290cd1","tool":"search","status":"error","duration_ms":11,"at":"2026-07-15T08:29:17.000Z","project":{"id":"project-orbit","name":"orbit-api","root":"/Users/demo/Work/orbit-api"}}
+    ],
+    "summary": {"projects":4,"active_sessions":3,"recent_sessions":3,"activity_events":4},
+    "saved_profile": {"exists":true,"tunnel":"cloudflare","hostname":null,"mode":"agent","updated_at":"2026-07-15T06:08:50.000Z"}
+  },
+  "profile": {
+    "ok": true,
+    "profile_path": "/Users/demo/.codexflow/profiles/atlas.json",
+    "exists": true,
+    "effective": {
+      "port":"8787","mode":"agent","tunnel":"cloudflare","hostname":"","tunnel_name":"","ngrok_config":"","cloudflare_config":"","cloudflare_token_file":"","bash":"safe","bash_transcript":"compact","codex_sessions":"metadata","codex_dir":"/Users/demo/.codex","bash_session":"","require_bash_session":false,"write":"workspace","tool_mode":"standard","tool_cards":true,"widget_domain":"https://tarunspandit.github.io","no_install_cloudflared":false
+    }
+  }
+}

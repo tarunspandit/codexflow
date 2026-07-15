@@ -27,32 +27,6 @@ import { RuntimeMonitor, type RuntimeSessionHandle } from "./runtimeMonitor.js";
 import { CODEXFLOW_VERSION } from "./version.js";
 import { renderLocalAppPage } from "./localAppPage.js";
 
-function escapeHtml(value: unknown): string {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function copyCommand(title: string, description: string, command: string, displayCommand = command, copyKind = ""): string {
-  const copyAttrs = copyKind
-    ? `data-copy-kind="${escapeHtml(copyKind)}" data-copy-base="${escapeHtml(command)}"`
-    : `data-copy="${escapeHtml(command)}"`;
-  return `<div class="control">
-    <div>
-      <strong>${escapeHtml(title)}</strong>
-      <p>${escapeHtml(description)}</p>
-      <code>${escapeHtml(displayCommand)}</code>
-    </div>
-    <button type="button" class="copy-mini" ${copyAttrs}>Copy</button>
-  </div>`;
-}
-
 const TUNNELS = ["cloudflare", "ngrok", "cloudflare-named", "tailscale", "none"] as const;
 const MODES = ["agent", "handoff", "pro"] as const;
 const BASH_MODES = ["safe", "off", "full"] as const;
@@ -191,146 +165,12 @@ function profileValues(config: CodexFlowConfig, profile = readWorkspaceProfile(c
   };
 }
 
-const OPTION_LABELS: Record<string, string> = {
-  cloudflare: "Cloudflare quick tunnel",
-  ngrok: "ngrok stable URL",
-  "cloudflare-named": "Cloudflare named tunnel",
-  tailscale: "Tailscale Funnel",
-  none: "Local only",
-  agent: "Agent",
-  handoff: "Handoff",
-  pro: "Pro bundle",
-  safe: "Safe",
-  off: "Off",
-  full: "Full",
-  compact: "Compact",
-  metadata: "Metadata",
-  read: "Read",
-  workspace: "Workspace",
-  minimal: "Minimal",
-  standard: "Standard"
-};
-
-function optionLabel(value: string): string {
-  return OPTION_LABELS[value] ?? value;
-}
-
-function selectOptions(values: readonly string[], current: string): string {
-  return values
-    .map((value) => `<option value="${escapeHtml(value)}"${value === current ? " selected" : ""}>${escapeHtml(optionLabel(value))}</option>`)
-    .join("");
-}
-
 function serverUrlDisplay(endpoint: string | undefined, authEnabled: boolean): string {
   if (!endpoint) return "";
   const safeEndpoint = redactSensitiveText(endpoint);
   if (!authEnabled) return safeEndpoint;
   const glue = safeEndpoint.includes("?") ? "&" : "?";
   return `${safeEndpoint}${glue}codexflow_token=<redacted>`;
-}
-
-function currentTunnelMessage(tunnel: TunnelMode, endpoint: string): string {
-  if (endpoint) {
-    if (tunnel === "cloudflare") return "Cloudflare generated this URL for the current run. Quick tunnel URLs change after restart.";
-    if (tunnel === "ngrok") return "ngrok is using the saved public hostname for this run.";
-    if (tunnel === "cloudflare-named") return "Cloudflare named tunnel is using the saved public hostname for this run.";
-    if (tunnel === "tailscale") return "Tailscale Funnel is using the saved ts.net hostname for this run.";
-    return "Local-only endpoint for clients that can reach this machine.";
-  }
-  if (tunnel === "cloudflare") return "Cloudflare quick tunnels print a generated URL after the tunnel opens.";
-  if (tunnel === "ngrok") return "Enter your reserved ngrok domain, or set NGROK_DOMAIN before starting CodexFlow.";
-  if (tunnel === "cloudflare-named") return "Enter the Cloudflare hostname routed to your named tunnel.";
-  if (tunnel === "tailscale") return "Enter the Tailscale Funnel hostname for this device, for example machine.tailnet.ts.net.";
-  return "No public tunnel is saved; local MCP clients can use the local URL.";
-}
-
-function profileForm(config: CodexFlowConfig): string {
-  const profile = readWorkspaceProfile(config.defaultRoot);
-  const values = profileValues(config, profile);
-  const runtime = readRuntimeConnection(config.defaultRoot);
-  const profilePath = profile.profilePath ?? profilePathForRoot(config.defaultRoot);
-  const savedLabel = profile.profilePath ? "saved" : "not saved yet";
-  const runtimeEndpoint = endpointBase(runtime.endpoint);
-  const runtimeTunnel = oneOf(runtime.tunnel ?? values.tunnel, TUNNELS, values.tunnel);
-  const runtimeUrl = serverUrlDisplay(runtimeEndpoint, Boolean(config.authToken));
-  const savedEndpoint = values.hostname ? `https://${values.hostname}/mcp` : "";
-  const savedUrl = serverUrlDisplay(savedEndpoint, Boolean(config.authToken));
-  const ngrokHostname = process.env.NGROK_DOMAIN ?? (values.tunnel === "ngrok" ? values.hostname : "");
-  const cloudflareHostname =
-    process.env.CODEXFLOW_PUBLIC_HOSTNAME ??
-    process.env.CODEXFLOW_HOSTNAME ??
-    (values.tunnel === "cloudflare-named" ? values.hostname : "");
-  const currentUrlBlock = runtimeUrl
-    ? `<div class="current-url">
-        <div>
-          <span>Current Server URL</span>
-          <code>${escapeHtml(runtimeUrl)}</code>
-          <p>${escapeHtml(currentTunnelMessage(runtimeTunnel, runtimeEndpoint))}</p>
-        </div>
-        <button type="button" class="copy-mini" data-copy-kind="server-url" data-copy-base="${escapeHtml(redactSensitiveText(runtimeEndpoint))}">Copy</button>
-      </div>`
-    : `<div class="current-url idle">
-        <div>
-          <span>${savedUrl ? "Saved Server URL preview" : "Current Server URL"}</span>
-          <code>${savedUrl ? escapeHtml(savedUrl) : "No public URL detected for this run"}</code>
-          <p>${escapeHtml(savedUrl ? "This is based on the saved hostname. It becomes current after the launcher starts that tunnel." : currentTunnelMessage(values.tunnel, ""))}</p>
-        </div>
-        ${savedEndpoint ? `<button type="button" class="copy-mini" data-copy-kind="server-url" data-copy-base="${escapeHtml(redactSensitiveText(savedEndpoint))}">Copy</button>` : ""}
-      </div>`;
-  return `<section class="panel profile-panel" id="profile">
-      <div class="section-head">
-        <div>
-          <h2>Next-launch profile</h2>
-          <p>Optional advanced defaults for the next run. CodexFlow is already ready without changing these settings.</p>
-        </div>
-        <span class="pill ${profile.profilePath ? "" : "warn"}">${escapeHtml(savedLabel)}</span>
-      </div>
-      <form class="profile-form" data-profile-form>
-        ${currentUrlBlock}
-        <fieldset class="profile-group">
-          <legend>Connection</legend>
-          <p>Choose how ChatGPT reaches this local MCP server. Stable providers use the saved hostname; quick Cloudflare generates the URL at launch.</p>
-          <div class="form-grid">
-            <label><span>Tunnel</span><select name="tunnel" data-tunnel-select data-ngrok-hostname="${escapeHtml(ngrokHostname)}" data-cloudflare-hostname="${escapeHtml(cloudflareHostname)}">${selectOptions(TUNNELS, values.tunnel)}</select></label>
-            <label><span>Public hostname</span><input name="hostname" value="${escapeHtml(values.hostname)}" data-hostname-input data-autofilled="0"></label>
-            <label><span>Port</span><input name="port" type="number" min="1" max="65535" value="${escapeHtml(values.port)}"></label>
-            <label><span>Mode</span><select name="mode">${selectOptions(MODES, values.mode)}</select></label>
-            <label><span>Cloudflare tunnel name</span><input name="tunnelName" value="${escapeHtml(values.tunnelName)}"></label>
-            <label><span>ngrok config file</span><input name="ngrokConfig" value="${escapeHtml(values.ngrokConfig)}"></label>
-            <label><span>Cloudflare config file</span><input name="cloudflareConfig" value="${escapeHtml(values.cloudflareConfig)}"></label>
-            <label><span>Cloudflare token file</span><input name="cloudflareTokenFile" value="${escapeHtml(values.cloudflareTokenFile)}"></label>
-          </div>
-          <p class="field-help" data-hostname-help>${escapeHtml(currentTunnelMessage(values.tunnel, runtimeEndpoint))}</p>
-          <label class="check-row"><input name="noInstallCloudflared" type="checkbox" value="true"${values.noInstallCloudflared ? " checked" : ""}><span>Do not auto-install cloudflared</span></label>
-        </fieldset>
-        <fieldset class="profile-group">
-          <legend>Runtime policy</legend>
-          <p>Save the default access level for the next launch. These settings do not mutate the process that is already running.</p>
-          <div class="form-grid">
-            <label><span>Bash</span><select name="bash">${selectOptions(BASH_MODES, values.bash)}</select></label>
-            <label><span>Write mode</span><select name="write">${selectOptions(WRITE_MODES, values.write)}</select></label>
-            <label><span>Tool mode</span><select name="toolMode">${selectOptions(TOOL_MODES, values.toolMode)}</select></label>
-            <label><span>Codex sessions</span><select name="codexSessions">${selectOptions(CODEX_SESSIONS, values.codexSessions)}</select></label>
-            <label><span>Codex directory</span><input name="codexDir" value="${escapeHtml(values.codexDir)}"></label>
-            <label><span>Bash session</span><input name="bashSession" value="${escapeHtml(values.bashSession)}"></label>
-          </div>
-          <label class="check-row"><input name="toolCards" type="checkbox" value="true"${values.toolCards ? " checked" : ""}><span>Enable ChatGPT tool cards</span></label>
-          <label class="check-row"><input name="requireBashSession" type="checkbox" value="true"${values.requireBashSession ? " checked" : ""}><span>Require matching bash session id</span></label>
-        </fieldset>
-        <fieldset class="profile-group readonly-group">
-          <legend>Read-only this run</legend>
-          <div class="readonly-grid">
-            <div><span>Bash transcript</span><code>${escapeHtml(values.bashTranscript)}</code></div>
-            <div><span>Widget origin</span><code>${escapeHtml(values.widgetDomain)}</code></div>
-          </div>
-        </fieldset>
-        <div class="actions">
-          <button type="submit" class="primary">Save profile</button>
-          <span class="mono">${escapeHtml(profilePath)}</span>
-        </div>
-        <p class="note" data-profile-status>Tokens stay hidden. Restart CodexFlow for saved profile changes to apply.</p>
-      </form>
-    </section>`;
 }
 
 function buildProfilePayload(config: CodexFlowConfig, existing: WorkspaceProfile, input: AdminProfilePatch): WorkspaceProfile {
@@ -542,21 +382,10 @@ function onboardingPage(config: CodexFlowConfig): string {
   const localMcp = `http://${config.host}:${config.port}/mcp`;
   const localMcpDisplay = config.authToken ? `${localMcp}?codexflow_token=<redacted>` : localMcp;
   const authLabel = config.authToken ? "Token protected" : "Disabled";
-  const rootArg = shellQuote(config.defaultRoot);
-  const sessionArg = shellQuote(config.bashSessionId || "main");
   const githubUrl = "https://github.com/tarunspandit/codexflow";
   const npmUrl = "https://www.npmjs.com/package/@tarunspandit/codexflow";
   const docsUrl = "https://tarunspandit.github.io/codexflow/";
   const chatgptUrl = "https://chatgpt.com/#settings/Connectors";
-  const controls = [
-    copyCommand("Restart CodexFlow", "The bare command rediscovers Codex projects and starts the broker and tunnel automatically.", "codexflow"),
-    copyCommand("Copy local MCP URL", "Useful for a local MCP client. ChatGPT usually needs the public tunnel URL copied by the terminal.", localMcp, localMcpDisplay, "local-mcp"),
-    copyCommand("Start without bash", "Restart with file tools but no ChatGPT-triggered bash tool.", `codexflow --root ${rootArg} --no-bash`),
-    copyCommand("Require explicit bash target", "Restart so bash calls must include this matching session_id.", `codexflow --root ${rootArg} --bash-session ${sessionArg} --require-bash-session`),
-    copyCommand("Show Codex session list", "Restart with read-only local Codex session metadata in full tool mode.", `codexflow --root ${rootArg} --tool-mode full --codex-sessions metadata`),
-    copyCommand("Read Codex transcripts", "Restart with bounded local transcript reads from Codex JSONL history.", `codexflow --root ${rootArg} --tool-mode full --codex-sessions read`),
-    copyCommand("Use full bash transcript", "Restart with the raw stdout/stderr transcript instead of compact tool cards.", `codexflow --root ${rootArg} --bash-transcript full`)
-  ].join("");
   const runtime = readRuntimeConnection(config.defaultRoot);
   const currentEndpoint = endpointBase(runtime.endpoint) || localMcp;
   const currentEndpointDisplay =
@@ -576,8 +405,6 @@ function onboardingPage(config: CodexFlowConfig): string {
     codexSessions: config.codexSessions,
     widgetDomain: config.widgetDomain,
     allowedRoots: config.allowedRoots,
-    profileHtml: profileForm(config),
-    controlsHtml: controls,
     chatgptUrl,
     githubUrl,
     npmUrl,

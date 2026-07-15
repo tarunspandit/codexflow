@@ -13,7 +13,7 @@ const content = {
   en: {
     langHref: "/zh",
     langLabel: "中文",
-    nav: [["System", "#system"], ["Flow", "#flow"], ["Companion", "#companion"], ["Surface", "#surface"], ["Boundaries", "#safety"]],
+    nav: [["System", "#system"], ["Flow", "#flow"], ["Desktop app", "#companion"], ["Surface", "#surface"], ["Boundaries", "#safety"]],
     eyebrow: "Local agent infrastructure / Flow7 Tech",
     hero: ["One command.", "Every project.", "Any chat."],
     heroBody: "CodexFlow gives ChatGPT a serious local coding backend. Your projects, files, git, terminal, skills, and instructions become available through one deliberate connection.",
@@ -35,7 +35,7 @@ const content = {
     flowTitle: <>Three movements.<br />No ceremony.</>,
     flowBody: "Install once. The bare command handles discovery, the broker, authentication, and the tunnel. Each new chat only chooses where it should work.",
     steps: [
-      ["Start", <>Run <code>codexflow</code>.</>, "Recent projects are discovered, the local MCP broker starts, a private token is created, and a secure URL is prepared.", "$ codexflow"],
+      ["Start", <>Run <code>codexflow</code>.</>, "Recent projects are discovered, the broker starts, a private token is created, and the native CodexFlow app opens automatically.", "$ codexflow"],
       ["Connect", <>Add the URL to ChatGPT once.</>, "Create a Developer Mode app, paste the generated Server URL, and choose no additional authentication—the token is already in the URL.", "Settings → Apps → Create"],
       ["Choose", <>Bind the chat to a project.</>, "The project picker appears inside the conversation. Select once; files, git, edits, and commands stay routed there for that session.", "~/DEV/atlas-web"],
     ],
@@ -43,16 +43,16 @@ const content = {
     routingTitle: <>One connection.<br />Separate working memory.</>,
     routingBody: "Every ChatGPT conversation owns its selected project. Change the active preview to see the same broker route a different task without crossing workspace boundaries.",
     metricLabels: ["broker", "chats", "projects"],
-    companionKicker: "The local companion",
-    companionTitle: <>Every chat,<br />in clear view.</>,
-    companionBody: "The broker also serves a private application on your computer. It shows discovered projects, live routing, recent tool outcomes, connection health, and the exact policy active for this run.",
+    companionKicker: "The native desktop app",
+    companionTitle: <>Your machine.<br />One clear surface.</>,
+    companionBody: "CodexFlow now opens as a native app on your Mac. Start and stop the broker, switch workspaces, inspect live chat routing, copy the connection, and edit next-launch policy without managing browser tabs.",
     companionLive: "Live on this computer",
     companionViews: ["Now", "Projects", "Chats", "Connection", "Policy"],
     companionMetrics: [["Projects", "Discovered"], ["Chat routes", "Independent"], ["Policy", "workspace / safe"], ["Activity", "Memory-only"]],
     companionSessions: [["Onboarding", "atlas-web", "read · completed"], ["Auth refactor", "signal-api", "test · completed"], ["Release audit", "codexflow", "git status · live"]],
     companionPrivacy: "Content-free telemetry",
     companionPrivacyBody: "Only project, tool name, outcome, and duration. Never prompts, arguments, source, command output, tokens, or usable MCP session IDs.",
-    companionBoundary: "This is a product preview. The real companion is served only by your authenticated local CodexFlow process; this public website cannot see your projects or chats.",
+    companionBoundary: "This is a representative native-app preview. The real desktop app reads only your authenticated local CodexFlow broker; this public website cannot see your projects or chats. The browser page remains a small recovery fallback.",
     surfaceKicker: "The tool surface",
     surfaceTitle: <>Enough agency to work.<br />Enough structure to trust.</>,
     surfaceBody: "CodexFlow exposes a focused coding surface instead of an unbounded shell. The model gets the context and actions it needs, with each operation scoped to the chosen workspace.",
@@ -80,11 +80,11 @@ const content = {
       ["Do I register every project manually?", "No. Running codexflow discovers recent project folders and configured roots automatically. Each conversation chooses one project for itself."],
       ["Can several chats work at once?", "Yes. One broker and one tunnel can serve many conversations. Each MCP session preserves its own project binding."],
       ["Is this a quota or model proxy?", "No. Requests still use your own ChatGPT account and its normal product limits. CodexFlow does not pool accounts, resell access, or bypass quotas."],
-      ["What does installation require?", "Node.js 20 or newer and ChatGPT Apps / Developer Mode access. The normal launcher includes Cloudflare quick tunnel support and also offers stable tunnel modes."],
+      ["What does installation require?", "Node.js 20 or newer, macOS 14 or newer for the native app, and ChatGPT Apps / Developer Mode access. The launcher installs and opens the app automatically; no separate desktop setup is required."],
     ],
     finalKicker: "Your projects are already here",
     finalTitle: "Meet them in the conversation.",
-    finalBody: "Install once. Run from anywhere. Choose the workspace when the chat begins.",
+    finalBody: "Install once. Run from anywhere. The native app opens; each chat chooses its workspace when it begins.",
     thenRun: "Then run",
     footerTag: "Local code. Web intelligence.",
     expression: "A FLOW 7 / TECH EXPRESSION",
@@ -93,7 +93,7 @@ const content = {
   zh: {
     langHref: "/",
     langLabel: "EN",
-    nav: [["系统", "#system"], ["流程", "#flow"], ["本地应用", "#companion"], ["能力", "#surface"], ["边界", "#safety"]],
+    nav: [["系统", "#system"], ["流程", "#flow"], ["桌面应用", "#companion"], ["能力", "#surface"], ["边界", "#safety"]],
     eyebrow: "本地代理基础设施 / Flow7 Tech",
     hero: ["一个命令。", "所有项目。", "任意对话。"],
     heroBody: "CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、文件、git、终端、skills 与指令，都通过一条清晰可控的连接进入对话。",
@@ -115,7 +115,7 @@ const content = {
     flowTitle: <>三个动作。<br />没有仪式。</>,
     flowBody: "安装一次。裸命令完成项目发现、broker、身份验证和 tunnel。每个新聊天只需要选择它应该在哪个项目工作。",
     steps: [
-      ["启动", <>运行 <code>codexflow</code>。</>, "自动发现最近项目，启动本地 MCP broker，创建私有 token，并准备安全 URL。", "$ codexflow"],
+      ["启动", <>运行 <code>codexflow</code>。</>, "自动发现最近项目，启动 broker，创建私有 token，并自动打开原生 CodexFlow 应用。", "$ codexflow"],
       ["连接", <>把 URL 添加到 ChatGPT 一次。</>, "创建 Developer Mode app，粘贴生成的 Server URL，并选择无需额外身份验证—token 已经在 URL 中。", "设置 → Apps → 创建"],
       ["选择", <>把聊天绑定到一个项目。</>, "项目选择器直接出现在对话里。选择一次，文件、git、编辑与命令会在整个会话中持续路由到该项目。", "~/DEV/atlas-web"],
     ],
@@ -123,16 +123,16 @@ const content = {
     routingTitle: <>一条连接。<br />各自的工作记忆。</>,
     routingBody: "每个 ChatGPT 对话都拥有自己选择的项目。切换预览，看看同一个 broker 如何路由不同任务，同时不跨越工作区边界。",
     metricLabels: ["broker", "对话", "项目"],
-    companionKicker: "本地伴随应用",
-    companionTitle: <>每个聊天，<br />都清晰可见。</>,
-    companionBody: "Broker 也会在你的电脑上提供一个私有应用。它展示已发现项目、实时路由、最近工具结果、连接健康，以及本次运行真正生效的策略。",
+    companionKicker: "原生桌面应用",
+    companionTitle: <>你的电脑。<br />一个清晰界面。</>,
+    companionBody: "CodexFlow 现在会在 Mac 上打开原生应用。启动或停止 broker、切换工作区、查看实时聊天路由、复制连接和编辑下次启动策略，都无需管理浏览器标签。",
     companionLive: "正在此电脑上运行",
     companionViews: ["当前", "项目", "聊天", "连接", "策略"],
     companionMetrics: [["项目", "自动发现"], ["聊天路由", "各自独立"], ["策略", "workspace / safe"], ["活动", "仅保存在内存"]],
     companionSessions: [["优化新手流程", "atlas-web", "read · 完成"], ["重构身份验证", "signal-api", "test · 完成"], ["发布审查", "codexflow", "git status · 运行中"]],
     companionPrivacy: "不包含内容的遥测",
     companionPrivacyBody: "只记录项目、工具名称、结果和耗时。不会记录 prompts、arguments、源码、命令输出、tokens 或可用的 MCP session IDs。",
-    companionBoundary: "这是产品预览。真正的伴随应用只由你经过身份验证的本地 CodexFlow 进程提供；这个公共网站无法看到你的项目或聊天。",
+    companionBoundary: "这是原生应用的示意预览。真正的桌面应用只读取你本机经过身份验证的 CodexFlow broker；此公共网站无法看到你的项目或聊天。浏览器页面只保留为精简恢复入口。",
     surfaceKicker: "工具能力",
     surfaceTitle: <>足够完成工作。<br />也足够清楚，值得信任。</>,
     surfaceBody: "CodexFlow 提供专注的编码能力，而不是一个没有边界的 shell。模型获得需要的上下文与操作，每一步都限定在已选工作区内。",
@@ -150,10 +150,10 @@ const content = {
     guards: [["Token 保护的公网 URL", "未经身份验证的请求无法进入工具面。"], ["工作区 root 强制执行", "路径与 symlink 检查让所有操作始终在范围内。"], ["Secret 感知输出", "凭据和常见 secret 模式会被拦截或隐藏。"], ["受保护写入与终端", "安全默认值一直生效，直到你明确扩大权限。"]],
     faqKicker: "直接回答",
     faqTitle: "连接之前。",
-    faqs: [["CodexFlow 会运行 Codex CLI 吗？", "不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。"], ["需要手动注册每个项目吗？", "不需要。运行 codexflow 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。"], ["多个聊天可以同时工作吗？", "可以。一个 broker 和 tunnel 能服务多个对话，每个 MCP session 都保留自己的项目绑定。"], ["这是额度或模型代理吗？", "不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。"], ["安装需要什么？", "Node.js 20 或更高版本，以及 ChatGPT Apps / Developer Mode 访问。普通启动流程包含 Cloudflare quick tunnel，也支持固定 tunnel 模式。"]],
+    faqs: [["CodexFlow 会运行 Codex CLI 吗？", "不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。"], ["需要手动注册每个项目吗？", "不需要。运行 codexflow 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。"], ["多个聊天可以同时工作吗？", "可以。一个 broker 和 tunnel 能服务多个对话，每个 MCP session 都保留自己的项目绑定。"], ["这是额度或模型代理吗？", "不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。"], ["安装需要什么？", "需要 Node.js 20 或更高版本；原生应用需要 macOS 14 或更高版本；并需要 ChatGPT Apps / Developer Mode 访问。启动器会自动安装和打开应用，无需单独设置桌面端。"]],
     finalKicker: "项目已经在你的电脑里",
     finalTitle: "现在，在对话中与它们相遇。",
-    finalBody: "安装一次，从任何目录运行，在聊天开始时选择工作区。",
+    finalBody: "安装一次，从任何目录运行；原生应用会打开，每个聊天在开始时选择自己的工作区。",
     thenRun: "然后运行",
     footerTag: "本地代码，Web 智能。",
     expression: "FLOW 7 / TECH EXPRESSION",
@@ -230,17 +230,17 @@ export function LandingPage({ locale }: { locale: Locale }) {
               <div><p className="eyebrow dark-label">{c.companionKicker}</p><h2 id="companion-title">{c.companionTitle}</h2></div>
               <p>{c.companionBody}</p>
             </div>
-            <div className="companion-frame" aria-label={locale === "zh" ? "CodexFlow 本地伴随应用预览" : "CodexFlow local companion preview"}>
+            <div className="companion-frame" aria-label={locale === "zh" ? "CodexFlow 原生桌面应用预览" : "CodexFlow native desktop app preview"}>
               <aside className="companion-rail">
-                <div className="companion-lockup"><Image src="/brand/flow7-tech-dark.webp" alt="" width={1024} height={1024} /><span><strong>CodexFlow</strong><small>local companion</small></span></div>
+                <div className="companion-lockup"><Image src="/brand/flow7-tech-dark.webp" alt="" width={1024} height={1024} /><span><strong>CodexFlow</strong><small>{locale === "zh" ? "原生桌面应用" : "native desktop app"}</small></span></div>
                 <div className="companion-ready"><i aria-hidden="true" /><span>{c.companionLive}</span></div>
                 <ol>{c.companionViews.map((view, index) => <li className={index === 0 ? "is-active" : ""} key={view}><span>0{index + 1}</span>{view}</li>)}</ol>
                 <small>ENDORSED BY FLOW7</small>
               </aside>
               <div className="companion-stage">
-                <header><span>CodexFlow / <strong>{c.companionViews[0]}</strong></span><small>{c.companionLive}</small></header>
+                <header><span className="companion-window-title"><i className="window-dots" aria-hidden="true"><b /><b /><b /></i>CodexFlow / <strong>{c.companionViews[0]}</strong></span><small>{c.companionLive}</small></header>
                 <div className="companion-content">
-                  <div className="companion-intro"><small>{locale === "zh" ? "当前运行" : "CURRENT RUN"}</small><h3>{locale === "zh" ? "你的电脑，清晰可见。" : "Your machine. In clear view."}</h3></div>
+                  <div className="companion-intro"><small>{locale === "zh" ? "当前运行" : "CURRENT RUN"}</small><h3>{locale === "zh" ? "一切运行，一目了然。" : "Everything in motion."}</h3></div>
                   <dl className="companion-metrics">{c.companionMetrics.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
                   <div className="companion-ledgers">
                     <section aria-label={locale === "zh" ? "聊天路由" : "Chat routing"}>

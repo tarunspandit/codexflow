@@ -48,7 +48,7 @@ GitHub `main` 文档可能早于 npm 发布；用 `npm install -g @tarunspandit/
 codexflow
 ```
 
-codexflow 会从本机 Codex metadata 自动发现所有项目，启动 broker 和 Cloudflare tunnel，并复制 ChatGPT Server URL。先到 `Settings -> Security and login` 打开 Developer mode，再到 `Settings -> Plugins` 创建连接，粘贴这个 URL，并选择 `Authentication: No Authentication / None`。
+codexflow 会从本机 Codex metadata 自动发现所有项目，启动 broker 和 Cloudflare tunnel，安装并打开原生 macOS 应用，同时复制 ChatGPT Server URL。先到 `Settings -> Security and login` 打开 Developer mode，再到 `Settings -> Plugins` 创建连接，粘贴这个 URL，并选择 `Authentication: No Authentication / None`。
 
 codexflow 把 ChatGPT Developer Mode 变成本地仓库的 MCP 代码代理。ChatGPT 可以读取文件、搜索代码、查看 git 状态、写入或精确编辑文件，并运行安全范围内的验证命令。
 
@@ -98,21 +98,23 @@ ChatGPT Web 可以操作：
 
 codexflow 默认给 ChatGPT 暴露纯 MCP 工具描述；每个新聊天需要的项目选择器始终可用。需要额外紧凑 v11 结果卡片时，用 `CODEXFLOW_TOOL_CARDS=1` 启动。卡片使用 ChatGPT 原生字体和颜色，不做嵌套滚动；git、skills、tree、terminal、context 和 raw diff 会折叠或截断，避免在聊天里刷出大段原始数据。`CODEXFLOW_WIDGET_DOMAIN` 用于设置 ChatGPT widget iframe 的专用 HTTPS origin，正式提交 app 前应换成你控制的独立域名。
 
-## 本地伴随应用
+## 原生桌面应用
 
-每个运行中的 broker 也会在本机提供一个私有应用。在 CodexFlow 终端按 `o`，或从另一个终端运行：
+在 macOS 14 或更新版本，第一次运行 `codexflow` 会把随包发布的原生应用安装到 `~/Applications` 并自动打开。之后即使 broker 尚未运行，也可以在 CodexFlow 终端按 `o`，或从另一个终端运行：
 
 ```bash
 codexflow app
 ```
 
-这不是第二个聊天或模型客户端；对话仍然属于 ChatGPT。本地应用包含：
+这不是第二个聊天或模型客户端；对话仍然属于 ChatGPT。桌面应用直接观察和控制同一个本地 broker，不调用 Codex CLI，也不增加第二套执行后端。它包含：
 
 - **当前**：连接健康、项目数量、活跃聊天和最近活动。
 - **项目**：CodexFlow 自动发现的文件夹。
 - **聊天**：当前和最近关闭的 MCP 会话各自路由到哪个项目。
-- **连接**：私有 Server URL 与可选的下次启动默认值。
+- **连接**：只在明确操作时复制私有 Server URL，并管理 broker 的启动、停止和重启。
 - **策略**：本次进程真正生效的写入、终端、工具、history、认证和 allowed-root 边界。
+
+应用可在 broker 离线时选择工作区并启动它，也可在多个近期或活跃的 workspace runtime 之间切换。旧的 token 保护浏览器页面只保留为紧急恢复和诊断入口；它会优先打开桌面应用，不再复制完整产品界面。
 
 会话遥测只存在于进程内存中，有数量上限，并会在会话关闭后很快过期。它只保存不可操作的显示指纹、已选项目、工具名称、结果和耗时；不会保存 prompts、工具 arguments、文件内容、命令输出、tokens 或可用的 MCP transport IDs。
 
@@ -438,18 +440,16 @@ codexflow watch-handoff --agent opencode --model provider/model --yes
 ```text
 Enter  打开 ChatGPT connector 设置
 c      再次复制 Server URL
-o      打开本地 admin dashboard
+o      打开原生 CodexFlow 应用
 h      显示帮助
 q      停止 CodexFlow
 ```
 
 在脚本、CI 或没有交互式终端的环境中，使用 `--non-interactive`。连接器会继续运行，直到收到 SIGINT/SIGTERM；`codexflow status --json` 可用于自动化检查。
 
-本地 admin dashboard 是带 token 保护的 setup/settings 页面。它会显示当前 workspace、local MCP endpoint、安全模式、安装/启动命令、ChatGPT 连接步骤、saved profile 设置和 allowed roots。
+原生应用是主要控制界面：它显示当前 workspace、连接状态、项目、聊天路由、策略边界和不含内容的活动；也可以选择 workspace、启动/停止/restart broker、复制私有连接 URL，以及保存下次启动的高级策略。Token 永远不会显示或写入日志。
 
-页面也提供 GitHub、npm、docs 链接和高级重启命令。普通用户不需要 profile 或 setup；可选高级设置仍能修改 tunnel、hostname、port、bash、write/tool mode 和 widget origin，重启 `codexflow` 后生效。
-
-浏览器 admin 页面只负责 setup/settings/status 和 MCP endpoint；不能切换 ChatGPT 账号，不能直接保存原始 Cloudflare tunnel token，也不能把 CodexFlow 作为后台服务开关。Cloudflare dashboard-managed tunnel 请把 token 放在本地文件里，再填写 Cloudflare token file。
+带 token 保护的浏览器页面只是紧急 fallback：它用于打开桌面应用、复制连接 URL 和查看最少量诊断，不再承担 setup/settings dashboard 的职责。Cloudflare dashboard-managed tunnel 的 token 仍应保存在本地文件中，而不是粘贴到任何 UI。
 
 ## FAQ
 

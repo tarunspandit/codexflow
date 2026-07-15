@@ -1,7 +1,7 @@
 # CodexFlow visual system
 
 CodexFlow is a Flow7 Tech expression built on the Luminous Orbit identity. This
-contract applies to the public site, the local status and settings surface,
+contract applies to the public site, the native desktop app, the authenticated browser fallback,
 social previews, and future product UI. Recognition comes from the orbit,
 Geologica, the seven-point cadence, hairline geometry, and calm state-led
 motion—not from generic developer-tool decoration.
@@ -97,15 +97,24 @@ short product-specific copy, and large quiet type. Product functionality should
 be shown through one coherent routing instrument and ledger-like sections—not
 fake browser chrome or a wall of disconnected feature cards.
 
-### Local companion
+### Native desktop app
 
 Translate the same system into daylight for dense operational use. Organize the
 application around **Now / Projects / Chats / Connection / Policy**. Lead with
 real broker state and independent chat routing; keep next-launch settings
-secondary. Raw paths and policy values remain visible because the surface is
-token-protected and opened by the local user. Use dark Luminous Orbit material
-only for the rail, the live-status moment, and the privacy boundary. Do not add
-a model composer: ChatGPT owns the conversation.
+secondary. The app owns broker discovery, workspace choice, lifecycle controls,
+and explicit credential copying while the existing broker remains the only
+execution authority. Raw paths and policy values remain visible because this is
+a private native surface. Use dark Luminous Orbit material only for the rail,
+the live-status moment, and the privacy boundary. Do not add a model composer:
+ChatGPT owns the conversation.
+
+### Authenticated browser fallback
+
+Keep the legacy `o` destination deliberately small: explain that the desktop app
+is primary, deep-link into it, expose only essential connection actions and
+bounded diagnostics, and never reproduce the native navigation or profile
+editor. The fallback remains authenticated and never renders its credential.
 
 ### ChatGPT inline surface
 

@@ -2,12 +2,14 @@
 
 ## Unreleased
 
-- Rebuilt the token-protected local page as a complete Flow7-endorsed companion application with Now, Projects, Chats, Connection, and Policy destinations, responsive navigation, real empty/error/loading states, and no duplicate model composer.
+- Added a from-scratch native SwiftUI macOS application with Now, Projects, Chats, Connection, and Policy views, real broker discovery and lifecycle controls, workspace switching, authenticated runtime data, and no duplicate model composer or Codex CLI execution path.
+- Added a universal, ad-hoc-signed, self-contained `CodexFlow.app` to the npm package; first launch installs or refreshes it in `~/Applications`, while `codexflow app`, `gui`, `open`, and the terminal `o` control launch it even when the broker is offline.
+- Rebuilt the token-protected browser page as a deliberately compact recovery fallback that opens the native app and exposes only essential connection actions and bounded diagnostics.
 - Added authenticated `/api/overview` and `/api/events` runtime surfaces plus bounded, memory-only session telemetry that records only non-actionable chat fingerprints, selected projects, tool names, outcomes, and durations.
-- Added `codexflow app` / `codexflow gui` / `codexflow open` to reopen the private local companion without printing its credential, backed by a restrictive ephemeral runtime record.
+- Added restrictive non-secret desktop launch metadata and private runtime discovery so the app can start, stop, restart, and reconnect to the existing broker without persisting chat content or rendering credentials.
 - Reworked the required ChatGPT project picker and optional tool cards into host-native, non-scrolling inline UI, added project filtering, and bumped the resource to `ui://widget/codexflow-tool-card-v11.html` while preserving v10/v9/v8 aliases.
-- Added a truthful local-companion preview to both hosted public editions and the static GitHub Pages mirror, explicitly separating the public website from private local runtime data.
-- Added runtime monitor, independent-session telemetry, local app opener, secret-key redaction, public-site render, and packaged asset coverage to the release tests.
+- Updated both hosted public editions and the static GitHub Pages mirror around the native desktop product, with a representative preview explicitly separated from private local runtime data.
+- Added runtime monitor, independent-session telemetry, native app lifecycle, bundle/signature/architecture, secret-key redaction, public-site render, and packaged asset coverage to the release tests.
 
 ## 0.29.0 (2026-07-13)
 
