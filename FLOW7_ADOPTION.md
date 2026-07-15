@@ -140,6 +140,10 @@ fixture and live-broker lifecycle smoke tests, root build/smoke/stress suites,
 package inspection, dependency audit, browser desktop/mobile visual checks,
 website lint/build/render checks, and a check of the deployed public source.
 
+That release evidence passed on 2026-07-15. The public GitHub Pages edition is
+live at `https://tarunspandit.github.io/codexflow/`, and the exact validated
+Sites build is live at `https://codexflow.tarunspandit.chatgpt.site/`.
+
 The final platform-hosted golden path still requires a configured ChatGPT
 account and public tunnel: bind two conversations to different projects and
 verify each retains its own route. This external account prerequisite is not
