@@ -45,6 +45,8 @@ Review changes against these failure modes before release:
 | Handoff mode still exposes generic writes | Handoff/pro modes do not advertise generic `write`/`edit`/`apply_patch`; bounded handoff tools write `.ai-bridge` files only. |
 | Local Codex history is treated as ChatGPT memory | Codex session access is opt-in metadata/read mode and never attaches to a live Codex app session. |
 | Browser admin mutates live runtime unexpectedly | Admin profile changes apply on restart; active runtime policy stays stable for the current session. |
+| Local companion becomes a prompt or source-content log | Session/activity telemetry is memory-only, bounded, expires shortly after close, and records only display fingerprints, project, tool name, outcome, and duration. |
+| A displayed chat identifier can be replayed against MCP | The companion exposes a one-way display fingerprint, never the random transport identifier used by the MCP endpoint. |
 | Remote MCP tool runs Codex/OpenCode/Pi directly | Agent execution remains a user-started CLI/watch process on the local machine. |
 | Autonomous loop drives ChatGPT Web or bypasses approvals | `loop-handoff` only runs local terminal commands over `.ai-bridge` files; it does not resume browser sessions, approve prompts, or expose a remote MCP executor. |
 | Reviewer masks a failed external command | `loop-handoff` requires explicit reviewer verdict assignments and rejects reviewer `PASS` after failed executor, test, or reviewer commands unless the user opts into the supported executor/test override behavior. |
@@ -59,6 +61,7 @@ The main risks are:
 - running `loop-handoff` with an untrusted reviewer command or without a small `--max-iters`
 - adding overly broad allowed roots
 - leaking a `codexflow_token` or Cloudflare tunnel token
+- sharing the private local companion launch URL, which initially carries the same CodexFlow URL token used for local authentication
 - trusting a downloaded `cloudflared` binary without understanding where it came from
 
 ## Safer Defaults
@@ -99,6 +102,7 @@ codexflow \
 - Do not run public tunnels with `--no-auth`.
 - Public tunnel mode and non-loopback binds fail closed if `CODEXFLOW_HTTP_TOKEN` is missing.
 - Do not commit printed connector URLs that include `codexflow_token`.
+- Do not share, screenshot, or log the private launch URL opened by `codexflow app`; it initially contains the local CodexFlow credential. The companion removes that query value from the address bar and retains it in tab-scoped session memory after loading.
 - Do not commit Cloudflare tunnel tokens.
 - Do not paste raw Cloudflare tunnel tokens into browser pages or screenshots. Use `--cloudflare-token-file` or the local page's Cloudflare token file field instead.
 - Use `--mode handoff` for planning workflows where ChatGPT should not edit source files. Handoff mode does not advertise generic `write`/`edit` tools.

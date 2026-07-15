@@ -21,6 +21,11 @@ import {
 } from "./profileStore.js";
 import { redactSensitiveText, redactStructured } from "./redact.js";
 import { createCodexFlowServer } from "./server.js";
+import { discoverProjects } from "./projectCatalog.js";
+import { workspaceIdForRoot, type Workspace } from "./guard.js";
+import { RuntimeMonitor, type RuntimeSessionHandle } from "./runtimeMonitor.js";
+import { CODEXFLOW_VERSION } from "./version.js";
+import { renderLocalAppPage } from "./localAppPage.js";
 
 function escapeHtml(value: unknown): string {
   return String(value ?? "")
@@ -245,7 +250,7 @@ function profileForm(config: CodexFlowConfig): string {
   const runtime = readRuntimeConnection(config.defaultRoot);
   const profilePath = profile.profilePath ?? profilePathForRoot(config.defaultRoot);
   const savedLabel = profile.profilePath ? "saved" : "not saved yet";
-  const runtimeEndpoint = typeof runtime.endpoint === "string" ? runtime.endpoint : "";
+  const runtimeEndpoint = endpointBase(runtime.endpoint);
   const runtimeTunnel = oneOf(runtime.tunnel ?? values.tunnel, TUNNELS, values.tunnel);
   const runtimeUrl = serverUrlDisplay(runtimeEndpoint, Boolean(config.authToken));
   const savedEndpoint = values.hostname ? `https://${values.hostname}/mcp` : "";
@@ -275,8 +280,8 @@ function profileForm(config: CodexFlowConfig): string {
   return `<section class="panel profile-panel" id="profile">
       <div class="section-head">
         <div>
-          <h2>Connection profile</h2>
-          <p>Use this for the next start. Current tunnel URLs appear here when the launcher knows them.</p>
+          <h2>Next-launch profile</h2>
+          <p>Optional advanced defaults for the next run. CodexFlow is already ready without changing these settings.</p>
         </div>
         <span class="pill ${profile.profilePath ? "" : "warn"}">${escapeHtml(savedLabel)}</span>
       </div>
@@ -407,10 +412,101 @@ function profileResponse(config: CodexFlowConfig): Record<string, unknown> {
   });
 }
 
+function endpointBase(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "";
+  try {
+    const url = new URL(value);
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return redactSensitiveText(value).split(/[?#]/, 1)[0] ?? "";
+  }
+}
+
+function runtimeProject(workspace: Workspace): { id: string; name: string; root: string } {
+  return {
+    id: workspace.id,
+    name: path.basename(workspace.root) || workspace.root,
+    root: workspace.root
+  };
+}
+
+async function applicationOverview(
+  config: CodexFlowConfig,
+  monitor: RuntimeMonitor,
+  startedAt: number,
+  refreshProjects = false
+): Promise<Record<string, unknown>> {
+  const [projects, profile] = await Promise.all([
+    discoverProjects(config, { refresh: refreshProjects, maxProjects: 250 }),
+    Promise.resolve(readWorkspaceProfile(config.defaultRoot))
+  ]);
+  const runtime = readRuntimeConnection(config.defaultRoot);
+  const monitored = monitor.snapshot();
+  const runtimeEndpoint = endpointBase(runtime.endpoint);
+  const localBase = endpointBase(runtime.localBase) || `http://${config.host}:${config.port}`;
+  const endpoint = runtimeEndpoint || `${localBase}/mcp`;
+  return redactStructured({
+    ok: true,
+    generated_at: new Date().toISOString(),
+    broker: {
+      state: "ready",
+      version: CODEXFLOW_VERSION,
+      started_at: new Date(startedAt).toISOString(),
+      uptime_ms: Date.now() - startedAt,
+      default_root: config.defaultRoot,
+      allowed_roots: config.allowedRoots,
+      local_base: localBase,
+      endpoint,
+      public_endpoint: endpoint.startsWith("https://") ? endpoint : null,
+      tunnel: runtime.tunnel ?? null,
+      mode: runtime.mode ?? process.env.CODEXFLOW_MODE ?? "agent",
+      auth_enabled: Boolean(config.authToken),
+      write_mode: config.writeMode,
+      bash_mode: config.bashMode,
+      bash_transcript: config.bashTranscript,
+      tool_mode: config.toolMode,
+      tool_cards: config.toolCards,
+      codex_sessions: config.codexSessions,
+      analysis_enabled: config.analysisEnabled,
+      max_sessions: config.maxHttpSessions,
+      session_ttl_ms: config.httpSessionTtlMs
+    },
+    projects: projects.map((project) => ({
+      id: workspaceIdForRoot(project.root),
+      name: project.name,
+      root: project.root,
+      sources: project.sources,
+      last_active_at: project.lastActiveAt ? new Date(project.lastActiveAt).toISOString() : null,
+      is_default: project.root === config.defaultRoot
+    })),
+    sessions: monitored.sessions,
+    activity: monitored.activity,
+    summary: {
+      projects: projects.length,
+      active_sessions: monitored.active_sessions,
+      recent_sessions: monitored.recent_sessions,
+      activity_events: monitored.activity.length
+    },
+    saved_profile: {
+      exists: Boolean(profile.profilePath),
+      tunnel: profile.tunnel ?? null,
+      hostname: profile.hostname ?? null,
+      mode: profile.mode ?? null,
+      updated_at: profile.updatedAt ?? null
+    }
+  });
+}
+
 function jsonError(res: Response, status: number, code: string, message: string, issues?: unknown): void {
   res.status(status).json({
     ok: false,
-    error: { code, message, ...(issues ? { issues } : {}) }
+    error: {
+      code,
+      message: redactSensitiveText(message),
+      ...(issues ? { issues: redactStructured(issues) } : {})
+    }
   });
 }
 
@@ -428,7 +524,6 @@ const LOCAL_FAVICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 
 </svg>`;
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BRAND_ASSET_ROOT = path.join(PACKAGE_ROOT, "docs", "assets");
-const CODEXFLOW_VERSION = "0.29.0-beta.1";
 
 function printHelp(): void {
   console.log(`CodexFlow MCP HTTP server
@@ -446,9 +541,7 @@ Most users should run: codexflow`);
 function onboardingPage(config: CodexFlowConfig): string {
   const localMcp = `http://${config.host}:${config.port}/mcp`;
   const localMcpDisplay = config.authToken ? `${localMcp}?codexflow_token=<redacted>` : localMcp;
-  const allowedRoots = config.allowedRoots.map((root) => `<li>${escapeHtml(root)}</li>`).join("");
   const authLabel = config.authToken ? "Token protected" : "Disabled";
-  const writeTone = config.writeMode === "workspace" ? "agent" : config.writeMode;
   const rootArg = shellQuote(config.defaultRoot);
   const sessionArg = shellQuote(config.bashSessionId || "main");
   const githubUrl = "https://github.com/tarunspandit/codexflow";
@@ -464,253 +557,36 @@ function onboardingPage(config: CodexFlowConfig): string {
     copyCommand("Read Codex transcripts", "Restart with bounded local transcript reads from Codex JSONL history.", `codexflow --root ${rootArg} --tool-mode full --codex-sessions read`),
     copyCommand("Use full bash transcript", "Restart with the raw stdout/stderr transcript instead of compact tool cards.", `codexflow --root ${rootArg} --bash-transcript full`)
   ].join("");
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="/favicon.ico">
-  <link rel="preload" href="/brand/geologica.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/brand/flow7-tech-dark.webp" as="image" type="image/webp">
-  <link rel="stylesheet" href="/brand/control.css">
-  <meta name="theme-color" content="#08090b">
-  <title>CodexFlow — Local control</title>
-</head>
-<body>
-  <main>
-    <header class="topbar">
-      <div class="brand">
-        <span class="logo" aria-hidden="true"><img src="/brand/flow7-tech-dark.webp" alt=""></span>
-        <span>
-          <span class="brand-kicker">FLOW 7 / TECH</span>
-          <span class="brand-title">CodexFlow</span>
-        </span>
-      </div>
-      <nav class="quick-links" aria-label="CodexFlow resources">
-        <a class="action-link primary-link" href="${chatgptUrl}" target="_blank" rel="noreferrer">Open ChatGPT settings</a>
-        <a class="resource-link" href="${githubUrl}" target="_blank" rel="noreferrer">Open GitHub</a>
-        <a class="resource-link" href="${npmUrl}" target="_blank" rel="noreferrer">NPM</a>
-        <a class="resource-link" href="${docsUrl}" target="_blank" rel="noreferrer">Docs</a>
-      </nav>
-    </header>
-    <section class="status-hero" aria-labelledby="status-title">
-      <div class="status-copy">
-        <p class="status-kicker">Local control / current run</p>
-        <h1 id="status-title">One workspace. Fully visible.</h1>
-        <p>Review the live boundary, prepare the next connection profile, and move into ChatGPT without losing sight of what this machine is exposing.</p>
-      </div>
-      <div class="status-orbit" aria-hidden="true">
-        <img src="/brand/flow7-tech-dark.webp" alt="" width="1024" height="1024">
-        <span class="live-state"><i></i> broker ready</span>
-      </div>
-      <dl class="status-summary">
-        <div><dt>Workspace</dt><dd>${escapeHtml(config.defaultRoot)}</dd></div>
-        <div><dt>Local MCP</dt><dd>${escapeHtml(localMcp)}</dd></div>
-        <div><dt>Runtime policy</dt><dd>${escapeHtml(`${writeTone} / ${config.bashMode} bash`)}</dd></div>
-        <div><dt>Authentication</dt><dd>${escapeHtml(authLabel)}</dd></div>
-      </dl>
-    </section>
-    <nav class="section-tabs" aria-label="Admin sections">
-      <a href="#profile" aria-current="page">Profile</a>
-      <a href="#status">Status</a>
-      <a href="#connect">ChatGPT</a>
-      <a href="#access">Access</a>
-      <a href="#cli">CLI</a>
-    </nav>
-    <section class="overview">
-      ${profileForm(config)}
-      <aside class="side-stack">
-        <section class="panel guide-panel" id="guide">
-          <div class="section-head">
-            <div>
-              <h2>Quick path</h2>
-              <p>Use ChatGPT like a coding agent for this workspace without widening the local trust boundary.</p>
-            </div>
-          </div>
-          <div class="guide-list">
-            <div class="guide-item"><span class="num">1</span><span><strong>Review the profile</strong><p>Choose the tunnel, port, mode, bash, write, tool, Codex session, and workspace defaults for the next launch.</p></span></div>
-            <div class="guide-item"><span class="num">2</span><span><strong>Copy the Server URL</strong><p>Use the current public URL shown in the profile when available, or the one printed by the terminal after launch.</p></span></div>
-            <div class="guide-item"><span class="num">3</span><span><strong>Create the ChatGPT app</strong><p>Choose Server URL, paste the copied URL, and use no extra authentication. The private token is already in the URL.</p></span></div>
-            <div class="guide-item"><span class="num">4</span><span><strong>Restart for policy changes</strong><p>Saved profile changes apply when CodexFlow starts again. The live server does not mutate under an active ChatGPT session.</p></span></div>
-          </div>
-        </section>
-        <article class="run-card" id="status" aria-label="Current runtime">
-          <h2>Runtime guardrails</h2>
-          <div class="status">
-            <div class="row"><span class="label">Workspace</span><span class="mono">${escapeHtml(config.defaultRoot)}</span></div>
-            <div class="row"><span class="label">Local MCP</span><span class="mono">${escapeHtml(localMcp)}</span></div>
-            <div class="row"><span class="label">Write mode</span><span class="pill ${config.writeMode === "workspace" ? "" : "warn"}">${escapeHtml(writeTone)}</span></div>
-            <div class="row"><span class="label">Tool mode</span><span class="pill ${config.toolMode === "standard" ? "" : "warn"}">${escapeHtml(config.toolMode)}</span></div>
-            <div class="row"><span class="label">Bash mode</span><span class="pill ${config.bashMode === "safe" ? "" : "warn"}">${escapeHtml(config.bashMode)}</span></div>
-            <div class="row"><span class="label">Transcript</span><span class="pill ${config.bashTranscript === "compact" ? "" : "warn"}">${escapeHtml(config.bashTranscript)}</span></div>
-            <div class="row"><span class="label">Bash session</span><span class="pill ${config.requireBashSession ? "warn" : ""}">${escapeHtml(config.bashSessionId ? `${config.bashSessionId}${config.requireBashSession ? " required" : ""}` : "not set")}</span></div>
-            <div class="row"><span class="label">Codex sessions</span><span class="pill ${config.codexSessions === "off" ? "" : "warn"}">${escapeHtml(config.codexSessions)}</span></div>
-            <div class="row"><span class="label">Widget domain</span><span class="mono">${escapeHtml(config.widgetDomain)}</span></div>
-            <div class="row"><span class="label">Auth</span><span class="pill">${escapeHtml(authLabel)}</span></div>
-          </div>
-        </article>
-      </aside>
-    </section>
-    <section class="workspace-grid">
-      <section class="panel" id="connect">
-        <div class="section-head">
-          <div>
-          <h2>Connect ChatGPT</h2>
-            <p>Create an app connection that points at the public Server URL copied by the terminal.</p>
-          </div>
-        </div>
-        <ol class="steps">
-          <li><span class="num">1</span><span>Open ChatGPT settings and create an app connection.</span></li>
-          <li><span class="num">2</span><span>Set Connection to <code>Server URL</code>.</span></li>
-          <li><span class="num">3</span><span>Paste the public CodexFlow URL from the terminal.</span></li>
-          <li><span class="num">4</span><span>Use <code>No Authentication / None</code>; the private token is already in the copied URL.</span></li>
-        </ol>
-        <p class="note"><a class="action-link" href="${chatgptUrl}" target="_blank" rel="noreferrer">Open ChatGPT settings</a></p>
-      </section>
-      <aside class="side-stack">
-        <section class="panel" id="access">
-          <h2>Admin boundary</h2>
-          <ul class="scope-list">
-            <li><strong>/setup</strong><span>legacy alias for this local dashboard</span></li>
-            <li><strong>/admin/profile</strong><span>saved workspace profile API</span></li>
-            <li><strong>/healthz</strong><span>authenticated status check</span></li>
-            <li><strong>/mcp</strong><span>MCP endpoint for ChatGPT and local clients</span></li>
-          </ul>
-        </section>
-      </aside>
-    </section>
-    <section class="panel cli-panel details-panel" id="cli">
-      <div class="section-head">
-        <div>
-          <h2>CLI controls</h2>
-          <p>Copy these when you need to restart with a different runtime policy. They do not mutate the running process from the browser.</p>
-        </div>
-      </div>
-      <div class="controls">${controls}</div>
-    </section>
-    <details class="panel details-panel">
-      <summary>Allowed roots</summary>
-      <ul class="roots">${allowedRoots}</ul>
-      <p class="note">CodexFlow rejects workspace access outside these roots.</p>
-    </details>
-    <footer class="foot">Token-protected local control surface for this workspace. Public sharing still happens only through your chosen tunnel.</footer>
-  </main>
-  <script>
-    document.querySelectorAll("[data-copy], [data-copy-kind]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        let value = button.getAttribute("data-copy") || "";
-        if (button.getAttribute("data-copy-kind") === "local-mcp") {
-          const base = button.getAttribute("data-copy-base") || value;
-          const params = new URLSearchParams(window.location.search);
-          const token = params.get("codexflow_token") || params.get("token") || "";
-          value = token ? base + "?codexflow_token=" + encodeURIComponent(token) : base;
-        } else if (button.getAttribute("data-copy-kind") === "server-url") {
-          const base = button.getAttribute("data-copy-base") || value;
-          const params = new URLSearchParams(window.location.search);
-          const token = params.get("codexflow_token") || params.get("token") || "";
-          value = token ? base + "?codexflow_token=" + encodeURIComponent(token) : base;
-        }
-        try {
-          await navigator.clipboard.writeText(value);
-          button.textContent = "Copied";
-          setTimeout(() => { button.textContent = "Copy"; }, 1400);
-        } catch {
-          button.textContent = "Select";
-        }
-      });
-    });
-    const profileForm = document.querySelector("[data-profile-form]");
-    const tunnelSelect = document.querySelector("[data-tunnel-select]");
-    const hostnameInput = document.querySelector("[data-hostname-input]");
-    const hostnameHelp = document.querySelector("[data-hostname-help]");
-    const tokenEnabled = ${config.authToken ? "true" : "false"};
-    function serverPreviewFor(hostname) {
-      const clean = String(hostname || "").trim().replace(/^https?:\\/\\//, "").replace(/\\/mcp\\/?$/, "").replace(/\\/+$/, "");
-      if (!clean) return "";
-      return "https://" + clean + "/mcp" + (tokenEnabled ? "?codexflow_token=<redacted>" : "");
-    }
-    function updateTunnelHelp() {
-      if (!tunnelSelect || !hostnameInput || !hostnameHelp) return;
-      const tunnel = tunnelSelect.value;
-      const ngrokHost = tunnelSelect.getAttribute("data-ngrok-hostname") || "";
-      const cloudflareHost = tunnelSelect.getAttribute("data-cloudflare-hostname") || "";
-      if (tunnel === "ngrok" && !hostnameInput.value && ngrokHost) {
-        hostnameInput.value = ngrokHost;
-        hostnameInput.setAttribute("data-autofilled", "1");
-      }
-      if (tunnel === "cloudflare-named" && !hostnameInput.value && cloudflareHost) {
-        hostnameInput.value = cloudflareHost;
-        hostnameInput.setAttribute("data-autofilled", "1");
-      }
-      if ((tunnel === "cloudflare" || tunnel === "none") && hostnameInput.getAttribute("data-autofilled") === "1") {
-        hostnameInput.value = "";
-        hostnameInput.setAttribute("data-autofilled", "0");
-      }
-      const preview = serverPreviewFor(hostnameInput.value);
-      if (tunnel === "cloudflare") {
-        hostnameHelp.textContent = "Cloudflare quick tunnel generates the public URL at launch and this page shows it when the launcher reports it.";
-      } else if (tunnel === "ngrok") {
-        hostnameHelp.textContent = preview ? "Next Server URL preview: " + preview : "Enter the reserved ngrok domain from your local ngrok setup.";
-      } else if (tunnel === "cloudflare-named") {
-        hostnameHelp.textContent = preview ? "Next Server URL preview: " + preview : "Enter the hostname routed to your Cloudflare named tunnel.";
-      } else if (tunnel === "tailscale") {
-        hostnameHelp.textContent = preview ? "Next Server URL preview: " + preview : "Enter the Tailscale Funnel hostname for this device.";
-      } else {
-        hostnameHelp.textContent = "Local-only mode does not expose a public ChatGPT Server URL.";
-      }
-    }
-    tunnelSelect?.addEventListener("change", updateTunnelHelp);
-    hostnameInput?.addEventListener("input", () => {
-      hostnameInput.setAttribute("data-autofilled", "0");
-      updateTunnelHelp();
-    });
-    updateTunnelHelp();
-    if (profileForm) {
-      profileForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const form = event.currentTarget;
-        const status = document.querySelector("[data-profile-status]");
-        const data = Object.fromEntries(new FormData(form).entries());
-        const payload = {
-          tunnel: data.tunnel,
-          hostname: data.hostname,
-          tunnelName: data.tunnelName,
-          ngrokConfig: data.ngrokConfig,
-          cloudflareConfig: data.cloudflareConfig,
-          cloudflareTokenFile: data.cloudflareTokenFile,
-          port: Number(data.port),
-          mode: data.mode,
-          bash: data.bash,
-          write: data.write,
-          toolMode: data.toolMode,
-          toolCards: Boolean(form.elements.toolCards?.checked),
-          codexSessions: data.codexSessions,
-          codexDir: data.codexDir,
-          bashSession: data.bashSession,
-          requireBashSession: Boolean(form.elements.requireBashSession?.checked),
-          noInstallCloudflared: Boolean(form.elements.noInstallCloudflared?.checked)
-        };
-        if (status) status.textContent = "Saving...";
-        try {
-          const response = await fetch("/admin/profile" + window.location.search, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(result.error?.message || "Save failed");
-          if (status) status.textContent = "Saved. Restart CodexFlow for these profile settings to apply.";
-        } catch (error) {
-          if (status) status.textContent = error instanceof Error ? error.message : "Save failed";
-        }
-      });
-    }
-  </script>
-</body>
-</html>`;
+  const runtime = readRuntimeConnection(config.defaultRoot);
+  const currentEndpoint = endpointBase(runtime.endpoint) || localMcp;
+  const currentEndpointDisplay =
+    serverUrlDisplay(currentEndpoint, Boolean(config.authToken)) || localMcpDisplay;
+  return renderLocalAppPage({
+    version: CODEXFLOW_VERSION,
+    defaultRoot: config.defaultRoot,
+    localMcp,
+    endpointBase: currentEndpoint,
+    endpointDisplay: currentEndpointDisplay,
+    authLabel,
+    mode: String(runtime.mode ?? process.env.CODEXFLOW_MODE ?? "agent"),
+    writeMode: config.writeMode,
+    bashMode: config.bashMode,
+    bashTranscript: config.bashTranscript,
+    toolMode: config.toolMode,
+    codexSessions: config.codexSessions,
+    widgetDomain: config.widgetDomain,
+    allowedRoots: config.allowedRoots,
+    profileHtml: profileForm(config),
+    controlsHtml: controls,
+    chatgptUrl,
+    githubUrl,
+    npmUrl,
+    docsUrl
+  });
 }
 
 async function main(): Promise<void> {
+  const startedAt = Date.now();
   const argv = process.argv.slice(2);
   if (argv.includes("--version") || argv.includes("-v") || argv[0] === "version") {
     console.log(CODEXFLOW_VERSION);
@@ -731,7 +607,21 @@ async function main(): Promise<void> {
   }
 
   const app = express();
+  const runtimeMonitor = new RuntimeMonitor();
   const logRequests = process.env.CODEXFLOW_LOG_REQUESTS === "1";
+
+  app.disable("x-powered-by");
+  app.use((_req, res, next) => {
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self'"
+    );
+    res.setHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=()");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    next();
+  });
 
   function tokenMatches(value: unknown): boolean {
     if (!config.authToken || typeof value !== "string") return false;
@@ -788,6 +678,7 @@ async function main(): Promise<void> {
   const brandAssets: Record<string, { file: string; type: string }> = {
     "/brand/geologica.woff2": { file: "fonts/Geologica-Variable.woff2", type: "font/woff2" },
     "/brand/control.css": { file: "brand/control.css", type: "text/css" },
+    "/brand/control.js": { file: "brand/control.js", type: "text/javascript" },
     "/brand/flow7-tech-dark.webp": { file: "brand/flow7-tech-dark.webp", type: "image/webp" },
     "/brand/flow7-tech-light.webp": { file: "brand/flow7-tech-light.webp", type: "image/webp" },
     "/brand/flow7-parent-dark.webp": { file: "brand/flow7-parent-dark.webp", type: "image/webp" },
@@ -819,6 +710,7 @@ async function main(): Promise<void> {
 
   type TransportRecord = {
     transport: StreamableHTTPServerTransport;
+    monitorSession: RuntimeSessionHandle;
     createdAt: number;
     lastSeenAt: number;
   };
@@ -846,6 +738,7 @@ async function main(): Promise<void> {
   }
 
   function closeTransport(record: TransportRecord): void {
+    record.monitorSession.close();
     void record.transport.close?.();
   }
 
@@ -871,6 +764,7 @@ async function main(): Promise<void> {
     const record = transports.get(sessionId);
     if (!record) return undefined;
     record.lastSeenAt = Date.now();
+    record.monitorSession.touch();
     return record.transport;
   }
 
@@ -878,14 +772,54 @@ async function main(): Promise<void> {
   pruneTimer.unref();
 
   app.get("/", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     res.type("html").send(onboardingPage(config));
   });
 
   app.get("/setup", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     res.type("html").send(onboardingPage(config));
   });
 
+  app.get("/api/overview", async (req, res) => {
+    try {
+      const refresh = req.query.refresh === "1" || req.query.refresh === "true";
+      res.setHeader("Cache-Control", "no-store");
+      res.json(await applicationOverview(config, runtimeMonitor, startedAt, refresh));
+    } catch (error) {
+      jsonError(res, 500, "overview_unavailable", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.get("/api/events", (req, res) => {
+    let unsubscribe: (() => void) | undefined;
+    const sendUpdate = () => {
+      if (!res.writableEnded) res.write(`event: update\ndata: ${JSON.stringify({ at: new Date().toISOString() })}\n\n`);
+    };
+    try {
+      unsubscribe = runtimeMonitor.subscribe(sendUpdate);
+    } catch (error) {
+      jsonError(res, 503, "events_unavailable", error instanceof Error ? error.message : String(error));
+      return;
+    }
+    res.status(200);
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+    sendUpdate();
+    const heartbeat = setInterval(() => {
+      if (!res.writableEnded) res.write(`: heartbeat ${Date.now()}\n\n`);
+    }, 20_000);
+    heartbeat.unref();
+    req.on("close", () => {
+      clearInterval(heartbeat);
+      unsubscribe?.();
+    });
+  });
+
   app.get("/healthz", (_req, res) => {
+    const monitor = runtimeMonitor.snapshot();
     res.json({
       ok: true,
       name: "CodexFlow",
@@ -901,7 +835,10 @@ async function main(): Promise<void> {
       widgetDomain: config.widgetDomain,
       contextDir: config.contextDir,
       authEnabled: Boolean(config.authToken),
-      authRequired: Boolean(config.authToken)
+      authRequired: Boolean(config.authToken),
+      activeSessions: monitor.active_sessions,
+      recentSessions: monitor.recent_sessions,
+      version: CODEXFLOW_VERSION
     });
   });
 
@@ -943,12 +880,15 @@ async function main(): Promise<void> {
       if (existingTransport) {
         transport = existingTransport;
       } else if (!sessionId && isInitializeRequest(req.body)) {
+        const monitorSession = runtimeMonitor.beginSession();
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (newSessionId: string) => {
+            monitorSession.bindTransport(newSessionId);
             pruneTransports();
             transports.set(newSessionId, {
               transport,
+              monitorSession,
               createdAt: Date.now(),
               lastSeenAt: Date.now()
             });
@@ -959,10 +899,22 @@ async function main(): Promise<void> {
         (transport as any).onclose = () => {
           const closedSessionId = (transport as any).sessionId;
           if (closedSessionId) transports.delete(closedSessionId);
+          monitorSession.close();
         };
 
-        const server = createCodexFlowServer(config);
-        await server.connect(transport);
+        const server = createCodexFlowServer(config, {
+          onWorkspaceChanged: (workspace) => monitorSession.selectProject(runtimeProject(workspace)),
+          onToolCall: (event) => {
+            if (event.workspace) monitorSession.selectProject(runtimeProject(event.workspace));
+            monitorSession.recordTool(event);
+          }
+        });
+        try {
+          await server.connect(transport);
+        } catch (error) {
+          monitorSession.close();
+          throw error;
+        }
       } else {
         sendSessionError(res, sessionId);
         return;

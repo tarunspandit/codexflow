@@ -103,15 +103,27 @@ assert.equal(statusBefore.status, 1, statusBefore.stderr || statusBefore.stdout)
 const beforePayload = JSON.parse(statusBefore.stdout);
 assert.equal(beforePayload.state, 'not_running');
 assert.equal(beforePayload.active, false);
+const appBefore = run(['app', '--root', root], env);
+assert.equal(appBefore.status, 1, appBefore.stderr || appBefore.stdout);
+assert.match(appBefore.stderr, /CodexFlow is not running/);
 
 const port = await getFreePort();
+const appToken = 'codexflow-cli-companion-token';
+const browserOutput = path.join(home, 'opened-companion-url.txt');
+const fakeBrowser = path.join(home, 'fake-browser.mjs');
+await fs.writeFile(fakeBrowser, [
+  '#!/usr/bin/env node',
+  "import fs from 'node:fs';",
+  "fs.writeFileSync(process.env.CODEXFLOW_BROWSER_OUTPUT, process.argv[2] || '');",
+  ''
+].join('\n'), { mode: 0o700 });
 const child = spawn(process.execPath, [
   'scripts/codexflow.mjs',
   'start',
   '--root', root,
   '--port', String(port),
   '--tunnel', 'none',
-  '--no-auth',
+  '--token', appToken,
   '--no-copy-url',
   '--non-interactive'
 ], {
@@ -143,6 +155,7 @@ while (Date.now() < runtimeDeadline) {
 
 try {
   assert.equal(runtime?.pid, child.pid, `${output}\nlauncher did not write an active runtime record`);
+  assert.equal(runtime?.localAuthToken, appToken, 'launcher did not retain the private local companion credential');
   assert.match(output, /Non-interactive mode/);
 
   const statusDuring = run(['status', '--root', root, '--json'], env);
@@ -153,6 +166,19 @@ try {
   assert.equal(duringPayload.health.status, 'ok');
   assert.equal(duringPayload.runtime.pid, child.pid);
   assert.match(duringPayload.runtime.local_base, /^http:\/\/127\.0\.0\.1:/);
+  assert.doesNotMatch(JSON.stringify(duringPayload), new RegExp(appToken));
+
+  const appDuring = run(['app', '--root', root], {
+    ...env,
+    CODEXFLOW_BROWSER: fakeBrowser,
+    CODEXFLOW_BROWSER_OUTPUT: browserOutput
+  });
+  assert.equal(appDuring.status, 0, appDuring.stderr || appDuring.stdout);
+  assert.doesNotMatch(`${appDuring.stdout}${appDuring.stderr}`, new RegExp(appToken));
+  const openedUrl = new URL(await fs.readFile(browserOutput, 'utf8'));
+  assert.equal(openedUrl.origin, `http://127.0.0.1:${port}`);
+  assert.equal(openedUrl.pathname, '/');
+  assert.equal(openedUrl.searchParams.get('codexflow_token'), appToken);
 } finally {
   if (child.exitCode === null) child.kill('SIGTERM');
   try {

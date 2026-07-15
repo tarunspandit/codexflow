@@ -204,6 +204,7 @@ const genericPort = await getFreePort();
 const token = 'codexflow-http-smoke-token';
 const runtimeQuerySecret = 'runtimequerysecret1234567890';
 const runtimeAccessSecret = 'runtimeaccesssecret1234567890';
+const runtimeLocalAuthSecret = 'runtimelocalauthsecret1234567890';
 const runtimeCloudflareSecret = 'eyJhbGciOiJIUzI1NiJ9.eyJ0dW5uZWwiOiJodHRwLXNtb2tlIn0.signature1234567890';
 const staleCloudflareToken = 'eyJhbGciOiJIUzI1NiJ9.eyJ0dW5uZWwiOiJzdGFsZS1odHRwLXNtb2tlIn0.signature1234567890';
 const runtimeId = createHash('sha256').update(root).digest('hex').slice(0, 24);
@@ -213,6 +214,7 @@ await fs.writeFile(path.join(profileHome, 'runtime', `${runtimeId}.json`), JSON.
   root,
   endpoint: `https://runtime.example/mcp?token=${runtimeQuerySecret}`,
   localStatusUrl: `http://127.0.0.1:${port}/?codexflow_token=${token}&access_token=${runtimeAccessSecret}`,
+  localAuthToken: runtimeLocalAuthSecret,
   note: `cloudflared tunnel run --token ${runtimeCloudflareSecret}`
 }, null, 2), 'utf8');
 const child = spawn('node', ['dist/http.js'], {
@@ -306,6 +308,7 @@ try {
   }
   for (const [assetPath, contentType] of [
     ['/brand/control.css', 'text/css'],
+    ['/brand/control.js', 'text/javascript'],
     ['/brand/geologica.woff2', 'font/woff2'],
     ['/brand/flow7-tech-dark.webp', 'image/webp']
   ]) {
@@ -320,11 +323,30 @@ try {
   if (home.status !== 200 || !home.headers.get('content-type')?.includes('text/html')) {
     throw new Error(`expected authenticated onboarding page to return HTML 200, got ${home.status}`);
   }
-  if (!homeText.includes('CodexFlow — Local control') || !homeText.includes('One workspace. Fully visible.') || !homeText.includes('CLI controls') || !homeText.includes('Connect ChatGPT') || !homeText.includes('Runtime guardrails')) {
-    throw new Error('onboarding page did not include expected admin setup copy');
+  const contentSecurityPolicy = home.headers.get('content-security-policy') || '';
+  if (
+    !contentSecurityPolicy.includes("script-src 'self'") ||
+    !contentSecurityPolicy.includes("style-src 'self'") ||
+    !contentSecurityPolicy.includes("frame-ancestors 'none'") ||
+    contentSecurityPolicy.includes("'unsafe-inline'") ||
+    home.headers.get('x-content-type-options') !== 'nosniff' ||
+    home.headers.get('x-frame-options') !== 'DENY' ||
+    home.headers.get('referrer-policy') !== 'no-referrer' ||
+    home.headers.get('cache-control') !== 'no-store' ||
+    home.headers.has('x-powered-by')
+  ) {
+    throw new Error(`local companion security headers were incomplete: ${JSON.stringify(Object.fromEntries(home.headers))}`);
   }
-  if (!homeText.includes('Connection profile') || !homeText.includes('data-profile-form')) {
-    throw new Error('onboarding page did not include the saved profile editor');
+  if (!homeText.includes('CodexFlow — Local companion') || !homeText.includes('Your machine.') || !homeText.includes('Chats in motion') || !homeText.includes('Projects,') || !homeText.includes('Capability,')) {
+    throw new Error('local companion did not include the expected application views');
+  }
+  for (const view of ['now', 'projects', 'chats', 'connection', 'policy']) {
+    if (!homeText.includes(`data-view-group="${view}"`)) {
+      throw new Error(`local companion did not include ${view} view`);
+    }
+  }
+  if (!homeText.includes('Next-launch profile') || !homeText.includes('data-profile-form')) {
+    throw new Error('local companion did not include the advanced profile editor');
   }
   for (const fieldName of ['tunnelName', 'ngrokConfig', 'cloudflareConfig', 'cloudflareTokenFile', 'toolCards', 'noInstallCloudflared']) {
     if (!homeText.includes(`name="${fieldName}"`)) {
@@ -334,8 +356,39 @@ try {
   if (homeText.includes(token)) {
     throw new Error('onboarding page leaked the raw auth token');
   }
-  for (const leaked of [runtimeQuerySecret, runtimeAccessSecret, runtimeCloudflareSecret]) {
+  const controlSource = await (await fetch(`${baseUrl}/brand/control.js`)).text();
+  if (!controlSource.includes('window.sessionStorage') || !controlSource.includes('window.history.replaceState')) {
+    throw new Error('local companion did not move URL authentication into tab-scoped memory');
+  }
+  for (const leaked of [runtimeQuerySecret, runtimeAccessSecret, runtimeLocalAuthSecret, runtimeCloudflareSecret]) {
     if (homeText.includes(leaked)) throw new Error(`onboarding page leaked runtime secret: ${leaked}`);
+  }
+
+  const overviewBefore = await fetch(`${baseUrl}/api/overview?codexflow_token=${encodeURIComponent(token)}`);
+  const overviewBeforeJson = await overviewBefore.json();
+  if (
+    overviewBefore.status !== 200 ||
+    overviewBeforeJson.ok !== true ||
+    !overviewBeforeJson.projects?.some?.((project) => project.name === 'alternate-project') ||
+    overviewBeforeJson.summary?.active_sessions !== 0 ||
+    overviewBeforeJson.broker?.auth_enabled !== true
+  ) {
+    throw new Error(`local companion overview was incomplete: ${overviewBefore.status} ${JSON.stringify(overviewBeforeJson)}`);
+  }
+  const overviewText = JSON.stringify(overviewBeforeJson);
+  for (const leaked of [token, runtimeQuerySecret, runtimeAccessSecret, runtimeLocalAuthSecret, runtimeCloudflareSecret]) {
+    if (overviewText.includes(leaked)) throw new Error(`local companion overview leaked a runtime secret: ${leaked}`);
+  }
+
+  const eventController = new AbortController();
+  const events = await fetch(`${baseUrl}/api/events?codexflow_token=${encodeURIComponent(token)}`, { signal: eventController.signal });
+  if (events.status !== 200 || !events.headers.get('content-type')?.includes('text/event-stream')) {
+    throw new Error(`expected runtime event stream, got ${events.status} ${events.headers.get('content-type')}`);
+  }
+  const firstEvent = await events.body.getReader().read();
+  eventController.abort();
+  if (!new TextDecoder().decode(firstEvent.value).includes('event: update')) {
+    throw new Error('runtime event stream did not emit an initial content-free update');
   }
 
   const profileBefore = await fetch(`${baseUrl}/admin/profile?codexflow_token=${encodeURIComponent(token)}`);
@@ -346,7 +399,7 @@ try {
   if (JSON.stringify(profileBeforeJson).includes(token)) {
     throw new Error('admin profile GET leaked the raw auth token');
   }
-  for (const leaked of [runtimeQuerySecret, runtimeAccessSecret, runtimeCloudflareSecret]) {
+  for (const leaked of [runtimeQuerySecret, runtimeAccessSecret, runtimeLocalAuthSecret, runtimeCloudflareSecret]) {
     if (JSON.stringify(profileBeforeJson).includes(leaked)) throw new Error(`admin profile GET leaked runtime secret: ${leaked}`);
   }
 
@@ -461,7 +514,7 @@ try {
       throw new Error(`HTTP handoff mode should not advertise ${hidden}; got ${queryToolNames.join(', ')}`);
     }
   }
-  const toolCardUri = 'ui://widget/codexflow-tool-card-v10.html';
+  const toolCardUri = 'ui://widget/codexflow-tool-card-v11.html';
   for (const visualTool of queryToolNames) {
     if (visualTool === 'list_projects' || visualTool === 'select_project') {
       if (!hasWidgetMeta(queryTools, visualTool, toolCardUri)) throw new Error(`${visualTool} did not expose its required project picker widget`);
@@ -570,6 +623,26 @@ try {
     ]);
     if (!readA.structuredContent.text?.includes('alternate-chat-binding')) throw new Error('chat A did not retain its selected project binding');
     if (!readB.structuredContent.text?.includes('default-chat-binding')) throw new Error('chat B did not retain an independent project binding');
+
+    const liveOverviewResponse = await fetch(`${baseUrl}/api/overview?codexflow_token=${encodeURIComponent(token)}`);
+    const liveOverview = await liveOverviewResponse.json();
+    const routedRoots = new Set(liveOverview.sessions?.map?.((session) => session.project?.root).filter(Boolean));
+    if (
+      liveOverviewResponse.status !== 200 ||
+      liveOverview.summary?.active_sessions < 2 ||
+      !routedRoots.has(await fs.realpath(alternateProject)) ||
+      !routedRoots.has(await fs.realpath(root)) ||
+      !liveOverview.activity?.some?.((event) => event.tool === 'read') ||
+      !liveOverview.sessions?.every?.((session) => /^chat-[0-9a-f]{8}$/.test(session.id))
+    ) {
+      throw new Error(`live companion telemetry did not reflect independent project sessions: ${JSON.stringify(liveOverview)}`);
+    }
+    const liveOverviewText = JSON.stringify(liveOverview);
+    for (const forbidden of [token, 'alternate-chat-binding', 'default-chat-binding', bindingTransportA.sessionId, bindingTransportB.sessionId]) {
+      if (forbidden && liveOverviewText.includes(forbidden)) {
+        throw new Error(`live companion telemetry retained forbidden content: ${forbidden}`);
+      }
+    }
   } finally {
     await Promise.allSettled([bindingClientA.close(), bindingClientB.close()]);
   }

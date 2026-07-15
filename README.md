@@ -69,6 +69,29 @@ CodexFlow starts one local MCP server for all discovered projects. Each ChatGPT 
 CodexFlow is not a hosted service, model proxy, quota bypass, account pool, or OS sandbox.
 It connects your own ChatGPT session to your own local repo through the official Developer Mode / MCP app path.
 
+## Local Companion
+
+Every running broker also serves a private local application. Press `o` in the
+CodexFlow terminal, or open it later from another terminal:
+
+```bash
+codexflow app
+```
+
+The companion is not a second chat or model client. ChatGPT still owns the
+conversation. The local app makes the broker legible:
+
+- **Now** shows connection health, project count, active chats, and recent activity.
+- **Projects** shows the folders CodexFlow discovered automatically.
+- **Chats** shows independent project routing for current and recently closed MCP sessions.
+- **Connection** provides the private Server URL and optional next-launch defaults.
+- **Policy** shows the exact write, terminal, tool, history, auth, and allowed-root boundary active for the process.
+
+Session telemetry stays in process memory, is bounded, and expires shortly after
+a chat closes. It contains only a non-actionable display fingerprint, selected
+project, tool name, outcome, and duration. It never stores prompts, tool
+arguments, file contents, command output, tokens, or usable MCP transport IDs.
+
 ## Repository Analysis
 
 CodexFlow builds a bounded repository map from local manifests, source declarations, imports, tests, and Git state. It provides:
@@ -95,6 +118,7 @@ codexflow
 codexflow --root /path/to/repo
 codexflow status
 codexflow status --json
+codexflow app
 codexflow doctor
 codexflow connection-test --root /path/to/repo
 codexflow settings
@@ -116,7 +140,7 @@ If ChatGPT cannot create the plugin, run `codexflow connection-test`. It keeps
 the normal read, tree, search, and skill tools, disables writes, bash, and tool
 cards, and logs whether a request reached the local MCP endpoint.
 
-Tool cards are opt in:
+Rich result cards are opt in; the required project picker remains available:
 
 ```bash
 CODEXFLOW_TOOL_CARDS=1 codexflow
@@ -172,6 +196,7 @@ codexflow can reduce what it sends to ChatGPT. Current local fixes:
 - binary-file checks scan with a reusable 64 KiB buffer instead of allocating the whole file
 - ChatGPT tool-card structured payloads are compacted only for card output, not for normal tool data
 - bash chat transcripts stay compact by default
+- local companion activity is memory-only, bounded, and content-free
 
 That helps avoid oversized MCP/card payloads. It does not force Chrome, ChatGPT, or an old browser iframe to release memory that the client already holds. If the browser tab has already grown, reload the ChatGPT page or restart the browser.
 
@@ -256,6 +281,7 @@ Common fixes:
 - Local port is busy: start another repo with `--port 8788`.
 - Tool list looks stale: create a new ChatGPT app entry or change the connector URL token.
 - Check whether the launcher is still running with `codexflow status`; a stale runtime record means the original process exited.
+- Reopen the private project/chat companion with `codexflow app` while the original broker is running.
 
 ## Development
 

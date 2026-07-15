@@ -13,7 +13,7 @@ const content = {
   en: {
     langHref: "/zh",
     langLabel: "中文",
-    nav: [["System", "#system"], ["Flow", "#flow"], ["Surface", "#surface"], ["Boundaries", "#safety"]],
+    nav: [["System", "#system"], ["Flow", "#flow"], ["Companion", "#companion"], ["Surface", "#surface"], ["Boundaries", "#safety"]],
     eyebrow: "Local agent infrastructure / Flow7 Tech",
     hero: ["One command.", "Every project.", "Any chat."],
     heroBody: "CodexFlow gives ChatGPT a serious local coding backend. Your projects, files, git, terminal, skills, and instructions become available through one deliberate connection.",
@@ -43,6 +43,16 @@ const content = {
     routingTitle: <>One connection.<br />Separate working memory.</>,
     routingBody: "Every ChatGPT conversation owns its selected project. Change the active preview to see the same broker route a different task without crossing workspace boundaries.",
     metricLabels: ["broker", "chats", "projects"],
+    companionKicker: "The local companion",
+    companionTitle: <>Every chat,<br />in clear view.</>,
+    companionBody: "The broker also serves a private application on your computer. It shows discovered projects, live routing, recent tool outcomes, connection health, and the exact policy active for this run.",
+    companionLive: "Live on this computer",
+    companionViews: ["Now", "Projects", "Chats", "Connection", "Policy"],
+    companionMetrics: [["Projects", "Discovered"], ["Chat routes", "Independent"], ["Policy", "workspace / safe"], ["Activity", "Memory-only"]],
+    companionSessions: [["Onboarding", "atlas-web", "read · completed"], ["Auth refactor", "signal-api", "test · completed"], ["Release audit", "codexflow", "git status · live"]],
+    companionPrivacy: "Content-free telemetry",
+    companionPrivacyBody: "Only project, tool name, outcome, and duration. Never prompts, arguments, source, command output, tokens, or usable MCP session IDs.",
+    companionBoundary: "This is a product preview. The real companion is served only by your authenticated local CodexFlow process; this public website cannot see your projects or chats.",
     surfaceKicker: "The tool surface",
     surfaceTitle: <>Enough agency to work.<br />Enough structure to trust.</>,
     surfaceBody: "CodexFlow exposes a focused coding surface instead of an unbounded shell. The model gets the context and actions it needs, with each operation scoped to the chosen workspace.",
@@ -83,7 +93,7 @@ const content = {
   zh: {
     langHref: "/",
     langLabel: "EN",
-    nav: [["系统", "#system"], ["流程", "#flow"], ["能力", "#surface"], ["边界", "#safety"]],
+    nav: [["系统", "#system"], ["流程", "#flow"], ["本地应用", "#companion"], ["能力", "#surface"], ["边界", "#safety"]],
     eyebrow: "本地代理基础设施 / Flow7 Tech",
     hero: ["一个命令。", "所有项目。", "任意对话。"],
     heroBody: "CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、文件、git、终端、skills 与指令，都通过一条清晰可控的连接进入对话。",
@@ -113,6 +123,16 @@ const content = {
     routingTitle: <>一条连接。<br />各自的工作记忆。</>,
     routingBody: "每个 ChatGPT 对话都拥有自己选择的项目。切换预览，看看同一个 broker 如何路由不同任务，同时不跨越工作区边界。",
     metricLabels: ["broker", "对话", "项目"],
+    companionKicker: "本地伴随应用",
+    companionTitle: <>每个聊天，<br />都清晰可见。</>,
+    companionBody: "Broker 也会在你的电脑上提供一个私有应用。它展示已发现项目、实时路由、最近工具结果、连接健康，以及本次运行真正生效的策略。",
+    companionLive: "正在此电脑上运行",
+    companionViews: ["当前", "项目", "聊天", "连接", "策略"],
+    companionMetrics: [["项目", "自动发现"], ["聊天路由", "各自独立"], ["策略", "workspace / safe"], ["活动", "仅保存在内存"]],
+    companionSessions: [["优化新手流程", "atlas-web", "read · 完成"], ["重构身份验证", "signal-api", "test · 完成"], ["发布审查", "codexflow", "git status · 运行中"]],
+    companionPrivacy: "不包含内容的遥测",
+    companionPrivacyBody: "只记录项目、工具名称、结果和耗时。不会记录 prompts、arguments、源码、命令输出、tokens 或可用的 MCP session IDs。",
+    companionBoundary: "这是产品预览。真正的伴随应用只由你经过身份验证的本地 CodexFlow 进程提供；这个公共网站无法看到你的项目或聊天。",
     surfaceKicker: "工具能力",
     surfaceTitle: <>足够完成工作。<br />也足够清楚，值得信任。</>,
     surfaceBody: "CodexFlow 提供专注的编码能力，而不是一个没有边界的 shell。模型获得需要的上下文与操作，每一步都限定在已选工作区内。",
@@ -201,6 +221,38 @@ export function LandingPage({ locale }: { locale: Locale }) {
           <div className="section-shell routing-layout">
             <div className="routing-copy"><p className="eyebrow">{c.routingKicker}</p><h2>{c.routingTitle}</h2><p>{c.routingBody}</p><div className="routing-metrics"><div><strong>01</strong><span>{c.metricLabels[0]}</span></div><div><strong>∞</strong><span>{c.metricLabels[1]}</span></div><div><strong>N</strong><span>{c.metricLabels[2]}</span></div></div></div>
             <RouterPreview locale={locale} />
+          </div>
+        </section>
+
+        <section className="companion section-pad" id="companion" aria-labelledby="companion-title">
+          <div className="section-shell">
+            <div className="section-heading companion-heading">
+              <div><p className="eyebrow dark-label">{c.companionKicker}</p><h2 id="companion-title">{c.companionTitle}</h2></div>
+              <p>{c.companionBody}</p>
+            </div>
+            <div className="companion-frame" aria-label={locale === "zh" ? "CodexFlow 本地伴随应用预览" : "CodexFlow local companion preview"}>
+              <aside className="companion-rail">
+                <div className="companion-lockup"><Image src="/brand/flow7-tech-dark.webp" alt="" width={1024} height={1024} /><span><strong>CodexFlow</strong><small>local companion</small></span></div>
+                <div className="companion-ready"><i aria-hidden="true" /><span>{c.companionLive}</span></div>
+                <ol>{c.companionViews.map((view, index) => <li className={index === 0 ? "is-active" : ""} key={view}><span>0{index + 1}</span>{view}</li>)}</ol>
+                <small>ENDORSED BY FLOW7</small>
+              </aside>
+              <div className="companion-stage">
+                <header><span>CodexFlow / <strong>{c.companionViews[0]}</strong></span><small>{c.companionLive}</small></header>
+                <div className="companion-content">
+                  <div className="companion-intro"><small>{locale === "zh" ? "当前运行" : "CURRENT RUN"}</small><h3>{locale === "zh" ? "你的电脑，清晰可见。" : "Your machine. In clear view."}</h3></div>
+                  <dl className="companion-metrics">{c.companionMetrics.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+                  <div className="companion-ledgers">
+                    <section aria-label={locale === "zh" ? "聊天路由" : "Chat routing"}>
+                      <div className="companion-panel-head"><span>01 / {locale === "zh" ? "实时路由" : "LIVE ROUTING"}</span><strong>{locale === "zh" ? "进行中的聊天" : "Chats in motion"}</strong></div>
+                      <ol>{c.companionSessions.map(([chat, project, state], index) => <li key={chat}><i aria-hidden="true" /><div><strong>{chat}</strong><code>{project}</code></div><span>{state}</span><small>chat-{["a40c97f2", "7eac13b8", "29d1f640"][index]}</small></li>)}</ol>
+                    </section>
+                    <aside><span>02 / {locale === "zh" ? "隐私" : "PRIVACY"}</span><strong>{c.companionPrivacy}</strong><p>{c.companionPrivacyBody}</p></aside>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="companion-boundary"><span aria-hidden="true">↳</span>{c.companionBoundary}</p>
           </div>
         </section>
 

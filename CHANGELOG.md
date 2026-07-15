@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Rebuilt the token-protected local page as a complete Flow7-endorsed companion application with Now, Projects, Chats, Connection, and Policy destinations, responsive navigation, real empty/error/loading states, and no duplicate model composer.
+- Added authenticated `/api/overview` and `/api/events` runtime surfaces plus bounded, memory-only session telemetry that records only non-actionable chat fingerprints, selected projects, tool names, outcomes, and durations.
+- Added `codexflow app` / `codexflow gui` / `codexflow open` to reopen the private local companion without printing its credential, backed by a restrictive ephemeral runtime record.
+- Reworked the required ChatGPT project picker and optional tool cards into host-native, non-scrolling inline UI, added project filtering, and bumped the resource to `ui://widget/codexflow-tool-card-v11.html` while preserving v10/v9/v8 aliases.
+- Added a truthful local-companion preview to both hosted public editions and the static GitHub Pages mirror, explicitly separating the public website from private local runtime data.
+- Added runtime monitor, independent-session telemetry, local app opener, secret-key redaction, public-site render, and packaged asset coverage to the release tests.
+
 ## 0.29.0 (2026-07-13)
 
 - Launched the redesigned English and Chinese CodexFlow website, social card, public npm identity, and renamed GitHub repository.

@@ -18,8 +18,20 @@ import { discoverProjects } from "./projectCatalog.js";
 import { TOOL_CARD_LEGACY_URIS, TOOL_CARD_MIME_TYPE, TOOL_CARD_URI, toolCardWidgetHtml } from "./toolCardWidget.js";
 import { hasSecretValue, redactSensitiveText, redactStructured } from "./redact.js";
 import { inspectWorkspace, invalidateWorkspaceAnalysis, reviewWorkspaceChanges } from "./analysis/index.js";
+import { CODEXFLOW_VERSION } from "./version.js";
 
 const STRUCTURED_STRING_MAX_CHARS = 30_000;
+
+export interface CodexFlowRuntimeObserver {
+  onWorkspaceChanged?(workspace: Workspace): void;
+  onToolCall?(event: {
+    name: string;
+    status: "ok" | "error";
+    durationMs: number;
+    at: number;
+    workspace?: Workspace;
+  }): void;
+}
 
 function errorText(error: unknown): string {
   if (error instanceof Error) return redactSensitiveText(`${error.name}: ${error.message}`);
@@ -162,8 +174,8 @@ function registerToolCardResource(server: McpServer, config: CodexFlowConfig): v
       name,
       uri,
       {
-        title: "CodexFlow Tool Card",
-        description: "Compact visual renderer for CodexFlow workspace orientation, source changes, and handoffs.",
+        title: "CodexFlow workspace card",
+        description: "Host-native project selection and compact, bounded workspace results for CodexFlow.",
         mimeType: TOOL_CARD_MIME_TYPE
       },
       async () => ({
@@ -181,7 +193,7 @@ function registerToolCardResource(server: McpServer, config: CodexFlowConfig): v
                   resourceDomains: []
                 }
               },
-              "openai/widgetDescription": "Renders CodexFlow workspace orientation, diagnostics, file diffs, change reviews, terminal checks, Pro context exports, and handoff plans as compact developer cards with bounded previews.",
+              "openai/widgetDescription": "Lets a user bind this conversation to a synchronized local project, then presents bounded workspace results without leaving ChatGPT.",
               "openai/widgetPrefersBorder": true,
               "openai/widgetDomain": config.widgetDomain,
               "openai/widgetCSP": {
@@ -202,6 +214,30 @@ function registerToolCardResource(server: McpServer, config: CodexFlowConfig): v
 }
 
 type CodexToolHandler = (args: any) => Promise<any> | any;
+
+interface ServerRuntimeContext {
+  observer: CodexFlowRuntimeObserver;
+  activeWorkspace: () => Workspace | undefined;
+}
+
+const serverRuntimeContexts = new WeakMap<object, ServerRuntimeContext>();
+
+function notifyRuntimeToolCall(server: McpServer, name: string, status: "ok" | "error", started: number): void {
+  const context = serverRuntimeContexts.get(server as object);
+  if (!context?.observer.onToolCall) return;
+  const at = Date.now();
+  try {
+    context.observer.onToolCall({
+      name,
+      status,
+      durationMs: at - started,
+      at,
+      workspace: context.activeWorkspace()
+    });
+  } catch {
+    // Operational telemetry must never interrupt a tool response.
+  }
+}
 
 const SUPERTOOL_NAME = "codexflow";
 const SUPERTOOL_ACTION_ALIASES: Record<string, string> = {
@@ -266,11 +302,14 @@ function registerToolCompat(
     const started = Date.now();
     try {
       const result = tagToolResult(await handler(args ?? {}), name, options);
-      logToolCall(name, result?.isError ? "error" : "ok", started);
+      const status = result?.isError ? "error" : "ok";
+      logToolCall(name, status, started);
+      notifyRuntimeToolCall(server, name, status, started);
       return result;
     } catch (error) {
       const result = tagToolResult(errorResult(error), name, options);
       logToolCall(name, "error", started);
+      notifyRuntimeToolCall(server, name, "error", started);
       return result;
     }
   };
@@ -923,28 +962,35 @@ function getSharedWorkspaceManager(config: CodexFlowConfig): WorkspaceManager {
   return manager;
 }
 
-export function createCodexFlowServer(config: CodexFlowConfig): McpServer {
+export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFlowRuntimeObserver = {}): McpServer {
   const workspaceManager = getSharedWorkspaceManager(config);
   const chatSessionId = `codexflow-chat-${randomUUID()}`;
   let activeWorkspaceId: string | undefined;
+  const bindWorkspace = (workspace: Workspace): Workspace => {
+    const changed = activeWorkspaceId !== workspace.id;
+    activeWorkspaceId = workspace.id;
+    if (changed) {
+      try {
+        observer.onWorkspaceChanged?.(workspace);
+      } catch {
+        // Operational telemetry must never interrupt project routing.
+      }
+    }
+    return workspace;
+  };
   const workspaces = {
     defaultWorkspace(): Workspace {
-      const workspace = workspaceManager.defaultWorkspace();
-      activeWorkspaceId = workspace.id;
-      return workspace;
+      return bindWorkspace(workspaceManager.defaultWorkspace());
     },
     openWorkspace(root?: string): Workspace {
-      const workspace = workspaceManager.openWorkspace(root);
-      activeWorkspaceId = workspace.id;
-      return workspace;
+      return bindWorkspace(workspaceManager.openWorkspace(root));
     },
     getWorkspace(id?: string): Workspace {
       if (id && activeWorkspaceId && id !== activeWorkspaceId) {
         throw new CodexFlowError("This ChatGPT conversation is bound to a different project. Call select_project or open_workspace explicitly to switch it first.");
       }
       const workspace = workspaceManager.getWorkspace(id ?? activeWorkspaceId);
-      activeWorkspaceId = workspace.id;
-      return workspace;
+      return bindWorkspace(workspace);
     },
     listWorkspaces(): Workspace[] {
       return workspaceManager.listWorkspaces();
@@ -954,7 +1000,11 @@ export function createCodexFlowServer(config: CodexFlowConfig): McpServer {
     }
   };
   const guard = new PathGuard(config);
-  const server = new McpServer({ name: "CodexFlow", version: "0.29.0-beta.1" }, { instructions: serverInstructions(config) });
+  const server = new McpServer({ name: "CodexFlow", version: CODEXFLOW_VERSION }, { instructions: serverInstructions(config) });
+  serverRuntimeContexts.set(server as object, {
+    observer,
+    activeWorkspace: () => workspaces.activeWorkspace()
+  });
   registeredToolNamesByServer.set(server as object, []);
   registerToolCardResource(server, config);
 
@@ -1420,7 +1470,7 @@ export function createCodexFlowServer(config: CodexFlowConfig): McpServer {
     server,
     "list_projects",
     {
-      title: "Choose A Project",
+      title: "Choose a project",
       description:
         "Call this first in a new CodexFlow coding chat. It synchronizes configured folders with recent local Codex project folders and shows a project picker; it does not run the Codex CLI.",
       inputSchema: {
@@ -1502,7 +1552,7 @@ export function createCodexFlowServer(config: CodexFlowConfig): McpServer {
       if (matches.length > 1) throw new CodexFlowError(`Multiple projects are named ${args.name}. Select one by project_id.`);
       const selected = matches[0];
       if (!selected) throw new CodexFlowError("Project not found in the synchronized catalog. Call list_projects with refresh=true.");
-      activeWorkspaceId = selected.workspace.id;
+      bindWorkspace(selected.workspace);
       const [summary, inventory] = await Promise.all([
         workspaceSummary(config, guard, selected.workspace, {
           includeTree: parseBool(args.include_tree, true),
