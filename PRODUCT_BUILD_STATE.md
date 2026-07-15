@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-Release candidate 0.30.1: the ChatGPT picker/runtime correction, native telemetry correction, documentation, package, and public surfaces are verified locally; source and hosted deployments are in progress.
+Complete for 0.30.1: the ChatGPT picker/runtime correction, native telemetry correction, documentation, signed desktop bundle, package, and hosted product surface are verified.
 
 ## Product truth
 
@@ -107,4 +107,4 @@ Release candidate 0.30.1: the ChatGPT picker/runtime correction, native telemetr
 
 ## Completion record
 
-Every required ledger row is verified. The Flow7 adoption checklist and completion contract were re-read, the full release matrix passed, the signed app was installed into `~/Applications`, and both changed public surfaces were deployed and checked.
+Every required ledger row is verified. The Flow7 adoption checklist and completion contract were re-read, the full 0.30.1 release matrix passed, the signed app was installed into `~/Applications`, and the changed public surfaces were deployed and checked.
