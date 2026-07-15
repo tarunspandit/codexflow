@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.30.3 (2026-07-15)
+
+- Replaced transport-local project selection with opaque private `route_id` capabilities that remain stable across ChatGPT's separate model and widget MCP transports.
+- Persisted chat-to-project routes in the local CodexFlow state directory with owner-only permissions so existing web chats resume on the same project after broker restarts.
+- Updated every project-scoped tool to advertise `route_id`, reject workspace IDs from another route, and resolve the route before any file, git, search, edit, or terminal operation.
+- Upgraded the project picker to the standard MCP Apps `ui/update-model-context` bridge plus structured ChatGPT widget state, making the selected route and workspace visible to later model turns without posting a synthetic chat message.
+- Cache-busted the picker to `ui://widget/codexflow-project-picker-v3.html`, preserved selected-state UI across host refresh events, and added cross-transport, route-isolation, persistence, and permission regression coverage.
+- Taught the native app to start an installed launchd-managed broker and made `SIGTERM` an intentional clean stop, so a permanent service can recover from crashes without fighting the app’s Stop and Restart controls.
+
 ## 0.30.2 (2026-07-15)
 
 - Fixed `list_projects` output validation by serializing project activity timestamps as ISO strings and returning only fields declared by its strict output schema.

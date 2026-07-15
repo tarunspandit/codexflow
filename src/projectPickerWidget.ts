@@ -1,4 +1,7 @@
-export const PROJECT_PICKER_URI = "ui://widget/codexflow-project-picker-v2.html";
+export const PROJECT_PICKER_URI = "ui://widget/codexflow-project-picker-v3.html";
+export const PROJECT_PICKER_LEGACY_URIS = [
+  "ui://widget/codexflow-project-picker-v2.html"
+] as const;
 
 export const projectPickerWidgetHtml = String.raw`
 <!doctype html>
@@ -221,6 +224,10 @@ export const projectPickerWidgetHtml = String.raw`
     let current = {};
     let hydrated = false;
     let hydrationAttempts = 0;
+    let selectedProjectId = "";
+    let selectedProjectName = "";
+    let activeRouteId = "";
+    let rpcCounter = 0;
     const MAX_HYDRATION_ATTEMPTS = 40;
     const HYDRATION_INTERVAL_MS = 250;
 
@@ -237,9 +244,13 @@ export const projectPickerWidgetHtml = String.raw`
       if (Array.isArray(value.projects) || value.selected === true) return value;
       const candidates = [
         value.structuredContent,
+        value.call_tool_result && value.call_tool_result.structuredContent,
+        value.mcp_tool_result && value.mcp_tool_result.structuredContent,
         value.toolOutput && value.toolOutput.structuredContent,
         value.toolOutput,
         value.toolResponseMetadata && value.toolResponseMetadata.structuredContent,
+        value.toolResponseMetadata && value.toolResponseMetadata.call_tool_result && value.toolResponseMetadata.call_tool_result.structuredContent,
+        value.toolResponseMetadata && value.toolResponseMetadata.mcp_tool_result && value.toolResponseMetadata.mcp_tool_result.structuredContent,
         value.result && value.result.structuredContent,
         value.params && value.params.structuredContent,
         value.params && value.params.result && value.params.result.structuredContent
@@ -250,22 +261,39 @@ export const projectPickerWidgetHtml = String.raw`
       return {};
     }
 
+    function persistedRouteState() {
+      const widgetState = (window.openai && window.openai.widgetState) || {};
+      const privateState = widgetState.privateContent && typeof widgetState.privateContent === "object"
+        ? widgetState.privateContent
+        : widgetState;
+      return privateState && typeof privateState === "object" ? privateState : {};
+    }
+
     function render(data) {
       if (!data || !Array.isArray(data.projects)) return false;
       hydrated = true;
       current = data;
+      const persisted = persistedRouteState();
+      activeRouteId = String(data.route_id || persisted.routeId || activeRouteId || "");
+      selectedProjectId = String(data.selected_project_id || persisted.selectedProjectId || selectedProjectId || "");
+      selectedProjectName = String(persisted.selectedProjectName || selectedProjectName || "");
       const projects = data.projects;
       const rows = projects.map(function (project) {
         const sources = Array.isArray(project.sources) ? project.sources.join(" · ") : "local";
         const searchable = String((project.name || "") + " " + (project.root || "") + " " + sources).toLowerCase();
-        return '<button class="project" type="button" data-id="' + esc(project.project_id) + '" data-name="' + esc(project.name || "Project") + '" data-search="' + esc(searchable) + '" aria-pressed="' + (project.selected ? "true" : "false") + '">' +
+        const selected = project.project_id === selectedProjectId || project.selected;
+        if (selected && !selectedProjectName) selectedProjectName = project.name || "Project";
+        return '<button class="project" type="button" data-id="' + esc(project.project_id) + '" data-name="' + esc(project.name || "Project") + '" data-search="' + esc(searchable) + '" aria-pressed="' + (selected ? "true" : "false") + '">' +
           '<span class="project-copy"><span class="project-name">' + esc(project.name || "Project") + '</span><span class="project-path">' + esc(project.root || "") + ' · ' + esc(sources) + '</span></span>' +
-          '<span class="action">' + (project.selected ? "Selected" : "Use project") + '</span></button>';
+          '<span class="action">' + (selected ? "Selected" : "Use project") + '</span></button>';
       }).join("");
+      const statusCopy = selectedProjectId
+        ? esc(selectedProjectName || "Project") + " is selected. Continue in chat with the task."
+        : "Pick here, or reply in chat with an exact project name.";
       app.innerHTML = '<header class="head"><span class="mark" aria-hidden="true">C</span><div><h1>Choose this chat’s project</h1><p class="sub">One private route for this conversation</p></div><span class="count">' + esc(projects.length) + ' projects</span></header>' +
         '<section class="body"><label class="search"><span aria-hidden="true">⌕</span><input type="search" data-filter placeholder="Filter by name or folder" autocomplete="off" aria-label="Filter projects"></label>' +
         '<div class="projects" data-projects>' + (rows || '<div class="empty">No synchronized projects were found.</div>') + '</div>' +
-        '<div class="foot" id="status" role="status"><span class="dot" aria-hidden="true"></span><span>Pick here, or reply in chat with an exact project name.</span></div></section>';
+        '<div class="foot' + (selectedProjectId ? " good" : "") + '" id="status" role="status"><span class="dot" aria-hidden="true"></span><span>' + statusCopy + '</span></div></section>';
       return true;
     }
 
@@ -298,12 +326,71 @@ export const projectPickerWidgetHtml = String.raw`
     }
 
     function markSelected(id) {
+      selectedProjectId = id;
       app.querySelectorAll("[data-id]").forEach(function (button) {
         const selected = button.getAttribute("data-id") === id;
         button.setAttribute("aria-pressed", selected ? "true" : "false");
         const action = button.querySelector(".action");
         if (action) action.textContent = selected ? "Selected" : "Use project";
       });
+    }
+
+    function rpcRequest(method, params) {
+      return new Promise(function (resolve, reject) {
+        const id = "codexflow-ui-" + Date.now() + "-" + (++rpcCounter);
+        const timeout = window.setTimeout(function () {
+          window.removeEventListener("message", onMessage);
+          reject(new Error("The host did not acknowledge model context."));
+        }, 3500);
+        function onMessage(event) {
+          if (event.source !== window.parent) return;
+          const message = event.data;
+          if (!message || message.jsonrpc !== "2.0" || message.id !== id) return;
+          window.clearTimeout(timeout);
+          window.removeEventListener("message", onMessage);
+          if (message.error) reject(new Error(message.error.message || "The host rejected model context."));
+          else resolve(message.result);
+        }
+        window.addEventListener("message", onMessage);
+        window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, "*");
+      });
+    }
+
+    async function publishRouteContext(routeId, workspaceId, name, root) {
+      const context = {
+        route_id: routeId,
+        workspace_id: workspaceId,
+        project_name: name,
+        root: root,
+        instruction: "Pass this exact route_id on every CodexFlow project-scoped tool call. Do not fall back to the broker default project."
+      };
+      try {
+        if (window.openai && typeof window.openai.setWidgetState === "function") {
+          window.openai.setWidgetState({
+            modelContent: { codexflow_project_route: context },
+            privateContent: {
+              routeId: routeId,
+              selectedProjectId: workspaceId,
+              selectedProjectName: name,
+              selectedProjectRoot: root
+            },
+            imageIds: []
+          });
+        }
+      } catch {
+        // The standard model-context bridge below remains the source of truth.
+      }
+      try {
+        await rpcRequest("ui/update-model-context", {
+          content: [{
+            type: "text",
+            text: "CodexFlow project selected by the user. route_id=" + routeId + "; workspace_id=" + workspaceId + "; project=" + name + "; root=" + root + ". Pass this exact route_id on every later CodexFlow project-scoped tool call and never substitute the broker default project."
+          }]
+        });
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     async function selectProject(button) {
@@ -314,14 +401,20 @@ export const projectPickerWidgetHtml = String.raw`
       setStatus("Binding this chat to " + name + "…", "");
       try {
         if (window.openai && typeof window.openai.callTool === "function") {
-          const result = await window.openai.callTool("select_project", { project_id: id });
+          if (!activeRouteId) throw new Error("This picker is missing its private route. Ask CodexFlow to show a fresh project picker.");
+          const result = await window.openai.callTool("select_project", { route_id: activeRouteId, project_id: id });
           const selected = extract(result);
           if (selected && selected.selected === false) throw new Error("The project could not be selected.");
-          if (window.openai.setWidgetState) window.openai.setWidgetState({ selectedProjectId: id, selectedProjectName: name });
-          markSelected(id);
+          const routeId = String(selected.route_id || activeRouteId);
+          const workspaceId = String(selected.workspace_id || selected.project_id || id);
+          const root = String(selected.root || button.querySelector(".project-path")?.textContent?.split(" · ")[0] || "");
+          activeRouteId = routeId;
+          selectedProjectName = String(selected.name || name);
+          markSelected(workspaceId);
+          await publishRouteContext(routeId, workspaceId, selectedProjectName, root);
           setStatus(name + " is selected. Continue in chat with the task.", "good");
         } else if (window.openai && typeof window.openai.sendFollowUpMessage === "function") {
-          await window.openai.sendFollowUpMessage({ prompt: "Select the CodexFlow project named " + name + " with project_id " + id + ", then continue my coding task there.", scrollToBottom: true });
+          await window.openai.sendFollowUpMessage({ prompt: "Select the CodexFlow project named " + name + " with project_id " + id + " and route_id " + activeRouteId + ". Preserve that route_id on every later CodexFlow project tool call, then wait for my task.", scrollToBottom: true });
           setStatus("Selection sent to the conversation.", "good");
         } else {
           throw new Error("Reply in chat with the project name: " + name);

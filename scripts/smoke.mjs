@@ -225,8 +225,13 @@ for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inven
   if (!toolNames.includes(expected)) throw new Error(`missing tool: ${expected}`);
 }
 const toolCardUri = 'ui://widget/codexflow-tool-card-v12.html';
-const projectPickerUri = 'ui://widget/codexflow-project-picker-v2.html';
+const projectPickerUri = 'ui://widget/codexflow-project-picker-v3.html';
 const toolsByName = new Map(tools.tools.map((tool) => [tool.name, tool]));
+for (const routeAwareTool of ['list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'read', 'tree', 'bash']) {
+  if (!toolsByName.get(routeAwareTool)?.inputSchema?.properties?.route_id) {
+    throw new Error(`${routeAwareTool} did not advertise private route_id input`);
+  }
+}
 function hasWidgetMeta(name, uri = toolCardUri) {
   const meta = toolsByName.get(name)?._meta ?? {};
   return meta.ui?.resourceUri === uri && meta['openai/outputTemplate'] === uri;
@@ -262,15 +267,19 @@ for (const visualTool of toolNames) {
 }
 const projectList = await client.request('tools/call', { name: 'list_projects', arguments: { refresh: true } });
 assertToolOutputSchema(toolsByName.get('list_projects'), projectList);
+const pickerRouteId = projectList.structuredContent.route_id;
+if (!/^route_[a-f0-9]{32}$/.test(pickerRouteId) || projectList._meta?.['openai/widgetSessionId'] !== pickerRouteId) {
+  throw new Error(`project picker did not create a stable private route: ${JSON.stringify(projectList)}`);
+}
 const secondProjectReal = await fs.realpath(secondProject);
 const secondChoice = projectList.structuredContent.projects.find((project) => project.root === secondProjectReal);
 if (!secondChoice) throw new Error(`project picker did not discover second project: ${JSON.stringify(projectList.structuredContent)}`);
-const selectedProject = await client.request('tools/call', { name: 'select_project', arguments: { project_id: secondChoice.project_id, include_tree: false } });
+const selectedProject = await client.request('tools/call', { name: 'select_project', arguments: { route_id: pickerRouteId, project_id: secondChoice.project_id, include_tree: false } });
 assertToolOutputSchema(toolsByName.get('select_project'), selectedProject);
-if (selectedProject.structuredContent.root !== secondProjectReal || !selectedProject.structuredContent.skills) {
+if (selectedProject.structuredContent.route_id !== pickerRouteId || selectedProject._meta?.['openai/widgetSessionId'] !== pickerRouteId || selectedProject.structuredContent.root !== secondProjectReal || !selectedProject.structuredContent.skills) {
   throw new Error(`project selection did not advertise routed capabilities: ${JSON.stringify(selectedProject.structuredContent)}`);
 }
-const routedRead = await client.request('tools/call', { name: 'read', arguments: { path: 'project-only.txt' } });
+const routedRead = await client.request('tools/call', { name: 'read', arguments: { route_id: pickerRouteId, path: 'project-only.txt' } });
 if (!routedRead.structuredContent.text?.includes('routed-to-second-project')) {
   throw new Error(`workspace-less read was not routed to the selected project: ${JSON.stringify(routedRead.structuredContent)}`);
 }
@@ -330,6 +339,9 @@ if (!toolCard) throw new Error(`missing tool-card resource: ${toolCardUri}`);
 if (toolCard.mimeType !== 'text/html;profile=mcp-app') throw new Error(`unexpected tool-card mime type: ${toolCard.mimeType}`);
 const projectPicker = resources.resources.find((resource) => resource.uri === projectPickerUri);
 if (!projectPicker || projectPicker.mimeType !== 'text/html;profile=mcp-app') throw new Error(`missing project-picker resource: ${projectPickerUri}`);
+const legacyProjectPickerUri = 'ui://widget/codexflow-project-picker-v2.html';
+const legacyProjectPicker = resources.resources.find((resource) => resource.uri === legacyProjectPickerUri);
+if (!legacyProjectPicker || legacyProjectPicker.mimeType !== 'text/html;profile=mcp-app') throw new Error(`missing legacy project-picker resource: ${legacyProjectPickerUri}`);
 const legacyToolCardUri = 'ui://widget/codexflow-tool-card-v8.html';
 const legacyToolCard = resources.resources.find((resource) => resource.uri === legacyToolCardUri);
 if (!legacyToolCard) throw new Error(`missing legacy tool-card resource: ${legacyToolCardUri}`);
@@ -347,8 +359,12 @@ if (widgetMeta.ui?.domain !== 'https://widgets.codexflow.test' || widgetMeta['op
 }
 const pickerWidget = await client.request('resources/read', { uri: projectPickerUri });
 const pickerText = pickerWidget.contents?.[0]?.text ?? '';
-if (!pickerText.includes('Choose this chat’s project') || !pickerText.includes('callTool("select_project"') || !pickerText.includes('reply in chat with an exact project name') || !pickerText.includes('openai:set_globals') || !pickerText.includes('MAX_HYDRATION_ATTEMPTS') || pickerText.includes('ui/notifications/tool-result')) {
+if (!pickerText.includes('Choose this chat’s project') || !pickerText.includes('callTool("select_project"') || !pickerText.includes('route_id') || !pickerText.includes('ui/update-model-context') || !pickerText.includes('setWidgetState') || !pickerText.includes('reply in chat with an exact project name') || !pickerText.includes('openai:set_globals') || !pickerText.includes('MAX_HYDRATION_ATTEMPTS') || pickerText.includes('ui/notifications/tool-result')) {
   throw new Error('project-picker resource did not include the resilient Apps bridge and chat fallback');
+}
+const legacyPickerWidget = await client.request('resources/read', { uri: legacyProjectPickerUri });
+if (legacyPickerWidget.contents?.[0]?.uri !== legacyProjectPickerUri || legacyPickerWidget.contents?.[0]?.text !== pickerText) {
+  throw new Error('legacy project-picker URI did not serve the current route-safe picker');
 }
 const legacyWidget = await client.request('resources/read', { uri: legacyToolCardUri });
 if (legacyWidget.contents?.[0]?.uri !== legacyToolCardUri) {

@@ -315,7 +315,7 @@ The same hostname and CodexFlow token are reused for that workspace.
 
 ## What if I want to work in two repos at once?
 
-Run one CodexFlow process. Open two ChatGPT conversations and choose a different project in each picker. Both chats share the same broker and tunnel while keeping independent project bindings.
+Run one CodexFlow process. Open two ChatGPT conversations and choose a different project in each picker. Both chats share the same broker and tunnel while keeping independent private route IDs. Those route-to-project bindings are stored locally with owner-only permissions so a resumed chat stays on its project after a broker restart.
 
 ## Where are the current docs?
 

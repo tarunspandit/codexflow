@@ -273,7 +273,7 @@ codexflow --tool-mode full \
   --root /path/to/default-repo --allow-root /path/to/projects
 ```
 
-When CodexFlow is activated in a new ChatGPT conversation, `list_projects` opens a picker. It combines the default project, projects found below configured allowed roots, and recent project folders recorded in local Codex metadata. Choosing one calls `select_project` and binds that MCP conversation to the folder. Later file, search, edit, git, and bash calls can omit `workspace_id`; they route to the selected project. Other ChatGPT conversations keep independent selections through the same tunnel.
+When CodexFlow is activated in a new ChatGPT conversation, `list_projects` opens a picker. It combines the default project, projects found below configured allowed roots, and recent project folders recorded in local Codex metadata. Choosing one creates an opaque private `route_id`, binds that route to the folder, and publishes the exact route into the chat's model context. Every later file, search, edit, git, and bash call carries the route, even when ChatGPT opens a new MCP transport for the call. Other conversations receive different route IDs through the same tunnel, and owner-only local route state restores those bindings after broker restarts.
 
 Project selection also advertises repository instructions, workspace/user/plugin skills, and configured MCP server names. The model can load applicable skills with `load_skill`. CodexFlow does not execute the Codex CLI or claim that these ChatGPT conversations are native Codex sessions.
 

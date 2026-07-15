@@ -82,7 +82,7 @@
             </div>
           </div>
         </div>
-        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.30.2</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
+        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.30.3</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
       </section>
 
       <section class="system section-pad" id="system" aria-labelledby="system-title">
@@ -205,7 +205,7 @@
           <div class="faq-list reveal">
             <details open><summary>CodexFlow 会运行 Codex CLI 吗？<span aria-hidden="true">+</span></summary><p>不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。</p></details>
             <details><summary>需要手动注册每个项目吗？<span aria-hidden="true">+</span></summary><p>不需要。运行 <code>codexflow</code> 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。</p></details>
-            <details><summary>多个聊天可以同时工作吗？<span aria-hidden="true">+</span></summary><p>可以。一个 broker 和 tunnel 能服务多个对话，每个 MCP session 都保留自己的项目绑定。</p></details>
+            <details><summary>多个聊天可以同时工作吗？<span aria-hidden="true">+</span></summary><p>可以。一个 broker 和 tunnel 能服务多个对话。每个聊天都有独立私有路由，跨工具连接和 broker 重启后仍保持项目绑定。</p></details>
             <details><summary>为什么使用 Pro 时看不到 CodexFlow？<span aria-hidden="true">+</span></summary><p>ChatGPT 的 Pro 模型变体不会开放 Apps。请使用 Extra High 或其他非 Pro 模型；Pro 订阅本身仍然支持。</p></details>
             <details><summary>这是额度或模型代理吗？<span aria-hidden="true">+</span></summary><p>不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。</p></details>
             <details><summary>安装需要什么？<span aria-hidden="true">+</span></summary><p>Node.js 20 或更高版本，以及 ChatGPT Apps / Developer Mode 访问。普通启动流程包含 Cloudflare quick tunnel，也支持固定 tunnel 模式。</p></details>

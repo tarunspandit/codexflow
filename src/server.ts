@@ -1,6 +1,7 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { spawnSync } from "node:child_process";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -16,10 +17,16 @@ import { codexflowInventory, loadSkill } from "./capabilitiesOps.js";
 import { listCodexSessions, readCodexSession } from "./codexSessions.js";
 import { discoverProjects } from "./projectCatalog.js";
 import { TOOL_CARD_LEGACY_URIS, TOOL_CARD_MIME_TYPE, TOOL_CARD_URI, toolCardWidgetHtml } from "./toolCardWidget.js";
-import { PROJECT_PICKER_URI, projectPickerWidgetHtml } from "./projectPickerWidget.js";
+import {
+  PROJECT_PICKER_LEGACY_URIS,
+  PROJECT_PICKER_URI,
+  projectPickerWidgetHtml
+} from "./projectPickerWidget.js";
 import { hasSecretValue, redactSensitiveText, redactStructured } from "./redact.js";
 import { inspectWorkspace, invalidateWorkspaceAnalysis, reviewWorkspaceChanges } from "./analysis/index.js";
 import { CODEXFLOW_VERSION } from "./version.js";
+import { ChatRouteStore, isChatRouteId } from "./chatRoutes.js";
+import { codexFlowHome } from "./profileStore.js";
 
 const STRUCTURED_STRING_MAX_CHARS = 30_000;
 
@@ -149,6 +156,7 @@ function projectPickerMeta(): Record<string, unknown> {
 const LIST_PROJECTS_OUTPUT_SCHEMA = {
   codexflow_tool: z.literal("list_projects"),
   codexflow_title: z.string(),
+  route_id: z.string(),
   projects: z.array(z.object({
     project_id: z.string(),
     name: z.string(),
@@ -188,6 +196,7 @@ const MCP_SERVER_INVENTORY_OUTPUT_SCHEMA = z.object({
 const SELECT_PROJECT_OUTPUT_SCHEMA = {
   codexflow_tool: z.literal("select_project"),
   codexflow_title: z.string(),
+  route_id: z.string(),
   selected: z.literal(true),
   project_id: z.string(),
   workspace_id: z.string(),
@@ -299,6 +308,16 @@ function registerToolCardResource(server: McpServer, config: CodexFlowConfig): v
     "Choose the local project this conversation should use. You can also reply in chat with an exact project name.",
     projectPickerWidgetHtml
   );
+  for (const legacyUri of PROJECT_PICKER_LEGACY_URIS) {
+    registerUri(
+      legacyUri,
+      `codexflow-project-picker-${legacyUri.match(/v\d+/)?.[0] ?? "legacy"}`,
+      "Choose a CodexFlow project",
+      "Compatibility resource for prior CodexFlow project pickers.",
+      "Choose the local project this conversation should use. You can also reply in chat with an exact project name.",
+      projectPickerWidgetHtml
+    );
+  }
   registerUri(
     TOOL_CARD_URI,
     "codexflow-tool-card",
@@ -319,7 +338,53 @@ function registerToolCardResource(server: McpServer, config: CodexFlowConfig): v
   }
 }
 
-type CodexToolHandler = (args: any) => Promise<any> | any;
+interface CodexToolExtra {
+  sessionId?: string;
+  _meta?: Record<string, unknown>;
+}
+
+interface RouteInvocationContext {
+  routeId?: string;
+}
+
+type CodexToolHandler = (args: any, extra?: CodexToolExtra) => Promise<any> | any;
+
+const routeInvocationStorage = new AsyncLocalStorage<RouteInvocationContext>();
+
+function invocationRouteId(): string | undefined {
+  return routeInvocationStorage.getStore()?.routeId;
+}
+
+function requestRouteId(args: any, extra?: CodexToolExtra): string | undefined {
+  const meta = extra?._meta ?? {};
+  const candidates = [
+    args?.route_id,
+    meta["codexflow/routeId"],
+    meta["openai/widgetSessionId"],
+    meta.widgetSessionId
+  ];
+  return candidates.find(isChatRouteId);
+}
+
+const ROUTE_ID_INPUT = z.string()
+  .regex(/^route_[a-f0-9]{32}$/)
+  .optional()
+  .describe("Private chat route from list_projects, select_project, or picker context. In ChatGPT, pass it on every project-scoped call so separate MCP transports stay on the selected project.");
+
+function withRouteInput(name: string, options: Record<string, unknown>): Record<string, unknown> {
+  const inputSchema = options.inputSchema;
+  if (!inputSchema || typeof inputSchema !== "object" || Array.isArray(inputSchema)) return options;
+  const shape = inputSchema as Record<string, unknown>;
+  const routeAware = Object.hasOwn(shape, "workspace_id") || [
+    SUPERTOOL_NAME,
+    "list_projects",
+    "select_project",
+    "open_current_workspace",
+    "open_workspace"
+  ].includes(name);
+  if (!routeAware || Object.hasOwn(shape, "route_id")) return options;
+  return { ...options, inputSchema: { route_id: ROUTE_ID_INPUT, ...shape } };
+}
 
 interface ServerRuntimeContext {
   observer: CodexFlowRuntimeObserver;
@@ -402,12 +467,12 @@ function registerToolCompat(
   server: McpServer,
   name: string,
   options: Record<string, unknown>,
-  handler: (args: any) => Promise<any> | any
+  handler: CodexToolHandler
 ): void {
-  const wrapped = async (args: any) => {
+  const wrapped = async (args: any, extra?: CodexToolExtra) => {
     const started = Date.now();
     try {
-      const result = tagToolResult(await handler(args ?? {}), name, options);
+      const result = tagToolResult(await handler(args ?? {}, extra), name, options);
       const status = result?.isError ? "error" : "ok";
       logToolCall(name, status, started);
       notifyRuntimeToolCall(server, name, status, started);
@@ -592,8 +657,13 @@ function registerCodexTool(
   handler: CodexToolHandler
 ): void {
   if (!shouldRegisterTool(config, name)) return;
-  const validatedHandler: CodexToolHandler = (args) => handler(validateToolArgs(name, options, args));
-  registerToolCompat(server, name, descriptorOptionsForConfig(config, options), validatedHandler);
+  const routedOptions = withRouteInput(name, options);
+  const validatedHandler: CodexToolHandler = (args, extra) => {
+    const validated = validateToolArgs(name, routedOptions, args);
+    const routeId = requestRouteId(validated, extra);
+    return routeInvocationStorage.run({ routeId }, () => handler(validated, extra));
+  };
+  registerToolCompat(server, name, descriptorOptionsForConfig(config, routedOptions), validatedHandler);
   rememberRegisteredTool(server, name);
   rememberRegisteredToolHandler(server, name, validatedHandler);
 }
@@ -613,12 +683,13 @@ function serverInstructions(config: CodexFlowConfig): string {
       : "6. Use bash only for meaningful verification commands such as npm test, npm run build, lint, typecheck, or an existing project script.";
 
   return [
-    "CodexFlow gives this ChatGPT conversation Codex-style access to one selected local project while sharing a single local broker with other conversations.",
+    "CodexFlow gives this ChatGPT conversation Codex-style access to one selected local project while sharing a single local broker with other conversations. It never invokes the Codex CLI.",
     "",
     "Preferred workflow:",
-    "1. At the start of a new coding conversation, call list_projects so the user can choose a project. If the user already named an exact project, call select_project directly with that name or its returned project_id.",
+    "1. At the start of a new coding conversation, call list_projects so the user can choose a project. It returns a private route_id. If the user already named an exact project, call select_project directly with that name; preserve the returned route_id.",
     "1a. The visual project picker is optional enhancement, never a prerequisite. After list_projects, tell the user they may pick in the card or reply with an exact project name. If the card is missing or reports an error, show a short set of project names from the tool result and ask for the name. Never strand the conversation by referring only to a picker that did not render.",
-    "2. The selected project is bound to this MCP conversation. Omit workspace_id on later calls; CodexFlow routes them to the bound project. Use select_project again only when the user explicitly switches projects.",
+    "2. The selected project is bound to route_id, not to one MCP transport. ChatGPT can open a new transport for every tool call, so pass route_id on every later project-scoped call. Also reuse workspace_id when convenient. Never fall back to the configured default after the picker supplied route context.",
+    "2a. The picker updates model-visible context with route_id, workspace_id, project name, and root. Treat those exact values as authoritative. Use select_project again only when the user explicitly switches projects.",
     "3. Follow AGENTS.md and load relevant advertised skills returned by select_project before editing files.",
     "4. Inspect with tree, search, and read. Do not use bash for git status, git diff, cat, sed, grep, rg, find, ls, or file reading.",
     editInstruction,
@@ -1051,6 +1122,7 @@ const BASH_ANNOTATIONS = { readOnlyHint: false, openWorldHint: true, destructive
 const HANDOFF_WRITE_ANNOTATIONS = { readOnlyHint: false, openWorldHint: false, destructiveHint: false, idempotentHint: false };
 
 const workspaceManagers = new Map<string, WorkspaceManager>();
+const chatRouteStores = new Map<string, ChatRouteStore>();
 
 function workspaceManagerKey(config: CodexFlowConfig): string {
   return JSON.stringify({
@@ -1069,11 +1141,20 @@ function getSharedWorkspaceManager(config: CodexFlowConfig): WorkspaceManager {
   return manager;
 }
 
+function getSharedChatRouteStore(config: CodexFlowConfig): ChatRouteStore {
+  const key = `${workspaceManagerKey(config)}\n${codexFlowHome()}`;
+  const existing = chatRouteStores.get(key);
+  if (existing) return existing;
+  const store = new ChatRouteStore(config.defaultRoot);
+  chatRouteStores.set(key, store);
+  return store;
+}
+
 export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFlowRuntimeObserver = {}): McpServer {
   const workspaceManager = getSharedWorkspaceManager(config);
-  const chatSessionId = `codexflow-chat-${randomUUID()}`;
+  const routeStore = getSharedChatRouteStore(config);
   let activeWorkspaceId: string | undefined;
-  const bindWorkspace = (workspace: Workspace): Workspace => {
+  const markWorkspaceActive = (workspace: Workspace): Workspace => {
     const changed = activeWorkspaceId !== workspace.id;
     activeWorkspaceId = workspace.id;
     if (changed) {
@@ -1085,14 +1166,47 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     }
     return workspace;
   };
+  const bindWorkspace = (workspace: Workspace, routeId = invocationRouteId()): Workspace => {
+    if (routeId) routeStore.bind(routeId, workspace);
+    return markWorkspaceActive(workspace);
+  };
+  const workspaceForRoute = (routeId: string): Workspace => {
+    const route = routeStore.get(routeId);
+    if (!route) {
+      throw new CodexFlowError("This private chat route is not bound to a project. Call select_project with this route_id before using project tools.");
+    }
+    let workspace: Workspace;
+    try {
+      workspace = workspaceManager.openWorkspace(route.root);
+    } catch {
+      throw new CodexFlowError("The project bound to this private chat route is no longer available or allowed. Call list_projects and select_project again.");
+    }
+    if (workspace.id !== route.workspaceId) {
+      throw new CodexFlowError("The project identity for this private chat route changed. Call list_projects and select_project again.");
+    }
+    return markWorkspaceActive(workspace);
+  };
   const workspaces = {
     defaultWorkspace(): Workspace {
+      const routeId = invocationRouteId();
+      if (routeId) return workspaceForRoute(routeId);
       return bindWorkspace(workspaceManager.defaultWorkspace());
     },
     openWorkspace(root?: string): Workspace {
       return bindWorkspace(workspaceManager.openWorkspace(root));
     },
     getWorkspace(id?: string): Workspace {
+      const routeId = invocationRouteId();
+      if (routeId) {
+        const route = routeStore.get(routeId);
+        if (!route) {
+          throw new CodexFlowError("This private chat route is not bound to a project. Call select_project with this route_id before using project tools.");
+        }
+        if (id && id !== route.workspaceId) {
+          throw new CodexFlowError("workspace_id does not belong to this private chat route. Use the workspace_id from the picker context or call select_project to switch this route.");
+        }
+        return workspaceForRoute(routeId);
+      }
       if (id && activeWorkspaceId && id !== activeWorkspaceId) {
         throw new CodexFlowError("This ChatGPT conversation is bound to a different project. Call select_project or open_workspace explicitly to switch it first.");
       }
@@ -1103,6 +1217,8 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       return workspaceManager.listWorkspaces();
     },
     activeWorkspace(): Workspace | undefined {
+      const routeId = invocationRouteId();
+      if (routeId) return routeStore.get(routeId) ? workspaceForRoute(routeId) : undefined;
       return activeWorkspaceId ? workspaceManager.getWorkspace(activeWorkspaceId) : undefined;
     }
   };
@@ -1579,7 +1695,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     {
       title: "Choose a project",
       description:
-        "Call this first in a new CodexFlow coding chat. It synchronizes configured folders with recent local Codex project folders and returns a text list plus an optional project picker. The text list remains the fallback when a client cannot render components. It does not run the Codex CLI.",
+        "Call this first in a new CodexFlow coding chat. It creates a private route_id, synchronizes configured folders with recent local Codex project folders, and returns a text list plus an optional project picker. Preserve route_id on selection and later project calls. The text list remains the fallback when a client cannot render components. It does not run the Codex CLI.",
       inputSchema: {
         refresh: z.boolean().optional().describe("Rescan configured roots and local Codex project metadata. Default: false."),
         query: z.string().optional().describe("Optional case-insensitive filter over project name and path."),
@@ -1596,6 +1712,8 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
+      const routeId = invocationRouteId() ?? routeStore.createRouteId();
+      const boundRoute = routeStore.get(routeId);
       const candidates = await discoverProjects(config, {
         refresh: parseBool(args.refresh, false),
         maxProjects: limitInt(args.max_projects, 100, 1, 250)
@@ -1610,18 +1728,19 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
           root: candidate.root,
           sources: candidate.sources,
           last_active_at: candidate.lastActiveAt ? new Date(candidate.lastActiveAt).toISOString() : null,
-          selected: workspace.id === activeWorkspaceId
+          selected: workspace.id === (boundRoute?.workspaceId ?? activeWorkspaceId)
         }];
       });
       const rows = projects.length
         ? projects.map((project) => `- ${project.project_id} — ${project.name} — ${project.root}${project.selected ? " (selected)" : ""}`).join("\n")
         : "No projects found inside the configured allowed roots.";
-      return textResult(`# Choose a project\n\nUse the optional picker if it is visible, or reply with an exact project name. The conversation remains fully usable when the picker cannot render.\n\n${rows}`, {
+      return textResult(`# Choose a project\n\nPrivate route ID: ${routeId}\n\nUse the optional picker if it is visible, or reply with an exact project name. Preserve route_id on select_project and every later project tool call. The conversation remains fully usable when the picker cannot render.\n\n${rows}`, {
+        route_id: routeId,
         projects,
         count: projects.length,
-        selected_project_id: activeWorkspaceId ?? null,
+        selected_project_id: boundRoute?.workspaceId ?? activeWorkspaceId ?? null,
         picker_optional: true
-      }, { "openai/widgetSessionId": chatSessionId });
+      }, { "openai/widgetSessionId": routeId });
     }
   );
 
@@ -1632,7 +1751,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     {
       title: "Select Project",
       description:
-        "Bind this ChatGPT conversation to one synchronized local project. All later CodexFlow file, git, search, edit, and terminal tools route there when workspace_id is omitted.",
+        "Bind one private route_id to a synchronized local project. Return and preserve route_id plus workspace_id. ChatGPT may create a separate MCP transport for every call, so pass route_id on every later CodexFlow file, git, search, edit, and terminal call.",
       inputSchema: {
         project_id: z.string().optional().describe("Project id returned by list_projects."),
         name: z.string().optional().describe("Exact project name from list_projects when project_id is unavailable."),
@@ -1650,6 +1769,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     },
     async (args) => {
       if (!args.project_id && !args.name) throw new CodexFlowError("project_id or name is required. Call list_projects first.");
+      const routeId = invocationRouteId() ?? routeStore.createRouteId();
       const candidates = await discoverProjects(config, { maxProjects: 250 });
       const choices = candidates.map((candidate) => ({ candidate, workspace: workspaceManager.openWorkspace(candidate.root) }));
       let matches = args.project_id
@@ -1658,7 +1778,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       if (matches.length > 1) throw new CodexFlowError(`Multiple projects are named ${args.name}. Select one by project_id.`);
       const selected = matches[0];
       if (!selected) throw new CodexFlowError("Project not found in the synchronized catalog. Call list_projects with refresh=true.");
-      bindWorkspace(selected.workspace);
+      bindWorkspace(selected.workspace, routeId);
       const [summary, inventory] = await Promise.all([
         workspaceSummary(config, guard, selected.workspace, {
           includeTree: parseBool(args.include_tree, true),
@@ -1673,8 +1793,9 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         `# Project selected: ${selected.candidate.name}`,
         "",
         `Project ID: ${selected.workspace.id}`,
+        `Private route ID: ${routeId}`,
         `Root: ${selected.workspace.root}`,
-        "This ChatGPT conversation is now routed to this project. Omit workspace_id on subsequent calls.",
+        "This ChatGPT conversation is now routed to this project. Pass route_id on every subsequent project-scoped call because ChatGPT may use a new MCP transport each time.",
         "",
         summary.agentsLoaded ? `Repository instructions: ${summary.agentsPath}` : "Repository instructions: none found",
         `Skills advertised: ${inventory.skills.length}`,
@@ -1683,6 +1804,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         `Configured MCP servers advertised: ${inventory.mcpServers.length}`
       ].join("\n");
       return textResult(text, {
+        route_id: routeId,
         selected: true,
         project_id: selected.workspace.id,
         workspace_id: selected.workspace.id,
@@ -1703,7 +1825,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         bash_mode: config.bashMode,
         write_mode: config.writeMode,
         tool_mode: config.toolMode
-      }, { "openai/widgetSessionId": chatSessionId });
+      }, { "openai/widgetSessionId": routeId });
     }
   );
 
@@ -1738,7 +1860,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     {
       title: "Open Current Workspace",
       description:
-        "Open the project already selected for this ChatGPT conversation, or the configured default when no project has been selected yet.",
+        "Open the project bound to route_id. Only use the configured default when no picker or route context exists; after a picker selection, always pass its exact route_id.",
       inputSchema: {
         include_tree: z.boolean().optional().describe("Include a compact file tree. Default: false for speed."),
         max_depth: z.number().int().min(1).max(8).optional().describe("Tree depth when include_tree=true. Default: 2."),
@@ -1785,7 +1907,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     {
       title: "Open Workspace",
       description:
-        "Open a local project directory as a CodexFlow workspace. Returns a workspace_id plus git status, AGENTS.md, and a compact file tree.",
+        "Open a local project directory as a CodexFlow workspace. When route_id is supplied, this explicitly binds or switches that private chat route. Returns a workspace_id plus git status, AGENTS.md, and a compact file tree.",
       inputSchema: {
         root: z.string().optional().describe("Project directory to open. Omit to use CODEXFLOW_ROOT/current working directory. Supports ~/ paths."),
         path: z.string().optional().describe("Alias for root. Useful for clients that naturally send path instead of root."),
