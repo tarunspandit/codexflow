@@ -6,6 +6,20 @@ import os from 'node:os';
 import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import Ajv from 'ajv';
+
+const outputSchemaValidator = new Ajv({ allErrors: true, strict: false });
+
+function assertToolOutputSchema(tool, result) {
+  if (!tool?.outputSchema) throw new Error(`${tool?.name ?? 'tool'} did not advertise an output schema`);
+  if (result?.isError) {
+    throw new Error(`${tool.name} returned an error instead of schema-valid output: ${JSON.stringify(result.content)}`);
+  }
+  const validate = outputSchemaValidator.compile(tool.outputSchema);
+  if (!validate(result?.structuredContent)) {
+    throw new Error(`${tool.name} returned structured content that does not match its advertised output schema: ${JSON.stringify(validate.errors)}`);
+  }
+}
 
 async function getFreePort() {
   return new Promise((resolve, reject) => {
@@ -516,7 +530,7 @@ try {
     }
   }
   const toolCardUri = 'ui://widget/codexflow-tool-card-v12.html';
-  const projectPickerUri = 'ui://widget/codexflow-project-picker-v1.html';
+  const projectPickerUri = 'ui://widget/codexflow-project-picker-v2.html';
   for (const visualTool of queryToolNames) {
     if (visualTool === 'list_projects') {
       if (!hasWidgetMeta(queryTools, visualTool, projectPickerUri)) throw new Error('list_projects did not expose the dedicated project picker widget');
@@ -587,7 +601,7 @@ try {
     }
     const pickerWidget = await client.readResource({ uri: projectPickerUri });
     const pickerText = pickerWidget.contents?.[0]?.text ?? '';
-    if (!pickerText.includes('Choose this chat’s project') || !pickerText.includes('callTool("select_project"') || !pickerText.includes('reply in chat with an exact project name') || !pickerText.includes('ui/notifications/tool-result')) {
+    if (!pickerText.includes('Choose this chat’s project') || !pickerText.includes('callTool("select_project"') || !pickerText.includes('reply in chat with an exact project name') || !pickerText.includes('openai:set_globals') || !pickerText.includes('MAX_HYDRATION_ATTEMPTS') || pickerText.includes('ui/notifications/tool-result')) {
       throw new Error('HTTP project-picker resource did not include the resilient Apps bridge and chat fallback');
     }
     const legacyWidget = await client.readResource({ uri: legacyToolCardUri });
@@ -630,13 +644,17 @@ try {
       callTool(bindingClientA, 'list_projects', { refresh: true }),
       callTool(bindingClientB, 'list_projects')
     ]);
+    assertToolOutputSchema(queryTools.find((tool) => tool.name === 'list_projects'), catalogA);
+    assertToolOutputSchema(queryTools.find((tool) => tool.name === 'list_projects'), catalogB);
     const alternate = catalogA.structuredContent.projects.find((project) => project.name === 'alternate-project');
     const primary = catalogB.structuredContent.projects.find((project) => project.sources?.includes?.('default'));
     if (!alternate || !primary) throw new Error(`project catalogs did not contain both routing targets: ${JSON.stringify(catalogA.structuredContent)}`);
-    await Promise.all([
+    const [selectedA, selectedB] = await Promise.all([
       callTool(bindingClientA, 'select_project', { project_id: alternate.project_id, include_tree: false }),
       callTool(bindingClientB, 'select_project', { project_id: primary.project_id, include_tree: false })
     ]);
+    assertToolOutputSchema(queryTools.find((tool) => tool.name === 'select_project'), selectedA);
+    assertToolOutputSchema(queryTools.find((tool) => tool.name === 'select_project'), selectedB);
     const [readA, readB] = await Promise.all([
       callTool(bindingClientA, 'read', { path: 'routing.txt' }),
       callTool(bindingClientB, 'read', { path: 'routing.txt' })

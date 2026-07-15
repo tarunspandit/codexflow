@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.30.2 (2026-07-15)
+
+- Fixed `list_projects` output validation by serializing project activity timestamps as ISO strings and returning only fields declared by its strict output schema.
+- Completed the `select_project` output schema so project instructions, tree and git context, skill/plugin inventory, MCP servers, and operating modes validate in strict Apps SDK clients.
+- Rebuilt the project-picker bridge around `openai:set_globals` with bounded late-hydration polling and removed the rejected raw frame-message fallback.
+- Cache-busted the project picker to `ui://widget/codexflow-project-picker-v2.html` so ChatGPT cannot retain the broken v1 app shell.
+- Added AJV contract checks to both stdio and public HTTP smoke suites for the project-list and project-selection tool results.
+
 ## 0.30.1 (2026-07-15)
 
 - Replaced the oversized required result card with a dedicated, cache-busted project picker resource and made `select_project` independent of any result template.
