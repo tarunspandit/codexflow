@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-Release: implementation and full local verification complete; public deployment in progress.
+Complete: native application, broker integration, browser fallback, packaging, documentation, and public deployment are verified.
 
 ## Product truth
 
@@ -66,7 +66,7 @@ Release: implementation and full local verification complete; public deployment 
 | OPS-001 | The app is universal (`arm64` + `x86_64`), ad-hoc signed, self-contained, and package-shipped. | Required | Verified | Build pipeline, prebuilt app, npm files | `lipo`, `codesign`, plist/resources, exact installer, and 4.2 MB tarball checks passed. |
 | OPS-002 | The CLI writes enough non-secret launch metadata for the app to start the broker without manual configuration. | Required | Verified | Mode-0600 `desktop.json` writer | Temporary-home CLI/native lifecycle test passed without setup. |
 | OPS-003 | Maintainer/user docs describe the native architecture, lifecycle, fallback, privacy boundary, build, and release flow. | Required | Verified | English/Chinese docs, security, design, checklist, changelog | Documentation and Flow7 contract audit complete. |
-| OPS-004 | Public/static product surfaces describe the native app accurately and remain deployable. | Required | In progress | `docs/*`, `website/*` | Lint/build/render and English/Chinese desktop/mobile visual checks pass; publication pending. |
+| OPS-004 | Public/static product surfaces describe the native app accurately and remain deployable. | Required | Verified | `docs/*`, `website/*` | Lint/build/render and English/Chinese desktop/mobile checks pass; GitHub Pages and Sites production deployments verified. |
 | TEST-001 | Root build, smoke, stress, desktop build/smoke, package, audit, accessibility, and visual checks pass. | Required | Verified | Root/website/native test scripts | Full release matrix passed; both dependency trees report zero vulnerabilities. |
 
 ## Architecture decisions
@@ -92,6 +92,7 @@ Release: implementation and full local verification complete; public deployment 
 - npm dry-run packaging contains the complete signed app and required resources in a 4.2 MB tarball; root and website audits report zero vulnerabilities.
 - The production website passes lint, build, and English/Chinese render tests. Static and production-rendered editions were visually checked at 1440×900 and 390×844 without horizontal overflow.
 - The Flow7 adoption checklist and Full Product Completion Contract were re-read after implementation; every local gate passes.
+- The merged source is live at `https://tarunspandit.github.io/codexflow/`; the exact validated hosted build is also deployed at `https://codexflow.tarunspandit.chatgpt.site/`. Both returned the native-app release copy in production.
 
 ## External prerequisites
 
@@ -101,6 +102,6 @@ Release: implementation and full local verification complete; public deployment 
 
 - None.
 
-## Completion gate
+## Completion record
 
-Do not mark complete until every required ledger row is verified, the Flow7 adoption checklist and completion contract have been re-read, the full release matrix passes, and any changed public surface is deployed and checked.
+Every required ledger row is verified. The Flow7 adoption checklist and completion contract were re-read, the full release matrix passed, the signed app was installed into `~/Applications`, and both changed public surfaces were deployed and checked.
