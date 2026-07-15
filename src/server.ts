@@ -162,6 +162,29 @@ const LIST_PROJECTS_OUTPUT_SCHEMA = {
   picker_optional: z.boolean()
 };
 
+const SKILL_INVENTORY_OUTPUT_SCHEMA = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  source: z.enum(["workspace", "user", "plugin", "other"]),
+  path: z.string()
+});
+
+const PLUGIN_INVENTORY_OUTPUT_SCHEMA = z.object({
+  name: z.string(),
+  version: z.string().optional(),
+  description: z.string().optional(),
+  source: z.string(),
+  capabilities: z.array(z.string()),
+  hasSkills: z.boolean(),
+  hasApps: z.boolean(),
+  hasMcpServers: z.boolean()
+});
+
+const MCP_SERVER_INVENTORY_OUTPUT_SCHEMA = z.object({
+  name: z.string(),
+  source: z.string()
+});
+
 const SELECT_PROJECT_OUTPUT_SCHEMA = {
   codexflow_tool: z.literal("select_project"),
   codexflow_title: z.string(),
@@ -169,7 +192,22 @@ const SELECT_PROJECT_OUTPUT_SCHEMA = {
   project_id: z.string(),
   workspace_id: z.string(),
   name: z.string(),
-  root: z.string()
+  root: z.string(),
+  sources: z.array(z.string()),
+  agents_loaded: z.boolean(),
+  agents_path: z.string().optional(),
+  tree: z.string().optional(),
+  git_status: z.string(),
+  skills: z.array(SKILL_INVENTORY_OUTPUT_SCHEMA),
+  skill_count: z.number().int().nonnegative(),
+  plugins: z.array(PLUGIN_INVENTORY_OUTPUT_SCHEMA),
+  plugin_count: z.number().int().nonnegative(),
+  plugin_skills: z.array(SKILL_INVENTORY_OUTPUT_SCHEMA),
+  mcp_servers: z.array(MCP_SERVER_INVENTORY_OUTPUT_SCHEMA),
+  mcp_server_count: z.number().int().nonnegative(),
+  bash_mode: z.string(),
+  write_mode: z.string(),
+  tool_mode: z.string()
 };
 
 const OPTIONAL_TOOL_CARD_META = [
@@ -1571,7 +1609,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
           name: candidate.name,
           root: candidate.root,
           sources: candidate.sources,
-          last_active_at: candidate.lastActiveAt ?? null,
+          last_active_at: candidate.lastActiveAt ? new Date(candidate.lastActiveAt).toISOString() : null,
           selected: workspace.id === activeWorkspaceId
         }];
       });
@@ -1582,10 +1620,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         projects,
         count: projects.length,
         selected_project_id: activeWorkspaceId ?? null,
-        picker: true,
-        picker_optional: true,
-        sync_sources: ["configured roots", "recent Codex project metadata"],
-        allowed_roots: config.allowedRoots
+        picker_optional: true
       }, { "openai/widgetSessionId": chatSessionId });
     }
   );

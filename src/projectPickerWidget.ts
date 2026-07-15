@@ -1,4 +1,4 @@
-export const PROJECT_PICKER_URI = "ui://widget/codexflow-project-picker-v1.html";
+export const PROJECT_PICKER_URI = "ui://widget/codexflow-project-picker-v2.html";
 
 export const projectPickerWidgetHtml = String.raw`
 <!doctype html>
@@ -219,6 +219,10 @@ export const projectPickerWidgetHtml = String.raw`
   <script>
     const app = document.getElementById("app");
     let current = {};
+    let hydrated = false;
+    let hydrationAttempts = 0;
+    const MAX_HYDRATION_ATTEMPTS = 40;
+    const HYDRATION_INTERVAL_MS = 250;
 
     function esc(value) {
       return String(value == null ? "" : value)
@@ -247,7 +251,8 @@ export const projectPickerWidgetHtml = String.raw`
     }
 
     function render(data) {
-      if (!data || !Array.isArray(data.projects)) return;
+      if (!data || !Array.isArray(data.projects)) return false;
+      hydrated = true;
       current = data;
       const projects = data.projects;
       const rows = projects.map(function (project) {
@@ -261,6 +266,23 @@ export const projectPickerWidgetHtml = String.raw`
         '<section class="body"><label class="search"><span aria-hidden="true">⌕</span><input type="search" data-filter placeholder="Filter by name or folder" autocomplete="off" aria-label="Filter projects"></label>' +
         '<div class="projects" data-projects>' + (rows || '<div class="empty">No synchronized projects were found.</div>') + '</div>' +
         '<div class="foot" id="status" role="status"><span class="dot" aria-hidden="true"></span><span>Pick here, or reply in chat with an exact project name.</span></div></section>';
+      return true;
+    }
+
+    function readOpenAiGlobals() {
+      const bridge = window.openai || {};
+      return extract(bridge.toolOutput || bridge.toolResponseMetadata || {});
+    }
+
+    function hydrateFromOpenAiGlobals() {
+      return render(readOpenAiGlobals());
+    }
+
+    function waitForOpenAiGlobals() {
+      if (hydrated || hydrationAttempts >= MAX_HYDRATION_ATTEMPTS) return;
+      hydrationAttempts += 1;
+      if (hydrateFromOpenAiGlobals()) return;
+      window.setTimeout(waitForOpenAiGlobals, HYDRATION_INTERVAL_MS);
     }
 
     function setStatus(message, kind) {
@@ -330,18 +352,12 @@ export const projectPickerWidgetHtml = String.raw`
       setStatus(matches ? matches + " matching project" + (matches === 1 ? "" : "s") + "." : "No project matches that filter.", matches ? "" : "bad");
     });
 
-    render(extract((window.openai && (window.openai.toolOutput || window.openai.toolResponseMetadata)) || {}));
-
     window.addEventListener("openai:set_globals", function (event) {
-      render(extract((event.detail && event.detail.globals) || event.detail || {}));
+      const globals = (event.detail && event.detail.globals) || event.detail || {};
+      render(extract(globals.toolOutput || globals.toolResponseMetadata || globals));
     }, { passive: true });
 
-    window.addEventListener("message", function (event) {
-      if (event.source !== window.parent) return;
-      const message = event.data;
-      if (!message || message.jsonrpc !== "2.0") return;
-      if (message.method === "ui/notifications/tool-result") render(extract(message));
-    }, { passive: true });
+    waitForOpenAiGlobals();
   </script>
 </body>
 </html>

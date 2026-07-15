@@ -2,6 +2,20 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import Ajv from 'ajv';
+
+const outputSchemaValidator = new Ajv({ allErrors: true, strict: false });
+
+function assertToolOutputSchema(tool, result) {
+  if (!tool?.outputSchema) throw new Error(`${tool?.name ?? 'tool'} did not advertise an output schema`);
+  if (result?.isError) {
+    throw new Error(`${tool.name} returned an error instead of schema-valid output: ${JSON.stringify(result.content)}`);
+  }
+  const validate = outputSchemaValidator.compile(tool.outputSchema);
+  if (!validate(result?.structuredContent)) {
+    throw new Error(`${tool.name} returned structured content that does not match its advertised output schema: ${JSON.stringify(validate.errors)}`);
+  }
+}
 
 function encode(message) {
   return `${JSON.stringify(message)}\n`;
@@ -211,7 +225,7 @@ for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inven
   if (!toolNames.includes(expected)) throw new Error(`missing tool: ${expected}`);
 }
 const toolCardUri = 'ui://widget/codexflow-tool-card-v12.html';
-const projectPickerUri = 'ui://widget/codexflow-project-picker-v1.html';
+const projectPickerUri = 'ui://widget/codexflow-project-picker-v2.html';
 const toolsByName = new Map(tools.tools.map((tool) => [tool.name, tool]));
 function hasWidgetMeta(name, uri = toolCardUri) {
   const meta = toolsByName.get(name)?._meta ?? {};
@@ -247,10 +261,12 @@ for (const visualTool of toolNames) {
   if (hasWidgetMeta(visualTool) || hasToolCardStatusMeta(visualTool)) throw new Error(`${visualTool} exposed widget metadata while CODEXFLOW_TOOL_CARDS is off`);
 }
 const projectList = await client.request('tools/call', { name: 'list_projects', arguments: { refresh: true } });
+assertToolOutputSchema(toolsByName.get('list_projects'), projectList);
 const secondProjectReal = await fs.realpath(secondProject);
 const secondChoice = projectList.structuredContent.projects.find((project) => project.root === secondProjectReal);
 if (!secondChoice) throw new Error(`project picker did not discover second project: ${JSON.stringify(projectList.structuredContent)}`);
 const selectedProject = await client.request('tools/call', { name: 'select_project', arguments: { project_id: secondChoice.project_id, include_tree: false } });
+assertToolOutputSchema(toolsByName.get('select_project'), selectedProject);
 if (selectedProject.structuredContent.root !== secondProjectReal || !selectedProject.structuredContent.skills) {
   throw new Error(`project selection did not advertise routed capabilities: ${JSON.stringify(selectedProject.structuredContent)}`);
 }
@@ -331,7 +347,7 @@ if (widgetMeta.ui?.domain !== 'https://widgets.codexflow.test' || widgetMeta['op
 }
 const pickerWidget = await client.request('resources/read', { uri: projectPickerUri });
 const pickerText = pickerWidget.contents?.[0]?.text ?? '';
-if (!pickerText.includes('Choose this chat’s project') || !pickerText.includes('callTool("select_project"') || !pickerText.includes('reply in chat with an exact project name') || !pickerText.includes('ui/notifications/tool-result')) {
+if (!pickerText.includes('Choose this chat’s project') || !pickerText.includes('callTool("select_project"') || !pickerText.includes('reply in chat with an exact project name') || !pickerText.includes('openai:set_globals') || !pickerText.includes('MAX_HYDRATION_ATTEMPTS') || pickerText.includes('ui/notifications/tool-result')) {
   throw new Error('project-picker resource did not include the resilient Apps bridge and chat fallback');
 }
 const legacyWidget = await client.request('resources/read', { uri: legacyToolCardUri });
