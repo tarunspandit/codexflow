@@ -530,7 +530,7 @@ try {
     }
   }
   const toolCardUri = 'ui://widget/codexflow-tool-card-v12.html';
-  const projectPickerUri = 'ui://widget/codexflow-project-picker-v2.html';
+  const projectPickerUri = 'ui://widget/codexflow-project-picker-v3.html';
   for (const visualTool of queryToolNames) {
     if (visualTool === 'list_projects') {
       if (!hasWidgetMeta(queryTools, visualTool, projectPickerUri)) throw new Error('list_projects did not expose the dedicated project picker widget');
@@ -584,6 +584,11 @@ try {
     if (!projectPicker || projectPicker.mimeType !== 'text/html;profile=mcp-app') {
       throw new Error(`HTTP MCP resources/list missing ${projectPickerUri}`);
     }
+    const legacyProjectPickerUri = 'ui://widget/codexflow-project-picker-v2.html';
+    const legacyProjectPicker = resources.resources.find((resource) => resource.uri === legacyProjectPickerUri);
+    if (!legacyProjectPicker || legacyProjectPicker.mimeType !== 'text/html;profile=mcp-app') {
+      throw new Error(`HTTP MCP resources/list missing legacy ${legacyProjectPickerUri}`);
+    }
     const legacyToolCardUri = 'ui://widget/codexflow-tool-card-v8.html';
     const legacyToolCard = resources.resources.find((resource) => resource.uri === legacyToolCardUri);
     if (!legacyToolCard) throw new Error(`HTTP MCP resources/list missing legacy ${legacyToolCardUri}`);
@@ -601,8 +606,12 @@ try {
     }
     const pickerWidget = await client.readResource({ uri: projectPickerUri });
     const pickerText = pickerWidget.contents?.[0]?.text ?? '';
-    if (!pickerText.includes('Choose this chat’s project') || !pickerText.includes('callTool("select_project"') || !pickerText.includes('reply in chat with an exact project name') || !pickerText.includes('openai:set_globals') || !pickerText.includes('MAX_HYDRATION_ATTEMPTS') || pickerText.includes('ui/notifications/tool-result')) {
+    if (!pickerText.includes('Choose this chat’s project') || !pickerText.includes('callTool("select_project"') || !pickerText.includes('route_id') || !pickerText.includes('ui/update-model-context') || !pickerText.includes('setWidgetState') || !pickerText.includes('reply in chat with an exact project name') || !pickerText.includes('openai:set_globals') || !pickerText.includes('MAX_HYDRATION_ATTEMPTS') || pickerText.includes('ui/notifications/tool-result')) {
       throw new Error('HTTP project-picker resource did not include the resilient Apps bridge and chat fallback');
+    }
+    const legacyPickerWidget = await client.readResource({ uri: legacyProjectPickerUri });
+    if (legacyPickerWidget.contents?.[0]?.uri !== legacyProjectPickerUri || legacyPickerWidget.contents?.[0]?.text !== pickerText) {
+      throw new Error('HTTP legacy project-picker URI did not serve the current route-safe picker');
     }
     const legacyWidget = await client.readResource({ uri: legacyToolCardUri });
     if (legacyWidget.contents?.[0]?.uri !== legacyToolCardUri) {
@@ -634,33 +643,59 @@ try {
     return result.structuredContent.workspace_id;
   });
 
-  const bindingClientA = new Client({ name: 'codexflow-binding-a', version: '0.0.0' });
-  const bindingClientB = new Client({ name: 'codexflow-binding-b', version: '0.0.0' });
-  const bindingTransportA = new StreamableHTTPClientTransport(new URL(mcpUrl));
-  const bindingTransportB = new StreamableHTTPClientTransport(new URL(mcpUrl));
+  const bindingClients = Array.from({ length: 6 }, (_, index) => new Client({ name: `codexflow-binding-${index + 1}`, version: '0.0.0' }));
+  const bindingTransports = bindingClients.map(() => new StreamableHTTPClientTransport(new URL(mcpUrl)));
   try {
-    await Promise.all([bindingClientA.connect(bindingTransportA), bindingClientB.connect(bindingTransportB)]);
+    await Promise.all(bindingClients.map((client, index) => client.connect(bindingTransports[index])));
     const [catalogA, catalogB] = await Promise.all([
-      callTool(bindingClientA, 'list_projects', { refresh: true }),
-      callTool(bindingClientB, 'list_projects')
+      callTool(bindingClients[0], 'list_projects', { refresh: true }),
+      callTool(bindingClients[1], 'list_projects')
     ]);
     assertToolOutputSchema(queryTools.find((tool) => tool.name === 'list_projects'), catalogA);
     assertToolOutputSchema(queryTools.find((tool) => tool.name === 'list_projects'), catalogB);
+    const routeA = catalogA.structuredContent.route_id;
+    const routeB = catalogB.structuredContent.route_id;
+    if (!/^route_[a-f0-9]{32}$/.test(routeA) || !/^route_[a-f0-9]{32}$/.test(routeB) || routeA === routeB) {
+      throw new Error(`list_projects did not create independent private route ids: ${routeA} ${routeB}`);
+    }
+    if (catalogA._meta?.['openai/widgetSessionId'] !== routeA || catalogB._meta?.['openai/widgetSessionId'] !== routeB) {
+      throw new Error('list_projects did not bind its widget session to the private route id');
+    }
     const alternate = catalogA.structuredContent.projects.find((project) => project.name === 'alternate-project');
     const primary = catalogB.structuredContent.projects.find((project) => project.sources?.includes?.('default'));
     if (!alternate || !primary) throw new Error(`project catalogs did not contain both routing targets: ${JSON.stringify(catalogA.structuredContent)}`);
     const [selectedA, selectedB] = await Promise.all([
-      callTool(bindingClientA, 'select_project', { project_id: alternate.project_id, include_tree: false }),
-      callTool(bindingClientB, 'select_project', { project_id: primary.project_id, include_tree: false })
+      callTool(bindingClients[2], 'select_project', { route_id: routeA, project_id: alternate.project_id, include_tree: false }),
+      callTool(bindingClients[3], 'select_project', { route_id: routeB, project_id: primary.project_id, include_tree: false })
     ]);
     assertToolOutputSchema(queryTools.find((tool) => tool.name === 'select_project'), selectedA);
     assertToolOutputSchema(queryTools.find((tool) => tool.name === 'select_project'), selectedB);
+    if (selectedA.structuredContent.route_id !== routeA || selectedA._meta?.['openai/widgetSessionId'] !== routeA) {
+      throw new Error('select_project did not preserve route A across a separate picker transport');
+    }
+    if (selectedB.structuredContent.route_id !== routeB || selectedB._meta?.['openai/widgetSessionId'] !== routeB) {
+      throw new Error('select_project did not preserve route B across a separate picker transport');
+    }
     const [readA, readB] = await Promise.all([
-      callTool(bindingClientA, 'read', { path: 'routing.txt' }),
-      callTool(bindingClientB, 'read', { path: 'routing.txt' })
+      callTool(bindingClients[4], 'read', { route_id: routeA, path: 'routing.txt' }),
+      callTool(bindingClients[5], 'read', { route_id: routeB, path: 'routing.txt' })
     ]);
-    if (!readA.structuredContent.text?.includes('alternate-chat-binding')) throw new Error('chat A did not retain its selected project binding');
-    if (!readB.structuredContent.text?.includes('default-chat-binding')) throw new Error('chat B did not retain an independent project binding');
+    if (!readA.structuredContent.text?.includes('alternate-chat-binding')) throw new Error('chat A did not retain its selected project route across a third transport');
+    if (!readB.structuredContent.text?.includes('default-chat-binding')) throw new Error('chat B did not retain an independent project route across a third transport');
+    const crossed = await bindingClients[4].callTool({
+      name: 'read',
+      arguments: { route_id: routeA, workspace_id: primary.project_id, path: 'routing.txt' }
+    });
+    if (!crossed.isError || !JSON.stringify(crossed.content).includes('does not belong to this private chat route')) {
+      throw new Error(`route A accepted route B's workspace id: ${JSON.stringify(crossed)}`);
+    }
+
+    const routeProfileId = createHash('sha256').update(await fs.realpath(root)).digest('hex').slice(0, 24);
+    const routeFile = JSON.parse(await fs.readFile(path.join(profileHome, 'routes', `${routeProfileId}.json`), 'utf8'));
+    const persistedRoutes = new Map(routeFile.routes?.map?.((route) => [route.routeId, route]));
+    if (persistedRoutes.get(routeA)?.workspaceId !== alternate.project_id || persistedRoutes.get(routeB)?.workspaceId !== primary.project_id) {
+      throw new Error(`private chat routes were not durably persisted: ${JSON.stringify(routeFile)}`);
+    }
 
     const liveOverviewResponse = await fetch(`${baseUrl}/api/overview?codexflow_token=${encodeURIComponent(token)}`);
     const liveOverview = await liveOverviewResponse.json();
@@ -676,13 +711,13 @@ try {
       throw new Error(`live companion telemetry did not reflect independent project sessions: ${JSON.stringify(liveOverview)}`);
     }
     const liveOverviewText = JSON.stringify(liveOverview);
-    for (const forbidden of [token, 'alternate-chat-binding', 'default-chat-binding', bindingTransportA.sessionId, bindingTransportB.sessionId]) {
+    for (const forbidden of [token, 'alternate-chat-binding', 'default-chat-binding', ...bindingTransports.map((transport) => transport.sessionId)]) {
       if (forbidden && liveOverviewText.includes(forbidden)) {
         throw new Error(`live companion telemetry retained forbidden content: ${forbidden}`);
       }
     }
   } finally {
-    await Promise.allSettled([bindingClientA.close(), bindingClientB.close()]);
+    await Promise.allSettled(bindingClients.map((client) => client.close()));
   }
 
   await withClient(mcpUrl, async (client) => {

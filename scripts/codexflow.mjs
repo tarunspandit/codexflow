@@ -4315,7 +4315,9 @@ async function main() {
     clearRuntimeConnection(root);
   };
   process.on('SIGINT', () => { cleanup(); process.exit(130); });
-  process.on('SIGTERM', () => { cleanup(); process.exit(143); });
+  // Treat SIGTERM as an intentional shutdown. This lets a launchd KeepAlive
+  // job distinguish the desktop app's Stop action from an unexpected crash.
+  process.on('SIGTERM', () => { cleanup(); process.exit(0); });
 
   const localBase = `http://${host}:${port}`;
   await waitForHealth(`${localBase}/healthz`, token);

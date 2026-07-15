@@ -6,14 +6,14 @@ type Locale = "en" | "zh";
 
 const sessions = {
   en: {
-    atlas: { label: "Onboarding", task: "Polish onboarding", id: "conversation_01", project: "atlas-web", path: "~/DEV/atlas-web", terminal: "workspace bound · skills loaded · ready" },
-    signal: { label: "Auth refactor", task: "Refactor authentication", id: "conversation_02", project: "signal-api", path: "~/DEV/signal-api", terminal: "repository mapped · tests located · ready" },
-    flow: { label: "Release audit", task: "Audit the release", id: "conversation_03", project: "codexflow", path: "~/DEV/codexflow", terminal: "git clean · package verified · ready" },
+    atlas: { label: "Onboarding", task: "Polish onboarding", id: "route_3f8a…c21e", project: "atlas-web", path: "~/DEV/atlas-web", terminal: "private route bound · skills loaded · ready" },
+    signal: { label: "Auth refactor", task: "Refactor authentication", id: "route_706c…8d42", project: "signal-api", path: "~/DEV/signal-api", terminal: "repository mapped · tests located · ready" },
+    flow: { label: "Release audit", task: "Audit the release", id: "route_b24e…190f", project: "codexflow", path: "~/DEV/codexflow", terminal: "git clean · package verified · ready" },
   },
   zh: {
-    atlas: { label: "新手流程", task: "优化新手流程", id: "conversation_01", project: "atlas-web", path: "~/DEV/atlas-web", terminal: "工作区已绑定 · skills 已加载 · 就绪" },
-    signal: { label: "身份验证", task: "重构身份验证", id: "conversation_02", project: "signal-api", path: "~/DEV/signal-api", terminal: "仓库已映射 · 测试已定位 · 就绪" },
-    flow: { label: "发布审查", task: "审查发布版本", id: "conversation_03", project: "codexflow", path: "~/DEV/codexflow", terminal: "git 干净 · package 已验证 · 就绪" },
+    atlas: { label: "新手流程", task: "优化新手流程", id: "route_3f8a…c21e", project: "atlas-web", path: "~/DEV/atlas-web", terminal: "私有路由已绑定 · skills 已加载 · 就绪" },
+    signal: { label: "身份验证", task: "重构身份验证", id: "route_706c…8d42", project: "signal-api", path: "~/DEV/signal-api", terminal: "仓库已映射 · 测试已定位 · 就绪" },
+    flow: { label: "发布审查", task: "审查发布版本", id: "route_b24e…190f", project: "codexflow", path: "~/DEV/codexflow", terminal: "git 干净 · package 已验证 · 就绪" },
   },
 } as const;
 

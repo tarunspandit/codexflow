@@ -108,6 +108,9 @@ try {
 } finally {
   if (autoChild.exitCode === null) autoChild.kill('SIGTERM');
   await waitForExit(autoChild);
+  if (process.platform !== 'win32') {
+    assert.equal(autoChild.exitCode, 0, 'SIGTERM should be an intentional clean stop for launchd supervision');
+  }
 }
 
 const statusBefore = run(['status', '--root', root, '--json'], env);

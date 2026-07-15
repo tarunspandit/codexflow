@@ -29,7 +29,7 @@ const content = {
     contract: [
       ["01 / MODEL SURFACE", "ChatGPT thinks and converses.", "Your existing ChatGPT account supplies the model, reasoning, and conversation. CodexFlow does not proxy quotas, impersonate Codex, or start hidden agent sessions."],
       ["02 / EXECUTION SURFACE", "Your computer holds the truth.", "Repository instructions, current files, git state, project skills, and bounded commands remain local until the active conversation requests them."],
-      ["03 / CONNECTION LAYER", "One broker keeps the relationship clear.", "A single authenticated MCP endpoint serves many chats while preserving one independent project binding for every session."],
+      ["03 / CONNECTION LAYER", "One broker keeps the relationship clear.", "A single authenticated MCP endpoint serves many chats while preserving one private, durable project route for every conversation."],
     ],
     flowKicker: "From zero to useful",
     flowTitle: <>Three movements.<br />No ceremony.</>,
@@ -37,7 +37,7 @@ const content = {
     steps: [
       ["Start", <>Run <code>codexflow</code>.</>, "Recent projects are discovered, the broker starts, a private token is created, and the native CodexFlow app opens automatically.", "$ codexflow"],
       ["Connect", <>Add the URL to ChatGPT once.</>, "Create a Developer Mode app, paste the generated Server URL, and choose no additional authentication—the token is already in the URL.", "Settings → Apps → Create"],
-      ["Choose", <>Bind the chat to a project.</>, "Pick inside the conversation or reply with an exact project name. Either path binds files, git, edits, and commands to that project for the session.", "~/DEV/atlas-web"],
+      ["Choose", <>Bind the chat to a project.</>, "Pick inside the conversation or reply with an exact project name. CodexFlow carries the private route into every later tool call and restores it after broker restarts.", "~/DEV/atlas-web"],
     ],
     modelNote: "MODEL COMPATIBILITY",
     modelTitle: "Use Extra High or another non-Pro model.",
@@ -81,7 +81,7 @@ const content = {
     faqs: [
       ["Does CodexFlow run the Codex CLI?", "No. ChatGPT supplies the model and conversation. CodexFlow supplies the local project context and tool backend through MCP. It never starts, resumes, or impersonates a Codex session."],
       ["Do I register every project manually?", "No. Running codexflow discovers recent project folders and configured roots automatically. Each conversation chooses one project for itself."],
-      ["Can several chats work at once?", "Yes. One broker and one tunnel can serve many conversations. Each MCP session preserves its own project binding."],
+      ["Can several chats work at once?", "Yes. One broker and one tunnel can serve many conversations. Each chat gets a private route that survives separate tool connections and broker restarts."],
       ["Is this a quota or model proxy?", "No. Requests still use your own ChatGPT account and its normal product limits. CodexFlow does not pool accounts, resell access, or bypass quotas."],
       ["What does installation require?", "Node.js 20 or newer, macOS 14 or newer for the native app, and ChatGPT Apps / Developer Mode access. The launcher installs and opens the app automatically; no separate desktop setup is required."],
     ],
@@ -120,7 +120,7 @@ const content = {
     steps: [
       ["启动", <>运行 <code>codexflow</code>。</>, "自动发现最近项目，启动 broker，创建私有 token，并自动打开原生 CodexFlow 应用。", "$ codexflow"],
       ["连接", <>把 URL 添加到 ChatGPT 一次。</>, "创建 Developer Mode app，粘贴生成的 Server URL，并选择无需额外身份验证—token 已经在 URL 中。", "设置 → Apps → 创建"],
-      ["选择", <>把聊天绑定到一个项目。</>, "可以在对话内选择，也可以回复准确的项目名称。两种方式都会把文件、git、编辑与命令绑定到该项目。", "~/DEV/atlas-web"],
+      ["选择", <>把聊天绑定到一个项目。</>, "可以在对话内选择，也可以回复准确的项目名称。CodexFlow 会把私有路由带入之后的每次工具调用，并在 broker 重启后恢复绑定。", "~/DEV/atlas-web"],
     ],
     modelNote: "模型兼容性",
     modelTitle: "使用 Extra High 或其他非 Pro 模型。",
@@ -156,7 +156,7 @@ const content = {
     guards: [["Token 保护的公网 URL", "未经身份验证的请求无法进入工具面。"], ["工作区 root 强制执行", "路径与 symlink 检查让所有操作始终在范围内。"], ["Secret 感知输出", "凭据和常见 secret 模式会被拦截或隐藏。"], ["受保护写入与终端", "安全默认值一直生效，直到你明确扩大权限。"]],
     faqKicker: "直接回答",
     faqTitle: "连接之前。",
-    faqs: [["CodexFlow 会运行 Codex CLI 吗？", "不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。"], ["需要手动注册每个项目吗？", "不需要。运行 codexflow 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。"], ["多个聊天可以同时工作吗？", "可以。一个 broker 和 tunnel 能服务多个对话，每个 MCP session 都保留自己的项目绑定。"], ["这是额度或模型代理吗？", "不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。"], ["安装需要什么？", "需要 Node.js 20 或更高版本；原生应用需要 macOS 14 或更高版本；并需要 ChatGPT Apps / Developer Mode 访问。启动器会自动安装和打开应用，无需单独设置桌面端。"]],
+    faqs: [["CodexFlow 会运行 Codex CLI 吗？", "不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。"], ["需要手动注册每个项目吗？", "不需要。运行 codexflow 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。"], ["多个聊天可以同时工作吗？", "可以。一个 broker 和 tunnel 能服务多个对话。每个聊天都有独立私有路由，跨工具连接和 broker 重启后仍保持项目绑定。"], ["这是额度或模型代理吗？", "不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。"], ["安装需要什么？", "需要 Node.js 20 或更高版本；原生应用需要 macOS 14 或更高版本；并需要 ChatGPT Apps / Developer Mode 访问。启动器会自动安装和打开应用，无需单独设置桌面端。"]],
     finalKicker: "项目已经在你的电脑里",
     finalTitle: "现在，在对话中与它们相遇。",
     finalBody: "安装一次，从任何目录运行；原生应用会打开，每个聊天在开始时选择自己的工作区。",

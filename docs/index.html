@@ -87,7 +87,7 @@
             </div>
           </div>
         </div>
-        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.30.2</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.30.3</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
       </section>
 
       <section class="system section-pad" id="system" aria-labelledby="system-title">
@@ -111,7 +111,7 @@
             <article>
               <span class="contract-index">03 / CONNECTION LAYER</span>
               <h3>One broker keeps the relationship clear.</h3>
-              <p>A single authenticated MCP endpoint serves many chats while preserving one independent project binding for every session.</p>
+              <p>A single authenticated MCP endpoint serves many chats while preserving one private, durable project route for every conversation.</p>
             </article>
           </div>
         </div>
@@ -260,7 +260,7 @@
           <div class="faq-list reveal">
             <details open><summary>Does CodexFlow run the Codex CLI?<span aria-hidden="true">+</span></summary><p>No. ChatGPT supplies the model and conversation. CodexFlow supplies the local project context and tool backend through MCP. It never starts, resumes, or impersonates a Codex session.</p></details>
             <details><summary>Do I register every project manually?<span aria-hidden="true">+</span></summary><p>No. Running <code>codexflow</code> discovers recent project folders and configured roots automatically. Each conversation chooses one project for itself.</p></details>
-            <details><summary>Can several chats work at once?<span aria-hidden="true">+</span></summary><p>Yes. One broker and one tunnel can serve many conversations. Each MCP session preserves its own project binding.</p></details>
+            <details><summary>Can several chats work at once?<span aria-hidden="true">+</span></summary><p>Yes. One broker and one tunnel can serve many conversations. Each chat gets a private route that survives separate tool transports and broker restarts.</p></details>
             <details><summary>Why is CodexFlow missing when I use Pro?<span aria-hidden="true">+</span></summary><p>ChatGPT’s Pro model variants do not expose Apps. Use Extra High or another non-Pro model. Your Pro subscription is still supported.</p></details>
             <details><summary>Is this a quota or model proxy?<span aria-hidden="true">+</span></summary><p>No. Requests still use your own ChatGPT account and its normal product limits. CodexFlow does not pool accounts, resell access, or bypass quotas.</p></details>
             <details><summary>What does installation require?<span aria-hidden="true">+</span></summary><p>Node.js 20 or newer and ChatGPT Apps / Developer Mode access. The normal launcher includes Cloudflare quick tunnel support and also offers stable tunnel modes.</p></details>

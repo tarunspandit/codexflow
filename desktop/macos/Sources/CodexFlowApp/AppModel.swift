@@ -23,6 +23,7 @@ final class AppModel: ObservableObject {
     private var launchedProcess: Process?
     private var didStart = false
     private var fixture: DesktopFixture?
+    private let launchAgentLabel = "org.flow7.codexflow.broker"
 
     private var launchHomeDirectory: URL? {
         let arguments = ProcessInfo.processInfo.arguments
@@ -201,6 +202,11 @@ final class AppModel: ObservableObject {
 
         state = .starting
         notice = "Starting CodexFlow for \(workspaceDisplayName(root))…"
+        if startManagedBrokerIfInstalled() {
+            notice = "Starting the permanent CodexFlow service…"
+            waitForBrokerReadiness()
+            return
+        }
         do {
             try prepareDirectory(homeDirectory, permissions: 0o700)
             try prepareDirectory(logsDirectory, permissions: 0o700)
@@ -241,19 +247,49 @@ final class AppModel: ObservableObject {
             }
             try process.run()
             launchedProcess = process
-            Task { [weak self] in
-                for _ in 0..<30 {
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                    await self?.refresh(forceProjectRefresh: false)
-                    if self?.state == .ready { break }
-                }
-                if self?.state == .starting {
-                    self?.state = .degraded("The broker is taking longer than expected. Check the local log or try again.")
-                }
-            }
+            waitForBrokerReadiness()
         } catch {
             state = .degraded(CodexFlowError.brokerLaunch(error.localizedDescription).localizedDescription)
             notice = "CodexFlow could not start."
+        }
+    }
+
+    private func waitForBrokerReadiness() {
+        Task { [weak self] in
+            for _ in 0..<30 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                await self?.refresh(forceProjectRefresh: false)
+                if self?.state == .ready { break }
+            }
+            if self?.state == .starting {
+                self?.state = .degraded("The broker is taking longer than expected. Check the local log or try again.")
+            }
+        }
+    }
+
+    private func startManagedBrokerIfInstalled() -> Bool {
+        let plist = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/\(launchAgentLabel).plist")
+        guard fileManager.fileExists(atPath: plist.path) else { return false }
+        let domain = "gui/\(Darwin.getuid())"
+        let service = "\(domain)/\(launchAgentLabel)"
+        if runLaunchctl(["kickstart", "-k", service]) { return true }
+        guard runLaunchctl(["bootstrap", domain, plist.path]) else { return false }
+        return runLaunchctl(["kickstart", "-k", service])
+    }
+
+    private func runLaunchctl(_ arguments: [String]) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
         }
     }
 
