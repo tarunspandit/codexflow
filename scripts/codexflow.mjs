@@ -83,7 +83,8 @@ Options:
                              minimal = config/self-test plus open/read/write/edit/apply_patch/bash/show_changes.
                              full = expose every compatibility and advanced tool.
   --widget-domain <origin>   Dedicated HTTPS origin for ChatGPT widget iframes.
-                             Required for app submission. Default: https://tarunspandit.github.io.
+                             Optional in development; omit for ChatGPT's isolated sandbox.
+                             If set for submission, use a unique origin for this app.
   --tool-cards <on|off>      Opt in to ChatGPT widget metadata on tool descriptors. Default: off.
   --tunnel <none|cloudflare|cloudflare-named|ngrok|tailscale>
                              Expose local MCP. Default: cloudflare.
@@ -4235,7 +4236,7 @@ async function main() {
   const { bashSession, requireBashSession } = bashSessionOptions(args, profile);
   const write = writeOption(args, profile, mode);
   const toolMode = optionValue(args, profile, 'toolMode', ['CODEXFLOW_TOOL_MODE'], 'standard');
-  const widgetDomain = optionValue(args, profile, 'widgetDomain', ['CODEXFLOW_WIDGET_DOMAIN'], 'https://tarunspandit.github.io');
+  const widgetDomain = optionValue(args, profile, 'widgetDomain', ['CODEXFLOW_WIDGET_DOMAIN'], '');
   const toolCards = optionBool(args, profile, 'toolCards', ['CODEXFLOW_TOOL_CARDS'], false);
   validateChoice('bash', bash, ['off', 'safe', 'full']);
   validateChoice('write', write, ['off', 'handoff', 'workspace']);

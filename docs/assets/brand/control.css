@@ -298,6 +298,12 @@ h1 em { color: var(--signal-bright); font-style: normal; }
 .runtime-signal dt { margin-bottom: 6px; color: rgba(255, 255, 255, 0.4); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
 .runtime-signal dd { margin: 0; overflow: hidden; color: rgba(255, 255, 255, 0.88); font-family: var(--mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 
+.model-compatibility { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 14px; min-height: 72px; margin-top: 18px; padding: 14px 18px; border: 1px solid rgba(120, 183, 221, 0.25); border-radius: 16px; background: linear-gradient(110deg, rgba(120, 183, 221, 0.1), rgba(255, 255, 255, 0.02)); }
+.compatibility-mark { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(120, 183, 221, 0.34); border-radius: 10px; color: var(--signal-bright); background: rgba(120, 183, 221, 0.09); font-family: var(--mono); }
+.model-compatibility strong { color: rgba(255, 255, 255, 0.88); font-size: 12px; font-weight: 580; }
+.model-compatibility p { margin: 4px 0 0; color: rgba(255, 255, 255, 0.48); font-size: 10px; line-height: 1.55; }
+.model-compatibility small { color: rgba(166, 218, 247, 0.6); font-family: var(--mono); font-size: 8px; letter-spacing: 0.12em; }
+
 .diagnostics { margin-top: 18px; overflow: hidden; border: 1px solid var(--line-dark); border-radius: 18px; background: rgba(255, 255, 255, 0.025); }
 .diagnostics summary { display: flex; align-items: center; justify-content: space-between; min-height: 78px; padding: 0 24px; list-style: none; cursor: pointer; }
 .diagnostics summary::-webkit-details-marker { display: none; }
@@ -358,6 +364,8 @@ h1 em { color: var(--signal-bright); font-style: normal; }
   .fallback-header { min-height: 84px; }
   main { padding-top: 28px; }
   .fallback-card { border-radius: 20px; }
+  .model-compatibility { grid-template-columns: 38px minmax(0, 1fr); }
+  .model-compatibility small { grid-column: 2; }
   .fallback-copy { padding: 36px 24px; }
   h1 { font-size: clamp(42px, 15vw, 62px); }
   .runtime-signal { padding: 36px 24px; }

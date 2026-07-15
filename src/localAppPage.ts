@@ -97,6 +97,12 @@ export function renderLocalAppPage(model: LocalAppPageModel): string {
       </aside>
     </section>
 
+    <aside class="model-compatibility" aria-label="ChatGPT model compatibility">
+      <span class="compatibility-mark" aria-hidden="true">M</span>
+      <div><strong>Use Extra High or another non-Pro model.</strong><p>ChatGPT’s Pro model variants do not expose Apps. A Pro subscription is supported; if CodexFlow is absent, switch the model—not this broker.</p></div>
+      <small>MODEL COMPATIBILITY</small>
+    </aside>
+
     <details class="diagnostics" data-diagnostics>
       <summary>
         <span><strong>Fallback diagnostics</strong><small>Only if the desktop app cannot connect</small></span>

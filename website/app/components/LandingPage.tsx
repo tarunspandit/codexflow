@@ -37,8 +37,11 @@ const content = {
     steps: [
       ["Start", <>Run <code>codexflow</code>.</>, "Recent projects are discovered, the broker starts, a private token is created, and the native CodexFlow app opens automatically.", "$ codexflow"],
       ["Connect", <>Add the URL to ChatGPT once.</>, "Create a Developer Mode app, paste the generated Server URL, and choose no additional authentication—the token is already in the URL.", "Settings → Apps → Create"],
-      ["Choose", <>Bind the chat to a project.</>, "The project picker appears inside the conversation. Select once; files, git, edits, and commands stay routed there for that session.", "~/DEV/atlas-web"],
+      ["Choose", <>Bind the chat to a project.</>, "Pick inside the conversation or reply with an exact project name. Either path binds files, git, edits, and commands to that project for the session.", "~/DEV/atlas-web"],
     ],
+    modelNote: "MODEL COMPATIBILITY",
+    modelTitle: "Use Extra High or another non-Pro model.",
+    modelBody: "ChatGPT’s Pro model variants do not expose Apps. A Pro subscription is supported; if CodexFlow is absent from a response, switch the model—not your local broker.",
     routingKicker: "Independent routing",
     routingTitle: <>One connection.<br />Separate working memory.</>,
     routingBody: "Every ChatGPT conversation owns its selected project. Change the active preview to see the same broker route a different task without crossing workspace boundaries.",
@@ -117,8 +120,11 @@ const content = {
     steps: [
       ["启动", <>运行 <code>codexflow</code>。</>, "自动发现最近项目，启动 broker，创建私有 token，并自动打开原生 CodexFlow 应用。", "$ codexflow"],
       ["连接", <>把 URL 添加到 ChatGPT 一次。</>, "创建 Developer Mode app，粘贴生成的 Server URL，并选择无需额外身份验证—token 已经在 URL 中。", "设置 → Apps → 创建"],
-      ["选择", <>把聊天绑定到一个项目。</>, "项目选择器直接出现在对话里。选择一次，文件、git、编辑与命令会在整个会话中持续路由到该项目。", "~/DEV/atlas-web"],
+      ["选择", <>把聊天绑定到一个项目。</>, "可以在对话内选择，也可以回复准确的项目名称。两种方式都会把文件、git、编辑与命令绑定到该项目。", "~/DEV/atlas-web"],
     ],
+    modelNote: "模型兼容性",
+    modelTitle: "使用 Extra High 或其他非 Pro 模型。",
+    modelBody: "ChatGPT 的 Pro 模型变体不会开放 Apps。Pro 订阅本身可以使用；如果回复中没有 CodexFlow，请切换模型，而不是重启本地 broker。",
     routingKicker: "独立路由",
     routingTitle: <>一条连接。<br />各自的工作记忆。</>,
     routingBody: "每个 ChatGPT 对话都拥有自己选择的项目。切换预览，看看同一个 broker 如何路由不同任务，同时不跨越工作区边界。",
@@ -200,7 +206,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
               <div className="instrument-readout"><p><span className="live-dot" aria-hidden="true" />{c.brokerReady}</p><dl>{c.readout.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>
             </div>
           </div>
-          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.30</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.30.1</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
         </section>
 
         <section className="system section-pad" id="system">
@@ -214,6 +220,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
           <div className="section-shell">
             <div className="section-heading split-heading"><div><p className="eyebrow">{c.flowKicker}</p><h2>{c.flowTitle}</h2></div><p>{c.flowBody}</p></div>
             <ol className="flow-list">{c.steps.map(([label, title, body, proof], index) => <li key={label}><span className="step-number">0{index + 1}</span><div><p className="micro-label">{label}</p><h3>{title}</h3></div><p>{body}</p><div className="step-proof"><code>{proof}</code><span><i />{locale === "zh" ? "就绪" : "ready"}</span></div></li>)}</ol>
+            <aside className="model-compat"><span>{c.modelNote}</span><div><strong>{c.modelTitle}</strong><p>{c.modelBody}</p></div><i aria-hidden="true">↗</i></aside>
           </div>
         </section>
 

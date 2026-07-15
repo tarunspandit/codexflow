@@ -220,6 +220,8 @@ struct ActivityOverview: Decodable, Identifiable, Hashable {
 struct OverviewSummary: Decodable {
     let projects: Int
     let activeSessions: Int
+    let pendingSessions: Int
+    let openConnections: Int
     let recentSessions: Int
     let activityEvents: Int
 }

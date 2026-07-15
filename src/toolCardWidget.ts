@@ -1,5 +1,6 @@
-export const TOOL_CARD_URI = "ui://widget/codexflow-tool-card-v11.html";
+export const TOOL_CARD_URI = "ui://widget/codexflow-tool-card-v12.html";
 export const TOOL_CARD_LEGACY_URIS = [
+  "ui://widget/codexflow-tool-card-v11.html",
   "ui://widget/codexflow-tool-card-v10.html",
   "ui://widget/codexflow-tool-card-v9.html",
   "ui://widget/codexflow-tool-card-v8.html"

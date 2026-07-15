@@ -16,6 +16,7 @@ import { codexflowInventory, loadSkill } from "./capabilitiesOps.js";
 import { listCodexSessions, readCodexSession } from "./codexSessions.js";
 import { discoverProjects } from "./projectCatalog.js";
 import { TOOL_CARD_LEGACY_URIS, TOOL_CARD_MIME_TYPE, TOOL_CARD_URI, toolCardWidgetHtml } from "./toolCardWidget.js";
+import { PROJECT_PICKER_URI, projectPickerWidgetHtml } from "./projectPickerWidget.js";
 import { hasSecretValue, redactSensitiveText, redactStructured } from "./redact.js";
 import { inspectWorkspace, invalidateWorkspaceAnalysis, reviewWorkspaceChanges } from "./analysis/index.js";
 import { CODEXFLOW_VERSION } from "./version.js";
@@ -138,6 +139,39 @@ function toolCardMeta(): Record<string, unknown> {
   };
 }
 
+function projectPickerMeta(): Record<string, unknown> {
+  return {
+    ui: { resourceUri: PROJECT_PICKER_URI, visibility: ["model", "app"] },
+    "openai/outputTemplate": PROJECT_PICKER_URI
+  };
+}
+
+const LIST_PROJECTS_OUTPUT_SCHEMA = {
+  codexflow_tool: z.literal("list_projects"),
+  codexflow_title: z.string(),
+  projects: z.array(z.object({
+    project_id: z.string(),
+    name: z.string(),
+    root: z.string(),
+    sources: z.array(z.string()),
+    last_active_at: z.string().nullable(),
+    selected: z.boolean()
+  })),
+  count: z.number().int().nonnegative(),
+  selected_project_id: z.string().nullable(),
+  picker_optional: z.boolean()
+};
+
+const SELECT_PROJECT_OUTPUT_SCHEMA = {
+  codexflow_tool: z.literal("select_project"),
+  codexflow_title: z.string(),
+  selected: z.literal(true),
+  project_id: z.string(),
+  workspace_id: z.string(),
+  name: z.string(),
+  root: z.string()
+};
+
 const OPTIONAL_TOOL_CARD_META = [
   "ui",
   "openai/outputTemplate",
@@ -149,7 +183,11 @@ function descriptorOptionsForConfig(config: CodexFlowConfig, options: Record<str
   const originalMeta = (options._meta as Record<string, unknown> | undefined) ?? {};
   if (config.toolCards || originalMeta["codexflow/alwaysWidget"] === true) return options;
   const meta = { ...originalMeta };
+  const ui = originalMeta.ui && typeof originalMeta.ui === "object" && !Array.isArray(originalMeta.ui)
+    ? originalMeta.ui as Record<string, unknown>
+    : undefined;
   for (const key of OPTIONAL_TOOL_CARD_META) delete meta[key];
+  if (ui?.visibility) meta.ui = { visibility: ui.visibility };
   return { ...options, _meta: meta };
 }
 
@@ -169,13 +207,28 @@ function registerToolCardResource(server: McpServer, config: CodexFlowConfig): v
     throw new Error("Unsupported MCP SDK: CodexFlow widgets require registerResource.");
   }
 
-  const registerUri = (uri: string, name: string): void => {
+  const registerUri = (
+    uri: string,
+    name: string,
+    title: string,
+    description: string,
+    widgetDescription: string,
+    html: string
+  ): void => {
+    const uiMeta = {
+      prefersBorder: true,
+      csp: {
+        connectDomains: [] as string[],
+        resourceDomains: [] as string[]
+      },
+      ...(config.widgetDomain ? { domain: config.widgetDomain } : {})
+    };
     s.registerResource(
       name,
       uri,
       {
-        title: "CodexFlow workspace card",
-        description: "Host-native project selection and compact, bounded workspace results for CodexFlow.",
+        title,
+        description,
         mimeType: TOOL_CARD_MIME_TYPE
       },
       async () => ({
@@ -183,23 +236,16 @@ function registerToolCardResource(server: McpServer, config: CodexFlowConfig): v
           {
             uri,
             mimeType: TOOL_CARD_MIME_TYPE,
-            text: toolCardWidgetHtml,
+            text: html,
             _meta: {
-              ui: {
-                prefersBorder: true,
-                domain: config.widgetDomain,
-                csp: {
-                  connectDomains: [],
-                  resourceDomains: []
-                }
-              },
-              "openai/widgetDescription": "Lets a user bind this conversation to a synchronized local project, then presents bounded workspace results without leaving ChatGPT.",
+              ui: uiMeta,
+              "openai/widgetDescription": widgetDescription,
               "openai/widgetPrefersBorder": true,
-              "openai/widgetDomain": config.widgetDomain,
               "openai/widgetCSP": {
                 connect_domains: [],
                 resource_domains: []
-              }
+              },
+              ...(config.widgetDomain ? { "openai/widgetDomain": config.widgetDomain } : {})
             }
           }
         ]
@@ -207,9 +253,31 @@ function registerToolCardResource(server: McpServer, config: CodexFlowConfig): v
     );
   };
 
-  registerUri(TOOL_CARD_URI, "codexflow-tool-card");
+  registerUri(
+    PROJECT_PICKER_URI,
+    "codexflow-project-picker",
+    "Choose a CodexFlow project",
+    "Small, host-native picker for binding this conversation to one synchronized local project.",
+    "Choose the local project this conversation should use. You can also reply in chat with an exact project name.",
+    projectPickerWidgetHtml
+  );
+  registerUri(
+    TOOL_CARD_URI,
+    "codexflow-tool-card",
+    "CodexFlow workspace card",
+    "Compact, bounded workspace results for CodexFlow.",
+    "Presents bounded CodexFlow workspace results without leaving ChatGPT.",
+    toolCardWidgetHtml
+  );
   for (const legacyUri of TOOL_CARD_LEGACY_URIS) {
-    registerUri(legacyUri, `codexflow-tool-card-${legacyUri.match(/v\d+/)?.[0] ?? "legacy"}`);
+    registerUri(
+      legacyUri,
+      `codexflow-tool-card-${legacyUri.match(/v\d+/)?.[0] ?? "legacy"}`,
+      "CodexFlow workspace card",
+      "Compatibility resource for prior CodexFlow result cards.",
+      "Presents bounded CodexFlow workspace results without leaving ChatGPT.",
+      toolCardWidgetHtml
+    );
   }
 }
 
@@ -510,7 +578,8 @@ function serverInstructions(config: CodexFlowConfig): string {
     "CodexFlow gives this ChatGPT conversation Codex-style access to one selected local project while sharing a single local broker with other conversations.",
     "",
     "Preferred workflow:",
-    "1. At the start of a new coding conversation, call list_projects so the user can choose a project. Call select_project with their choice before doing project work. If the user already named an exact project, select it directly from the list.",
+    "1. At the start of a new coding conversation, call list_projects so the user can choose a project. If the user already named an exact project, call select_project directly with that name or its returned project_id.",
+    "1a. The visual project picker is optional enhancement, never a prerequisite. After list_projects, tell the user they may pick in the card or reply with an exact project name. If the card is missing or reports an error, show a short set of project names from the tool result and ask for the name. Never strand the conversation by referring only to a picker that did not render.",
     "2. The selected project is bound to this MCP conversation. Omit workspace_id on later calls; CodexFlow routes them to the bound project. Use select_project again only when the user explicitly switches projects.",
     "3. Follow AGENTS.md and load relevant advertised skills returned by select_project before editing files.",
     "4. Inspect with tree, search, and read. Do not use bash for git status, git diff, cat, sed, grep, rg, find, ls, or file reading.",
@@ -1472,15 +1541,16 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     {
       title: "Choose a project",
       description:
-        "Call this first in a new CodexFlow coding chat. It synchronizes configured folders with recent local Codex project folders and shows a project picker; it does not run the Codex CLI.",
+        "Call this first in a new CodexFlow coding chat. It synchronizes configured folders with recent local Codex project folders and returns a text list plus an optional project picker. The text list remains the fallback when a client cannot render components. It does not run the Codex CLI.",
       inputSchema: {
         refresh: z.boolean().optional().describe("Rescan configured roots and local Codex project metadata. Default: false."),
         query: z.string().optional().describe("Optional case-insensitive filter over project name and path."),
         max_projects: z.number().int().min(1).max(250).optional().describe("Maximum projects to show. Default: 100.")
       },
+      outputSchema: LIST_PROJECTS_OUTPUT_SCHEMA,
       annotations: SESSION_READ_ANNOTATIONS,
       _meta: {
-        ...toolCardMeta(),
+        ...projectPickerMeta(),
         "codexflow/alwaysWidget": true,
         "openai/widgetAccessible": true,
         "openai/toolInvocation/invoking": "Synchronizing local projects...",
@@ -1508,11 +1578,12 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       const rows = projects.length
         ? projects.map((project) => `- ${project.project_id} — ${project.name} — ${project.root}${project.selected ? " (selected)" : ""}`).join("\n")
         : "No projects found inside the configured allowed roots.";
-      return textResult(`# Select a project\n\nChoose one project before doing repository work.\n\n${rows}`, {
+      return textResult(`# Choose a project\n\nUse the optional picker if it is visible, or reply with an exact project name. The conversation remains fully usable when the picker cannot render.\n\n${rows}`, {
         projects,
         count: projects.length,
         selected_project_id: activeWorkspaceId ?? null,
         picker: true,
+        picker_optional: true,
         sync_sources: ["configured roots", "recent Codex project metadata"],
         allowed_roots: config.allowedRoots
       }, { "openai/widgetSessionId": chatSessionId });
@@ -1533,10 +1604,10 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         include_tree: z.boolean().optional().describe("Include a compact initial tree. Default: true."),
         max_depth: z.number().int().min(1).max(8).optional().describe("Initial tree depth. Default: 2.")
       },
+      outputSchema: SELECT_PROJECT_OUTPUT_SCHEMA,
       annotations: SESSION_READ_ANNOTATIONS,
       _meta: {
-        ...toolCardMeta(),
-        "codexflow/alwaysWidget": true,
+        ui: { visibility: ["model", "app"] },
         "openai/widgetAccessible": true,
         "openai/toolInvocation/invoking": "Binding this chat to the project...",
         "openai/toolInvocation/invoked": "Project selected"

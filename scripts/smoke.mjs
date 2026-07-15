@@ -210,11 +210,12 @@ const toolNames = tools.tools.map((tool) => tool.name);
 for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inventory', 'list_projects', 'select_project', 'list_workspaces', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'inspect_workspace', 'tree', 'search', 'load_skill', 'read', 'write', 'edit', 'apply_patch', 'bash', 'git_status', 'git_diff', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
   if (!toolNames.includes(expected)) throw new Error(`missing tool: ${expected}`);
 }
-const toolCardUri = 'ui://widget/codexflow-tool-card-v11.html';
+const toolCardUri = 'ui://widget/codexflow-tool-card-v12.html';
+const projectPickerUri = 'ui://widget/codexflow-project-picker-v1.html';
 const toolsByName = new Map(tools.tools.map((tool) => [tool.name, tool]));
-function hasWidgetMeta(name) {
+function hasWidgetMeta(name, uri = toolCardUri) {
   const meta = toolsByName.get(name)?._meta ?? {};
-  return meta.ui?.resourceUri === toolCardUri && meta['openai/outputTemplate'] === toolCardUri;
+  return meta.ui?.resourceUri === uri && meta['openai/outputTemplate'] === uri;
 }
 function hasToolCardStatusMeta(name) {
   const meta = toolsByName.get(name)?._meta ?? {};
@@ -231,8 +232,16 @@ async function expectToolError(name, args, pattern, targetClient = client) {
   }
 }
 for (const visualTool of toolNames) {
-  if (visualTool === 'list_projects' || visualTool === 'select_project') {
-    if (!hasWidgetMeta(visualTool)) throw new Error(`${visualTool} did not expose its required project picker widget`);
+  if (visualTool === 'list_projects') {
+    if (!hasWidgetMeta(visualTool, projectPickerUri)) throw new Error('list_projects did not expose the dedicated project picker widget');
+    if (!toolsByName.get(visualTool)?.outputSchema) throw new Error('list_projects did not advertise structured output');
+    continue;
+  }
+  if (visualTool === 'select_project') {
+    const meta = toolsByName.get(visualTool)?._meta ?? {};
+    if (hasWidgetMeta(visualTool) || meta['openai/outputTemplate']) throw new Error('select_project should not depend on a result template');
+    if (meta['openai/widgetAccessible'] !== true || !meta.ui?.visibility?.includes?.('app')) throw new Error('select_project was not callable from the picker');
+    if (!toolsByName.get(visualTool)?.outputSchema) throw new Error('select_project did not advertise structured output');
     continue;
   }
   if (hasWidgetMeta(visualTool) || hasToolCardStatusMeta(visualTool)) throw new Error(`${visualTool} exposed widget metadata while CODEXFLOW_TOOL_CARDS is off`);
@@ -252,7 +261,7 @@ if (!routedRead.structuredContent.text?.includes('routed-to-second-project')) {
 await client.request('tools/call', { name: 'open_workspace', arguments: { root: tmp, include_tree: false } });
 const cardClient = new McpStdioClient('node', ['dist/stdio.js', '--root', tmp, '--allow-root', tmp, '--bash', 'safe', '--tool-mode', 'full'], {
   cwd: path.resolve('.'),
-  env: { ...process.env, CODEXFLOW_ROOT: tmp, CODEXFLOW_ALLOWED_ROOTS: tmp, CODEXFLOW_TOOL_CARDS: '1' }
+  env: { ...process.env, CODEXFLOW_ROOT: tmp, CODEXFLOW_ALLOWED_ROOTS: tmp, CODEXFLOW_TOOL_CARDS: '1', CODEXFLOW_WIDGET_DOMAIN: '' }
 });
 await cardClient.request('initialize', {
   protocolVersion: '2024-11-05',
@@ -293,11 +302,18 @@ if (spawnSync(process.platform === 'win32' ? 'where' : 'sh', process.platform ==
     throw new Error(`ripgrep regex search did not accept rg syntax: ${JSON.stringify(cardRegexSearch.structuredContent)}`);
   }
 }
+const sandboxWidget = await cardClient.request('resources/read', { uri: projectPickerUri });
+const sandboxWidgetMeta = sandboxWidget.contents?.[0]?._meta ?? {};
+if (sandboxWidgetMeta.ui?.domain || sandboxWidgetMeta['openai/widgetDomain']) {
+  throw new Error('zero-configuration project picker should use the host sandbox, not a shared widget origin');
+}
 await cardClient.close();
 const resources = await client.request('resources/list', {});
 const toolCard = resources.resources.find((resource) => resource.uri === toolCardUri);
 if (!toolCard) throw new Error(`missing tool-card resource: ${toolCardUri}`);
 if (toolCard.mimeType !== 'text/html;profile=mcp-app') throw new Error(`unexpected tool-card mime type: ${toolCard.mimeType}`);
+const projectPicker = resources.resources.find((resource) => resource.uri === projectPickerUri);
+if (!projectPicker || projectPicker.mimeType !== 'text/html;profile=mcp-app') throw new Error(`missing project-picker resource: ${projectPickerUri}`);
 const legacyToolCardUri = 'ui://widget/codexflow-tool-card-v8.html';
 const legacyToolCard = resources.resources.find((resource) => resource.uri === legacyToolCardUri);
 if (!legacyToolCard) throw new Error(`missing legacy tool-card resource: ${legacyToolCardUri}`);
@@ -312,6 +328,11 @@ if (!widgetMeta.ui?.csp || !widgetMeta['openai/widgetCSP']) {
 }
 if (widgetMeta.ui?.domain !== 'https://widgets.codexflow.test' || widgetMeta['openai/widgetDomain'] !== 'https://widgets.codexflow.test') {
   throw new Error('tool-card widget resource did not expose standard and ChatGPT widget domain metadata');
+}
+const pickerWidget = await client.request('resources/read', { uri: projectPickerUri });
+const pickerText = pickerWidget.contents?.[0]?.text ?? '';
+if (!pickerText.includes('Choose this chat’s project') || !pickerText.includes('callTool("select_project"') || !pickerText.includes('reply in chat with an exact project name') || !pickerText.includes('ui/notifications/tool-result')) {
+  throw new Error('project-picker resource did not include the resilient Apps bridge and chat fallback');
 }
 const legacyWidget = await client.request('resources/read', { uri: legacyToolCardUri });
 if (legacyWidget.contents?.[0]?.uri !== legacyToolCardUri) {

@@ -18,12 +18,21 @@ const secondTransport = '22222222-2222-4222-8222-222222222222';
 second.bindTransport(secondTransport);
 second.selectProject({ id: 'project-b', name: 'Beta', root: '/work/beta' });
 
+const pending = monitor.beginSession();
+pending.bindTransport('33333333-3333-4333-8333-333333333333');
+pending.recordTool({ name: 'list_projects', status: 'ok', durationMs: 4 });
+
+const backgroundProbe = monitor.beginSession();
+backgroundProbe.bindTransport('44444444-4444-4444-8444-444444444444');
+
 const live = monitor.snapshot();
 assert.equal(live.active_sessions, 2);
-assert.equal(live.sessions.length, 2);
+assert.equal(live.pending_sessions, 1);
+assert.equal(live.open_connections, 4);
+assert.equal(live.sessions.length, 3, 'zero-call connection probes should not appear as chats');
 assert.equal(live.activity.length, 2, 'activity history should be bounded');
-assert.equal(live.activity[0].tool, 'git_status');
-assert.equal(live.activity[1].tool, 'search');
+assert.equal(live.activity[0].tool, 'list_projects');
+assert.equal(live.activity[1].tool, 'git_status');
 assert.ok(live.sessions.every((session) => /^chat-[0-9a-f]{8}$/.test(session.id)));
 assert.equal(live.sessions.find((session) => session.project?.id === 'project-a')?.tool_calls, 3);
 assert.equal(live.sessions.find((session) => session.project?.id === 'project-a')?.errors, 1);
@@ -34,9 +43,13 @@ assert.ok(updates >= 9, 'session lifecycle should notify live subscribers');
 
 first.close();
 second.close();
+pending.close();
+backgroundProbe.close();
 const closed = monitor.snapshot();
 assert.equal(closed.active_sessions, 0);
-assert.equal(closed.recent_sessions, 2);
+assert.equal(closed.pending_sessions, 0);
+assert.equal(closed.open_connections, 0);
+assert.equal(closed.recent_sessions, 3);
 assert.ok(closed.sessions.every((session) => session.state === 'closed'));
 
 const expired = monitor.snapshot(Date.now() + 100);
@@ -47,6 +60,7 @@ const bounded = new RuntimeMonitor(10, 60_000, 2);
 bounded.beginSession().bindTransport('33333333-3333-4333-8333-333333333333');
 bounded.beginSession().bindTransport('44444444-4444-4444-8444-444444444444');
 bounded.beginSession().bindTransport('55555555-5555-4555-8555-555555555555');
-assert.equal(bounded.snapshot().sessions.length, 2, 'session telemetry should remain count-bounded');
+assert.equal(bounded.snapshot().sessions.length, 0, 'connection probes should stay out of chat telemetry');
+assert.equal(bounded.snapshot().open_connections, 2, 'connection telemetry should remain count-bounded');
 
 console.log('✓ runtime monitor smoke test passed');

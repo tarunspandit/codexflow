@@ -715,6 +715,44 @@ h3 {
   letter-spacing: 0.12em;
 }
 
+.model-compat {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid rgb(105 185 230 / 34%);
+  border-radius: var(--radius);
+  background: linear-gradient(120deg, rgb(105 185 230 / 12%), rgb(255 255 255 / 2%) 62%);
+}
+
+.model-compat > span {
+  color: var(--tech-signal);
+  font-family: var(--mono);
+  font-size: .65rem;
+  letter-spacing: .13em;
+}
+
+.model-compat strong {
+  color: var(--ring);
+  font-size: 1rem;
+  font-variation-settings: "SHRP" 60, "CRSV" 0, "slnt" 0, "wght" 590;
+}
+
+.model-compat p {
+  max-width: 58rem;
+  margin: .35rem 0 0;
+  color: var(--ink-soft);
+  font-size: .82rem;
+}
+
+.model-compat > i {
+  color: var(--tech-signal);
+  font-size: 1.4rem;
+  font-style: normal;
+}
+
 .path-proof {
   justify-content: flex-start;
 }
@@ -1909,6 +1947,14 @@ h3 {
 
   .step-proof {
     width: 100%;
+  }
+
+  .model-compat {
+    grid-template-columns: 1fr auto;
+  }
+
+  .model-compat > span {
+    grid-column: 1 / -1;
   }
 
   .router {

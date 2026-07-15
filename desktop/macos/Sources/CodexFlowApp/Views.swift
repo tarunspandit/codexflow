@@ -14,6 +14,7 @@ struct NowView: View {
                 )
 
                 HeroStatusCard()
+                ModelCompatibilityStrip()
 
                 if let overview = model.overview {
                     MetricStrip(overview: overview)
@@ -129,7 +130,8 @@ private struct HeroStatusCard: View {
     private var heroDetail: String {
         if let overview = model.overview {
             let publicState = overview.broker.publicEndpoint == nil ? "local-only" : "publicly reachable through \(overview.broker.tunnel ?? "a tunnel")"
-            return "Broker \(overview.broker.version) is \(publicState). It can route \(overview.summary.activeSessions) active chat\(overview.summary.activeSessions == 1 ? "" : "s") across \(overview.summary.projects) discovered project\(overview.summary.projects == 1 ? "" : "s")."
+            let pending = overview.summary.pendingSessions > 0 ? " \(overview.summary.pendingSessions) chat\(overview.summary.pendingSessions == 1 ? " is" : "s are") choosing a project." : ""
+            return "Broker \(overview.broker.version) is \(publicState). It is routing \(overview.summary.activeSessions) active chat\(overview.summary.activeSessions == 1 ? "" : "s") across \(overview.summary.projects) discovered project\(overview.summary.projects == 1 ? "" : "s").\(pending)"
         }
         return model.state.detail
     }
@@ -200,10 +202,41 @@ private struct MetricStrip: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 13) {
             MetricCard(value: "\(overview.summary.projects)", label: "Projects", detail: "discovered locally", symbol: "square.stack.3d.up")
-            MetricCard(value: "\(overview.summary.activeSessions)", label: "Active chats", detail: "isolated routes", symbol: "bubble.left.and.bubble.right")
+            MetricCard(value: "\(overview.summary.activeSessions)", label: "Active chats", detail: overview.summary.pendingSessions > 0 ? "\(overview.summary.pendingSessions) choosing a project" : "isolated routes", symbol: "bubble.left.and.bubble.right")
             MetricCard(value: "\(overview.summary.activityEvents)", label: "Recent actions", detail: "content-free events", symbol: "waveform.path.ecg")
             MetricCard(value: Format.duration(ms: overview.broker.uptimeMs), label: "Uptime", detail: "broker available", symbol: "clock")
         }
+    }
+}
+
+private struct ModelCompatibilityStrip: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "sparkles.rectangle.stack")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(FlowColor.signal)
+                .frame(width: 34, height: 34)
+                .background(FlowColor.signalWash)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Use Extra High or another non-Pro model")
+                    .font(FlowType.label(11))
+                    .foregroundStyle(FlowColor.ink)
+                Text("ChatGPT’s Pro model variants do not expose Apps. A Pro subscription is still supported; if CodexFlow is absent from a reply, switch the model—not the broker.")
+                    .font(FlowType.body(10))
+                    .foregroundStyle(FlowColor.inkMuted)
+            }
+            Spacer(minLength: 8)
+            Text("MODEL COMPATIBILITY")
+                .font(FlowType.label(8))
+                .tracking(1.1)
+                .foregroundStyle(FlowColor.signal)
+        }
+        .padding(.horizontal, 15)
+        .frame(minHeight: 58)
+        .background(FlowColor.signalWash.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 13).stroke(FlowColor.signal.opacity(0.18), lineWidth: 1))
     }
 }
 
@@ -415,7 +448,7 @@ struct ChatsView: View {
                 if !model.hasLiveRuntime {
                     OfflineInlineCard(title: "No live broker to observe.", detail: "Start CodexFlow, then activate the plugin in one or more web chats. Each conversation gets its own isolated project route.")
                 } else if sessions.isEmpty {
-                    PaperCard { EmptyState(symbol: "bubble.left.and.bubble.right", title: scope == "all" ? "No chats connected yet" : "No \(scope) chats", detail: "This list fills when a client opens an MCP transport. It never stores conversation text.") }
+                    PaperCard { EmptyState(symbol: "bubble.left.and.bubble.right", title: scope == "all" ? "No chats routed yet" : "No \(scope) chats", detail: "A chat appears after it uses a CodexFlow tool. Background connection probes are intentionally hidden, and conversation text is never stored.") }
                 } else {
                     LazyVStack(spacing: 11) {
                         ForEach(sessions) { session in SessionDetailCard(session: session) }
@@ -459,9 +492,9 @@ private struct SessionDetailCard: View {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 8) {
                         Text(session.id).font(FlowType.mono(12)).foregroundStyle(FlowColor.ink)
-                        StatusPill(label: session.state.codexFlowTitle, color: session.state == "closed" ? FlowColor.inkMuted : FlowColor.success)
+                        StatusPill(label: session.project == nil && session.state != "closed" ? "Choosing project" : session.state.codexFlowTitle, color: session.state == "closed" ? FlowColor.inkMuted : session.project == nil ? FlowColor.warning : FlowColor.success)
                     }
-                    Text(session.project?.name ?? "Waiting for project selection")
+                    Text(session.project?.name ?? "Project not selected yet")
                         .font(FlowType.label(11)).foregroundStyle(session.project == nil ? FlowColor.warning : FlowColor.inkMuted)
                 }
                 Spacer()
@@ -484,6 +517,7 @@ struct ConnectionView: View {
 
                 if let overview = model.overview, let runtime = model.selectedRuntime {
                     ConnectionHero(overview: overview, runtime: runtime)
+                    ModelCompatibilityStrip()
                     HStack(alignment: .top, spacing: 17) {
                         SetupSteps().frame(maxWidth: .infinity)
                         RuntimeDetails(overview: overview, runtime: runtime).frame(maxWidth: .infinity)
@@ -821,9 +855,9 @@ private struct SessionRow: View {
     let session: SessionOverview
     var body: some View {
         HStack(spacing: 10) {
-            Circle().fill(session.state == "closed" ? FlowColor.inkMuted : FlowColor.success).frame(width: 7, height: 7)
+            Circle().fill(session.state == "closed" ? FlowColor.inkMuted : session.project == nil ? FlowColor.warning : FlowColor.success).frame(width: 7, height: 7)
             VStack(alignment: .leading, spacing: 3) {
-                Text(session.project?.name ?? "Selecting project").font(FlowType.label(11)).foregroundStyle(FlowColor.ink)
+                Text(session.project?.name ?? "Choosing a project").font(FlowType.label(11)).foregroundStyle(FlowColor.ink)
                 Text("\(session.id) · \(session.toolCalls) calls").font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted)
             }
             Spacer()
