@@ -61,7 +61,7 @@ Daylight:
 - Raised surface `#FFFDF9`
 - Ink `#171719`
 - Soft ink `#454244`
-- Muted ink `#706C69`
+- Muted ink `#625E5B` (accessibility-adjusted for AA contrast on the deepest daylight surface)
 
 Domain color enters through state, focus, selected controls, and image grading.
 Do not introduce a rainbow capability palette, neon green, generic purple
@@ -97,13 +97,23 @@ short product-specific copy, and large quiet type. Product functionality should
 be shown through one coherent routing instrument and ledger-like sections—not
 fake browser chrome or a wall of disconnected feature cards.
 
-### Local control surface
+### Local companion
 
-Translate the same system into daylight for dense operational use. Lead with
-live status, then connection profile, runtime boundary, ChatGPT path, and CLI
-controls. Raw paths and policy values remain visible because the surface is
+Translate the same system into daylight for dense operational use. Organize the
+application around **Now / Projects / Chats / Connection / Policy**. Lead with
+real broker state and independent chat routing; keep next-launch settings
+secondary. Raw paths and policy values remain visible because the surface is
 token-protected and opened by the local user. Use dark Luminous Orbit material
-only for the masthead and live-status moment.
+only for the rail, the live-status moment, and the privacy boundary. Do not add
+a model composer: ChatGPT owns the conversation.
+
+### ChatGPT inline surface
+
+Follow the host rather than pasting the local visual system into an iframe. Use
+system typography, adaptive light/dark colors, no custom background spectacle,
+no nested scrolling, and only a restrained cool-blue state signal. The project
+picker is one focused decision; tool results use bounded summaries and native
+disclosures.
 
 ## Motion
 

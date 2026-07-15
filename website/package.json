@@ -4,7 +4,7 @@
   "description": "The public website for CodexFlow.",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": "^22.13.0 || >=24"
   },
   "scripts": {
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
@@ -28,13 +28,16 @@
     "@vitejs/plugin-rsc": "0.5.26",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
-    "postcss": "8.5.18",
+    "postcss": "8.5.19",
     "react-server-dom-webpack": "19.2.7",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vinext": "1.0.0-beta.1",
     "vite": "8.1.4",
     "wrangler": "4.110.0"
+  },
+  "overrides": {
+    "postcss": "8.5.19"
   },
   "type": "module"
 }

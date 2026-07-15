@@ -43,6 +43,8 @@ Before announcing broadly:
 - Refresh actions after widget URI or metadata changes.
 - Confirm CSP stays enabled in Developer Mode.
 - Capture screenshots for:
+  - local companion Now, Projects, Chats, and Policy views
+  - local companion empty, active, recently closed, and unavailable states
   - app connection screen
   - `server_config`
   - `open_current_workspace`
@@ -78,6 +80,8 @@ Use CodexFlow. Run bash with pwd, then run bash with a blocked command. Report b
 - Keep blocked path tests for `.env`, `.git`, `node_modules`, private keys, and symlink escapes.
 - Do not broaden allowed roots during setup unless the user explicitly asks.
 - Do not log query strings, tokens, file contents, prompts, or full command output by default.
+- Confirm `/api/overview` and `/api/events` require auth and never expose prompts, arguments, source, command output, URL tokens, or actionable transport IDs.
+- Confirm `codexflow app` opens the authenticated local companion without printing its private URL.
 
 ## Onboarding Gate
 
@@ -94,6 +98,7 @@ The terminal must clearly show:
 - public URL strategy
 - that the Server URL is copied
 - that Enter opens ChatGPT connector settings
+- that `o` or `codexflow app` opens the local companion
 - how to stop the process
 
 For stable URLs, `codexflow` must save enough profile state so future starts from the same workspace only need:

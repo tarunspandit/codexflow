@@ -30,6 +30,25 @@ The main differences are:
 
 codexflow connects ChatGPT to a user-approved local repository over MCP. Repository access, command permissions, and change review remain explicit.
 
+## What is the local companion?
+
+The same broker that serves MCP also serves a private, token-protected application
+on the local machine. Press `o` in the running terminal or use:
+
+```bash
+codexflow app
+```
+
+It shows discovered projects, active and recently closed chat routes, content-free
+tool activity, connection health, next-launch settings, and the policy active for
+the current process. It does not contain a model composer and cannot silently move
+an existing ChatGPT conversation to a different project. Project selection remains
+owned by that conversation through the CodexFlow project picker.
+
+The activity ledger is process-local and bounded. It stores project, tool name,
+outcome, duration, and a non-actionable display fingerprint—not prompts, arguments,
+file contents, command output, tokens, or usable MCP transport identifiers.
+
 ## What does Repository Analysis understand?
 
 Repository Analysis builds a local repository map from bounded, inspectable evidence:

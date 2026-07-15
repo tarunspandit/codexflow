@@ -96,7 +96,25 @@ ChatGPT Web 可以操作：
 
 默认工具数量较少是故意的：ChatGPT 面对少量高信号工具时更稳定。workspace open 默认不做 skill discovery；需要 repo-local skills 时传 `include_skills=true`，需要 user/plugin skills 时再加 `include_global_skills=true`。然后用 `load_skill` 按名称、source 和显示出的 path 加载需要的 `SKILL.md`；如果仍有重名匹配，CodexFlow 会报歧义错误，不会随便选一个，也不会把几十个 skill 变成单独 action。
 
-codexflow 默认给 ChatGPT 暴露纯 MCP 工具描述，不附带 widget/card metadata。需要紧凑 v9 卡片时用 `CODEXFLOW_TOOL_CARDS=1` 启动；server config、自测、workspace 摘要、读写 diff、bash 验证、git/tree/search/context 和 handoff/export 都有结构化视图。git、skills、tree、terminal 输出、context 和 raw diff 会折叠或截断，避免在聊天里刷出大段原始数据。`CODEXFLOW_WIDGET_DOMAIN` 用于设置 ChatGPT widget iframe 的专用 HTTPS origin，正式提交 app 前应换成你控制的独立域名。
+codexflow 默认给 ChatGPT 暴露纯 MCP 工具描述；每个新聊天需要的项目选择器始终可用。需要额外紧凑 v11 结果卡片时，用 `CODEXFLOW_TOOL_CARDS=1` 启动。卡片使用 ChatGPT 原生字体和颜色，不做嵌套滚动；git、skills、tree、terminal、context 和 raw diff 会折叠或截断，避免在聊天里刷出大段原始数据。`CODEXFLOW_WIDGET_DOMAIN` 用于设置 ChatGPT widget iframe 的专用 HTTPS origin，正式提交 app 前应换成你控制的独立域名。
+
+## 本地伴随应用
+
+每个运行中的 broker 也会在本机提供一个私有应用。在 CodexFlow 终端按 `o`，或从另一个终端运行：
+
+```bash
+codexflow app
+```
+
+这不是第二个聊天或模型客户端；对话仍然属于 ChatGPT。本地应用包含：
+
+- **当前**：连接健康、项目数量、活跃聊天和最近活动。
+- **项目**：CodexFlow 自动发现的文件夹。
+- **聊天**：当前和最近关闭的 MCP 会话各自路由到哪个项目。
+- **连接**：私有 Server URL 与可选的下次启动默认值。
+- **策略**：本次进程真正生效的写入、终端、工具、history、认证和 allowed-root 边界。
+
+会话遥测只存在于进程内存中，有数量上限，并会在会话关闭后很快过期。它只保存不可操作的显示指纹、已选项目、工具名称、结果和耗时；不会保存 prompts、工具 arguments、文件内容、命令输出、tokens 或可用的 MCP transport IDs。
 
 ## 其他启动方式
 
@@ -401,10 +419,10 @@ codexflow --mode handoff --no-bash
 
 ```bash
 codexflow
-codexflow
 codexflow --non-interactive
 codexflow status
 codexflow status --json
+codexflow app
 codexflow doctor
 codexflow settings
 codexflow settings list

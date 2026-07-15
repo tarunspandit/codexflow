@@ -24,7 +24,7 @@
     <link rel="preload" href="./assets/brand/tech.webp" as="image" type="image/webp" />
     <link rel="preload" href="./assets/brand/flow7-tech-dark.webp" as="image" type="image/webp" />
     <script>document.documentElement.classList.add("js")</script>
-    <link rel="stylesheet" href="./styles.css?v=4" />
+    <link rel="stylesheet" href="./styles.css?v=5" />
   </head>
   <body data-locale="zh">
     <a class="skip-link" href="#main">跳到主要内容</a>
@@ -38,6 +38,7 @@
         <nav class="primary-nav" aria-label="主导航">
           <a href="#system">系统</a>
           <a href="#flow">流程</a>
+          <a href="#companion">本地应用</a>
           <a href="#surface">能力</a>
           <a href="#safety">边界</a>
         </nav>
@@ -136,6 +137,39 @@
             </div>
             <footer class="router-foot"><span>›</span><code data-terminal-line>工作区已绑定 · skills 已加载 · 就绪</code><b>✓</b></footer>
           </div>
+        </div>
+      </section>
+
+      <section class="companion section-pad" id="companion" aria-labelledby="companion-title">
+        <div class="section-shell">
+          <div class="section-heading companion-heading reveal">
+            <div><p class="eyebrow dark-label">本地伴随应用</p><h2 id="companion-title">每个聊天，<br />都清晰可见。</h2></div>
+            <p>Broker 也会在你的电脑上提供一个私有应用。它展示已发现项目、实时路由、最近工具结果、连接健康，以及本次运行真正生效的策略。</p>
+          </div>
+          <div class="companion-frame reveal" aria-label="CodexFlow 本地伴随应用预览">
+            <aside class="companion-rail">
+              <div class="companion-lockup"><img src="./assets/brand/flow7-tech-dark.webp" alt="" width="1024" height="1024" /><span><strong>CodexFlow</strong><small>local companion</small></span></div>
+              <div class="companion-ready"><i aria-hidden="true"></i><span>正在此电脑上运行</span></div>
+              <ol><li class="is-active"><span>01</span>当前</li><li><span>02</span>项目</li><li><span>03</span>聊天</li><li><span>04</span>连接</li><li><span>05</span>策略</li></ol>
+              <small>ENDORSED BY FLOW7</small>
+            </aside>
+            <div class="companion-stage">
+              <header><span>CodexFlow / <strong>当前</strong></span><small>正在此电脑上运行</small></header>
+              <div class="companion-content">
+                <div class="companion-intro"><small>当前运行</small><h3>你的电脑，清晰可见。</h3></div>
+                <dl class="companion-metrics"><div><dt>项目</dt><dd>自动发现</dd></div><div><dt>聊天路由</dt><dd>各自独立</dd></div><div><dt>策略</dt><dd>workspace / safe</dd></div><div><dt>活动</dt><dd>仅保存在内存</dd></div></dl>
+                <div class="companion-ledgers">
+                  <section aria-label="聊天路由"><div class="companion-panel-head"><span>01 / 实时路由</span><strong>进行中的聊天</strong></div><ol>
+                    <li><i aria-hidden="true"></i><div><strong>优化新手流程</strong><code>atlas-web</code></div><span>read · 完成</span><small>chat-a40c97f2</small></li>
+                    <li><i aria-hidden="true"></i><div><strong>重构身份验证</strong><code>signal-api</code></div><span>test · 完成</span><small>chat-7eac13b8</small></li>
+                    <li><i aria-hidden="true"></i><div><strong>发布审查</strong><code>codexflow</code></div><span>git status · 运行中</span><small>chat-29d1f640</small></li>
+                  </ol></section>
+                  <aside><span>02 / 隐私</span><strong>不包含内容的遥测</strong><p>只记录项目、工具名称、结果和耗时。不会记录 prompts、arguments、源码、命令输出、tokens 或可用的 MCP session IDs。</p></aside>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="companion-boundary reveal"><span aria-hidden="true">↳</span>这是产品预览。真正的伴随应用只由你经过身份验证的本地 CodexFlow 进程提供；这个公共网站无法看到你的项目或聊天。</p>
         </div>
       </section>
 

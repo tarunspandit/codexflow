@@ -33,6 +33,9 @@ test("renders the complete English launch page", async () => {
   assert.match(html, /npm install -g @tarunspandit\/codexflow/);
   assert.match(html, /One connection\./);
   assert.match(html, /Separate working memory\./);
+  assert.match(html, /Every chat,/);
+  assert.match(html, /Content-free telemetry/);
+  assert.match(html, /public website cannot see your projects or chats/i);
   assert.match(html, /No Codex CLI execution/);
   assert.match(html, /not affiliated with, endorsed by, or sponsored by OpenAI/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
@@ -46,6 +49,8 @@ test("renders the Chinese edition", async () => {
   assert.match(html, /一个命令。/);
   assert.match(html, /所有项目。/);
   assert.match(html, /任意对话。/);
+  assert.match(html, /每个聊天/);
+  assert.match(html, /不包含内容的遥测/);
   assert.match(html, /不执行 Codex CLI/);
 });
 

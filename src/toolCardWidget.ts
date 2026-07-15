@@ -1,5 +1,9 @@
-export const TOOL_CARD_URI = "ui://widget/codexflow-tool-card-v10.html";
-export const TOOL_CARD_LEGACY_URIS = ["ui://widget/codexflow-tool-card-v9.html", "ui://widget/codexflow-tool-card-v8.html"];
+export const TOOL_CARD_URI = "ui://widget/codexflow-tool-card-v11.html";
+export const TOOL_CARD_LEGACY_URIS = [
+  "ui://widget/codexflow-tool-card-v10.html",
+  "ui://widget/codexflow-tool-card-v9.html",
+  "ui://widget/codexflow-tool-card-v8.html"
+];
 export const TOOL_CARD_MIME_TYPE = "text/html;profile=mcp-app";
 
 export const toolCardWidgetHtml = String.raw`
@@ -25,92 +29,91 @@ export const toolCardWidgetHtml = String.raw`
 
 <style>
   :root {
-    color-scheme: dark light;
-    --panel: #11151c;
-    --panel-2: #161b24;
-    --panel-3: #0c1016;
-    --panel-4: #1d222b;
-    --line: rgba(212, 219, 229, 0.13);
-    --line-strong: rgba(212, 219, 229, 0.24);
-    --text: #f2f4f7;
-    --soft: #c9d0da;
-    --muted: #97a1af;
-    --quiet: #6f7988;
-    --accent: #d7b56d;
-    --accent-soft: rgba(215, 181, 109, 0.12);
-    --blue: #9dc3ff;
-    --green: #8edc99;
-    --red: #f29a9a;
-    --amber: #e8c978;
-    --shadow: rgba(0, 0, 0, 0.26);
+    color-scheme: light dark;
+    --panel: #ffffff;
+    --panel-subtle: #f7f7f8;
+    --panel-code: #f2f3f5;
+    --text: #171719;
+    --soft: #46464b;
+    --muted: #707078;
+    --quiet: #8c8c94;
+    --line: rgba(23, 23, 25, 0.14);
+    --line-strong: rgba(23, 23, 25, 0.24);
+    --accent: #3276a3;
+    --accent-soft: rgba(50, 118, 163, 0.08);
+    --green: #287a4c;
+    --red: #a5403b;
+    --amber: #8b6222;
+    --focus: #3276a3;
   }
 
   * { box-sizing: border-box; }
 
   body {
     margin: 0;
-    background: transparent;
     color: var(--text);
-    font: 12px/1.48 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: transparent;
+    font: 13px/1.48 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     letter-spacing: 0;
+    -webkit-font-smoothing: antialiased;
   }
 
-  .wrap {
-    width: 100%;
+  button,
+  input {
+    color: inherit;
+    font: inherit;
   }
+
+  button { cursor: pointer; }
+  button:disabled { cursor: wait; opacity: 0.58; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  [hidden] { display: none !important; }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .wrap { width: 100%; }
 
   .card {
-    position: relative;
     overflow: hidden;
+    color: var(--text);
+    background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 8px;
-    background:
-      radial-gradient(circle at 18px 0, rgba(215, 181, 109, 0.12), transparent 42px),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.042), rgba(255, 255, 255, 0)),
-      var(--panel);
-    box-shadow: 0 14px 34px var(--shadow);
+    border-radius: 14px;
   }
 
-  .rail {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 3px;
-    background: linear-gradient(180deg, var(--accent), rgba(142, 220, 153, 0.75) 64%, transparent);
-    opacity: 0.88;
-  }
+  .rail { display: none; }
 
   .head {
+    min-height: 58px;
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-columns: 9px minmax(0, 1fr) auto;
     align-items: center;
     gap: 10px;
-    min-height: 56px;
-    padding: 11px 12px 10px 14px;
+    padding: 11px 13px;
     border-bottom: 1px solid var(--line);
   }
 
   .glyph {
-    display: inline-grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    border: 1px solid rgba(215, 181, 109, 0.28);
-    border-radius: 8px;
-    background: linear-gradient(180deg, rgba(215, 181, 109, 0.16), rgba(215, 181, 109, 0.04));
-    color: var(--accent);
-    font-size: 10px;
-    font-weight: 900;
+    width: 8px;
+    height: 8px;
+    overflow: hidden;
+    display: block;
+    color: transparent;
+    background: var(--accent);
+    border-radius: 50%;
+    font-size: 0;
   }
 
-  .headline {
-    min-width: 0;
-  }
+  .headline { min-width: 0; }
 
   .title {
     overflow: hidden;
     color: var(--text);
-    font-size: 12px;
-    font-weight: 760;
+    font-size: 13px;
+    font-weight: 650;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -120,69 +123,66 @@ export const toolCardWidgetHtml = String.raw`
     margin-top: 2px;
     color: var(--muted);
     font-size: 11px;
-    font-weight: 650;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .meta {
+    min-width: 0;
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 6px;
-    min-width: 0;
+    gap: 5px;
   }
 
   .pill {
-    display: inline-flex;
-    align-items: center;
-    min-height: 20px;
+    min-height: 22px;
     max-width: 22ch;
     overflow: hidden;
-    padding: 2px 7px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.035);
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
     color: var(--muted);
+    background: var(--panel-subtle);
+    border: 1px solid var(--line);
+    border-radius: 999px;
     font-size: 10px;
-    font-weight: 720;
+    font-weight: 560;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .pill.good { color: var(--green); border-color: rgba(134, 239, 172, 0.28); background: rgba(134, 239, 172, 0.08); }
-  .pill.bad { color: var(--red); border-color: rgba(253, 164, 175, 0.28); background: rgba(253, 164, 175, 0.08); }
-  .pill.info { color: var(--blue); border-color: rgba(157, 195, 255, 0.28); background: rgba(157, 195, 255, 0.08); }
-  .pill.warn { color: var(--amber); border-color: rgba(253, 230, 138, 0.28); background: rgba(253, 230, 138, 0.08); }
+  .pill.good { color: var(--green); border-color: color-mix(in srgb, var(--green) 28%, transparent); }
+  .pill.bad { color: var(--red); border-color: color-mix(in srgb, var(--red) 28%, transparent); }
+  .pill.info { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 28%, transparent); }
+  .pill.warn { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 28%, transparent); }
 
-  .body {
-    max-height: 420px;
-    overflow: auto;
-    padding: 10px;
-  }
+  .body { padding: 12px; }
 
-  .metrics {
+  .metrics,
+  .summary {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 10px;
   }
 
-  .metric {
+  .metric,
+  .summary-item {
     min-width: 0;
-    padding: 8px 9px;
+    padding: 9px 10px;
+    background: var(--panel-subtle);
     border: 1px solid var(--line);
-    border-radius: 7px;
-    background: rgba(255, 255, 255, 0.025);
+    border-radius: 9px;
   }
 
-  .metric .label {
+  .metric .label,
+  .summary-label {
     display: block;
     margin-bottom: 4px;
-    color: var(--quiet);
+    color: var(--muted);
     font-size: 10px;
-    font-weight: 900;
-    text-transform: uppercase;
+    font-weight: 590;
   }
 
   .metric .value {
@@ -192,25 +192,32 @@ export const toolCardWidgetHtml = String.raw`
     white-space: nowrap;
   }
 
+  .summary-value {
+    color: var(--text);
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 640;
+  }
+
   .code {
     overflow: hidden;
+    background: var(--panel-code);
     border: 1px solid var(--line);
-    border-radius: 7px;
-    background: var(--panel-3);
+    border-radius: 9px;
   }
 
   .codebar {
+    min-height: 32px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    min-height: 30px;
-    padding: 6px 9px;
-    border-bottom: 1px solid var(--line);
-    background: var(--panel-2);
+    padding: 6px 10px;
     color: var(--muted);
+    background: var(--panel-subtle);
+    border-bottom: 1px solid var(--line);
     font-size: 11px;
-    font-weight: 720;
+    font-weight: 570;
   }
 
   pre {
@@ -218,217 +225,258 @@ export const toolCardWidgetHtml = String.raw`
     padding: 10px;
     overflow: visible;
     color: var(--soft);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-    font-size: 11px;
-    line-height: 1.52;
-    white-space: pre-wrap;
+    font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
 
   .diff-line { display: block; min-height: 18px; padding: 0 4px; border-radius: 3px; }
-  .diff-add { color: var(--green); background: rgba(142, 220, 153, 0.08); }
-  .diff-del { color: var(--red); background: rgba(242, 154, 154, 0.08); }
-  .diff-hunk { color: var(--blue); }
-  .terminal pre { color: #dbe7f5; }
+  .diff-add { color: var(--green); background: color-mix(in srgb, var(--green) 8%, transparent); }
+  .diff-del { color: var(--red); background: color-mix(in srgb, var(--red) 8%, transparent); }
+  .diff-hunk { color: var(--accent); }
+  .terminal pre { color: var(--soft); }
   .prompt { color: var(--accent); }
 
-  .summary {
+  .project-search {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    margin-bottom: 10px;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 9px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 560;
   }
 
-  .summary-item {
-    min-width: 0;
-    padding: 9px 10px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    background: rgba(255, 255, 255, 0.025);
-  }
-
-  .summary-label {
-    display: block;
-    margin-bottom: 4px;
-    color: var(--quiet);
-    font-size: 10px;
-    font-weight: 760;
-  }
-
-  .summary-value {
+  .project-search input {
+    min-height: 44px;
+    width: 100%;
+    padding: 0 11px;
     color: var(--text);
-    font-size: 15px;
-    font-variant-numeric: tabular-nums;
-    font-weight: 760;
+    background: var(--panel-subtle);
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
   }
 
-  .project-list { display: grid; gap: 7px; }
+  .project-search input::placeholder { color: var(--quiet); }
+  .project-list { display: grid; gap: 6px; }
+
   .project-button {
+    width: 100%;
+    min-height: 52px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
     gap: 10px;
-    width: 100%;
-    padding: 10px 11px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    background: rgba(255, 255, 255, 0.025);
+    padding: 8px 10px;
     color: var(--text);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 9px;
     text-align: left;
-    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease;
   }
-  .project-button:hover { border-color: var(--line-strong); background: var(--accent-soft); }
-  .project-button:disabled { cursor: wait; opacity: 0.62; }
+
+  .project-button:hover {
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  }
+
+  .project-button[aria-pressed="true"] {
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
   .project-main { min-width: 0; }
-  .project-name { display: block; overflow: hidden; font-weight: 760; text-overflow: ellipsis; white-space: nowrap; }
-  .project-path { display: block; overflow: hidden; margin-top: 2px; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-  .project-action { align-self: center; color: var(--accent); font-size: 10px; font-weight: 800; }
+
+  .project-name {
+    display: block;
+    overflow: hidden;
+    font-weight: 640;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .project-path {
+    display: block;
+    overflow: hidden;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .project-action {
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
 
   .file-list {
     display: grid;
-    gap: 4px;
+    gap: 5px;
     margin-bottom: 10px;
   }
 
   .section-label {
-    margin: 10px 1px 6px;
-    color: var(--quiet);
+    margin: 10px 1px 7px;
+    color: var(--muted);
     font-size: 10px;
-    font-weight: 850;
+    font-weight: 650;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
   .fold {
     margin-top: 8px;
+    background: transparent;
     border: 1px solid var(--line);
-    border-radius: 7px;
-    background: rgba(255, 255, 255, 0.018);
+    border-radius: 9px;
   }
 
   .fold > summary {
+    min-height: 44px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px;
     align-items: center;
-    min-height: 34px;
+    gap: 10px;
     padding: 8px 10px;
-    cursor: pointer;
     color: var(--soft);
-    font-weight: 760;
+    cursor: pointer;
+    font-weight: 590;
     list-style: none;
   }
 
   .fold > summary::-webkit-details-marker { display: none; }
-
-  .fold-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .fold-count {
-    color: var(--muted);
-    font-size: 10px;
-    font-weight: 800;
-  }
-
-  .fold-body {
-    padding: 0 8px 8px;
-  }
+  .fold > summary::after { content: "+"; color: var(--muted); }
+  .fold[open] > summary::after { content: "−"; }
+  .fold-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fold-count { color: var(--muted); font-size: 10px; font-weight: 560; }
+  .fold > summary::after { grid-column: 3; }
+  .fold-body { padding: 0 8px 8px; }
 
   .file-row {
+    min-height: 36px;
     display: grid;
-    grid-template-columns: 42px minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: 46px minmax(0, 1fr);
     align-items: center;
-    padding: 7px 8px;
+    gap: 8px;
+    padding: 6px 8px;
+    background: var(--panel-subtle);
     border: 1px solid var(--line);
-    border-radius: 7px;
-    background: rgba(255, 255, 255, 0.022);
+    border-radius: 8px;
   }
 
   .file-code {
     color: var(--accent);
-    font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-    font-weight: 800;
+    font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 640;
   }
 
   .file-name {
     overflow: hidden;
     color: var(--soft);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .empty {
     padding: 10px;
-    border: 1px dashed var(--line-strong);
-    border-radius: 7px;
-    background: rgba(255, 255, 255, 0.018);
     color: var(--muted);
+    background: var(--panel-subtle);
+    border: 1px solid var(--line);
+    border-radius: 9px;
   }
 
-  .search {
-    display: grid;
-    gap: 4px;
-  }
+  .search { display: grid; gap: 4px; }
 
   .hit {
+    min-height: 34px;
     display: grid;
-    grid-template-columns: minmax(120px, 0.34fr) minmax(0, 1fr);
+    grid-template-columns: minmax(120px, .34fr) minmax(0, 1fr);
+    align-items: start;
     gap: 8px;
-    padding: 6px 8px;
+    padding: 7px 8px;
     border-radius: 7px;
   }
 
-  .hit:nth-child(odd) {
-    background: rgba(255, 255, 255, 0.025);
-  }
+  .hit:nth-child(odd) { background: var(--panel-subtle); }
 
   .hit-file {
     overflow: hidden;
-    color: var(--blue);
-    font-weight: 850;
+    color: var(--accent);
+    font-weight: 620;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .hit-text {
-    color: var(--soft);
-    overflow-wrap: anywhere;
-  }
-
+  .hit-text { color: var(--soft); overflow-wrap: anywhere; }
   .muted { color: var(--muted); }
 
   .skeleton {
     display: grid;
     gap: 7px;
-    padding: 11px 13px 13px 17px;
-    border-top: 1px solid rgba(255, 255, 255, 0.02);
+    padding: 13px;
   }
 
   .skeleton span {
-    height: 8px;
+    height: 7px;
     max-width: 78%;
+    background: var(--line);
     border-radius: 999px;
-    background: linear-gradient(90deg, rgba(148, 163, 184, 0.12), rgba(148, 163, 184, 0.22), rgba(148, 163, 184, 0.12));
-    animation: codexflow-sheen 1.55s ease-in-out infinite;
+    animation: codexflow-pulse 1.3s ease-in-out infinite;
   }
 
-  .skeleton span:nth-child(2) { max-width: 52%; animation-delay: 0.12s; }
-  .skeleton span:nth-child(3) { max-width: 66%; animation-delay: 0.24s; }
+  .skeleton span:nth-child(2) { max-width: 52%; animation-delay: .12s; }
+  .skeleton span:nth-child(3) { max-width: 66%; animation-delay: .24s; }
 
-  @keyframes codexflow-sheen {
-    0%, 100% { opacity: 0.46; transform: translateX(0); }
-    50% { opacity: 1; transform: translateX(2px); }
+  @keyframes codexflow-pulse {
+    0%, 100% { opacity: .45; }
+    50% { opacity: 1; }
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --panel: #202124;
+      --panel-subtle: #27282c;
+      --panel-code: #18191c;
+      --text: #f2f2f3;
+      --soft: #d1d1d4;
+      --muted: #a3a3aa;
+      --quiet: #85858c;
+      --line: rgba(255, 255, 255, .12);
+      --line-strong: rgba(255, 255, 255, .22);
+      --accent: #86bfe4;
+      --accent-soft: rgba(134, 191, 228, .10);
+      --green: #7bd39d;
+      --red: #ef948d;
+      --amber: #e0bd77;
+      --focus: #86bfe4;
+    }
   }
 
   @media (max-width: 640px) {
-    .head { grid-template-columns: 28px minmax(0, 1fr); }
-    .meta { grid-column: 1 / -1; justify-content: flex-start; }
+    .head { grid-template-columns: 9px minmax(0, 1fr); }
+    .meta { grid-column: 2; justify-content: flex-start; }
     .summary,
     .metrics,
     .hit { grid-template-columns: 1fr; }
+    .project-search { grid-template-columns: 1fr; gap: 5px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .glyph { border: 1px solid CanvasText; }
   }
 </style>
 
@@ -607,7 +655,7 @@ export const toolCardWidgetHtml = String.raw`
   }
 
   function renderDiff(diff) {
-    return truncate(diff, 14000).split("\n").map((line) => {
+    return previewLines(truncate(diff, 9000), 32).split("\n").map((line) => {
       let cls = "diff-line";
       if (line.startsWith("+") && !line.startsWith("+++")) cls += " diff-add";
       else if (line.startsWith("-") && !line.startsWith("---")) cls += " diff-del";
@@ -854,7 +902,7 @@ export const toolCardWidgetHtml = String.raw`
 
   function renderSearch(data) {
     const count = Array.isArray(data.matches) ? data.matches.length : 0;
-    const lines = String(data.text || "").split("\\n").filter(Boolean).slice(0, 90);
+    const lines = String(data.text || "").split("\\n").filter(Boolean).slice(0, 12);
     const hits = lines.map((line) => {
       const parts = line.split(":");
       const file = parts.length > 2 ? parts.slice(0, 2).join(":") : (parts[0] || "match");
@@ -932,9 +980,10 @@ export const toolCardWidgetHtml = String.raw`
 
   function renderProjects(data) {
     const projects = Array.isArray(data.projects) ? data.projects : [];
-    const rows = projects.map((project) => {
+    const rows = projects.map((project, index) => {
       const sources = Array.isArray(project?.sources) ? project.sources.join(", ") : "local";
-      return '<button type="button" class="project-button" data-project-id="' + esc(project?.project_id || "") + '" data-project-name="' + esc(project?.name || "project") + '">' +
+      const searchable = ((project?.name || "") + " " + (project?.root || "") + " " + sources).toLowerCase();
+      return '<button type="button" class="project-button" data-project-id="' + esc(project?.project_id || "") + '" data-project-name="' + esc(project?.name || "project") + '" data-project-search="' + esc(searchable) + '" aria-pressed="' + (project?.selected ? 'true' : 'false') + '"' + (index >= 8 ? ' hidden' : '') + '>' +
         '<span class="project-main"><span class="project-name">' + esc(project?.name || "Project") + '</span>' +
         '<span class="project-path">' + esc(project?.root || "") + ' · ' + esc(sources) + '</span></span>' +
         '<span class="project-action">' + (project?.selected ? "Selected" : "Use project") + '</span></button>';
@@ -942,9 +991,10 @@ export const toolCardWidgetHtml = String.raw`
     const roots = Array.isArray(data.allowed_roots) ? data.allowed_roots : [];
     return '<article class="card">' + header(data, pill(projects.length + " projects", "info") + pill("one broker")) +
       '<div class="body"><div class="section-label">Choose where this chat works</div>' +
+      '<label class="project-search"><span>Filter projects</span><input type="search" data-project-filter placeholder="Name or folder" autocomplete="off"></label>' +
       '<div class="project-list">' + (rows || '<div class="empty">No projects found. Add a projects directory with --allow-root and refresh.</div>') + '</div>' +
       fold("Synchronized roots", roots.length + " roots", compactRows(roots, "root", 12), false) +
-      '<div class="empty" id="project-status">The selected project stays bound to this ChatGPT conversation.</div>' +
+      '<div class="empty" id="project-status" role="status" aria-live="polite">' + (projects.length > 8 ? 'Showing 8 of ' + esc(projects.length) + ' projects. Filter to find another.' : 'The selected project stays bound to this ChatGPT conversation.') + '</div>' +
       '</div></article>';
   }
 
@@ -1013,7 +1063,7 @@ export const toolCardWidgetHtml = String.raw`
     return '<article class="card">' + header(data, pill(files.length + " files", "info")) +
       '<div class="body">' +
       (rows ? '<div class="file-list">' + rows + '</div>' : '<div class="empty">No files listed.</div>') +
-      fold(label || "Preview", countLines(preview) + " lines", codebox(label || "preview", esc(previewLines(preview, 40)), ""), false) +
+      fold(label || "Preview", countLines(preview) + " lines", codebox(label || "preview", esc(previewLines(preview, 24)), ""), false) +
       '</div></article>';
   }
 
@@ -1022,7 +1072,7 @@ export const toolCardWidgetHtml = String.raw`
     const metrics = keys.slice(0, 3).map((key) => metric(key, typeof data[key] === "object" ? JSON.stringify(data[key]) : data[key])).join("");
     return '<article class="card">' + header(data, pill("structured", "info")) +
       '<div class="body">' + (metrics ? '<div class="metrics">' + metrics + '</div>' : '') +
-      codebox("structured output", esc(truncate(JSON.stringify(data || {}, null, 2))), "") +
+      codebox("structured output", esc(previewLines(truncate(JSON.stringify(data || {}, null, 2), 6000), 24)), "") +
       '</div></article>';
   }
 
@@ -1119,17 +1169,49 @@ export const toolCardWidgetHtml = String.raw`
     try {
       if (!window.openai?.callTool) throw new Error("Project selection is unavailable in this client.");
       await window.openai.callTool("select_project", { project_id: projectId });
-      await window.openai.setWidgetState?.({ selectedProjectId: projectId, selectedProjectName: projectName });
-      button.querySelector(".project-action").textContent = "Selected";
-      if (status) status.textContent = projectName + " is selected. This chat now routes file, git, and terminal tools there.";
-      await window.openai.sendFollowUpMessage?.({
-        prompt: "Use the selected CodexFlow project " + projectName + " (project_id " + projectId + ") for this coding conversation. Inspect its repository instructions and relevant advertised skills before making changes.",
-        scrollToBottom: true
+      window.openai.setWidgetState?.({ selectedProjectId: projectId, selectedProjectName: projectName });
+      buttons.forEach((item) => {
+        const selected = item === button;
+        item.setAttribute("aria-pressed", selected ? "true" : "false");
+        const action = item.querySelector(".project-action");
+        if (action) action.textContent = selected ? "Selected" : "Use project";
+        item.disabled = false;
       });
+      if (status) status.textContent = projectName + " is selected. This chat now routes file, git, and terminal tools there.";
+      if (window.openai.sendFollowUpMessage) {
+        try {
+          await window.openai.sendFollowUpMessage({
+            prompt: "Use the selected CodexFlow project " + projectName + " (project_id " + projectId + ") for this coding conversation. Inspect its repository instructions and relevant advertised skills before making changes.",
+            scrollToBottom: true
+          });
+        } catch {
+          if (status) status.textContent = projectName + " is selected. Continue this conversation to work in that project.";
+        }
+      }
     } catch (error) {
       buttons.forEach((item) => { item.disabled = false; });
       if (status) status.textContent = error instanceof Error ? error.message : "Could not select the project.";
     }
+  });
+
+  root.addEventListener("input", (event) => {
+    const input = event.target?.closest?.("[data-project-filter]");
+    if (!input) return;
+    const query = String(input.value || "").trim().toLowerCase();
+    const buttons = [...root.querySelectorAll("[data-project-search]")];
+    let matching = 0;
+    let visible = 0;
+    buttons.forEach((button) => {
+      const matches = !query || String(button.getAttribute("data-project-search") || "").includes(query);
+      if (matches) matching += 1;
+      const show = matches && visible < 8;
+      button.hidden = !show;
+      if (show) visible += 1;
+    });
+    const status = document.getElementById("project-status");
+    if (status) status.textContent = matching
+      ? "Showing " + visible + " of " + matching + " matching projects. Selection stays bound to this conversation."
+      : "No projects match this filter.";
   });
 
   window.addEventListener("openai:set_globals", (event) => {

@@ -30,6 +30,7 @@ Usage:
   codexflow --root /path/to/repo
   codexflow settings
   codexflow status --root /path/to/repo [--json]
+  codexflow app --root /path/to/repo
   codexflow doctor
   codexflow connection-test --root /path/to/repo
   codexflow inspect --root /path/to/repo [--json]
@@ -692,6 +693,7 @@ function saveRuntimeConnection(root, details, options = {}) {
     pid: process.pid,
     updatedAt: new Date().toISOString(),
     endpoint: details.endpoint,
+    localAuthToken: details.token ?? '',
     localBase: options.localBase ?? '',
     localStatusUrl: details.localStatusUrl ? details.localStatusUrl.replace(/codexflow_token=[^&]+/, 'codexflow_token=<redacted>') : '',
     tunnel: options.tunnel ?? '',
@@ -1342,6 +1344,17 @@ function copyToClipboard(text) {
 }
 
 function openUrl(url) {
+  const customBrowser = String(process.env.CODEXFLOW_BROWSER || '').trim();
+  if (customBrowser) {
+    try {
+      const [bin, ...args] = splitCommandTemplate(customBrowser);
+      if (!bin) return false;
+      const result = spawnSync(bin, [...args, url], { stdio: 'ignore', shell: false });
+      return result.status === 0;
+    } catch {
+      return false;
+    }
+  }
   const command =
     process.platform === 'darwin'
       ? ['open', [url]]
@@ -2833,7 +2846,7 @@ function printControlHelp() {
   console.log('  Enter  open ChatGPT connector settings in your browser');
   console.log('  c      copy Server URL again');
   console.log('  u      print Server URL only');
-  console.log('  o      open local status/settings dashboard');
+  console.log('  o      open the local companion app');
   console.log('  p      print Create App fields');
   console.log('  m      print mode help');
   console.log('  h      show controls');
@@ -3482,9 +3495,11 @@ async function probeRuntimeHealth(runtime, profile) {
     return { status: 'unknown', detail: 'The saved local health endpoint is invalid.' };
   }
 
-  const token = typeof profile?.token === 'string' && profile.token
-    ? profile.token
-    : process.env.CODEXFLOW_HTTP_TOKEN || process.env.CODEBASE_BRIDGE_HTTP_TOKEN || '';
+  const token = typeof runtime?.localAuthToken === 'string' && runtime.localAuthToken
+    ? runtime.localAuthToken
+    : typeof profile?.token === 'string' && profile.token
+      ? profile.token
+      : process.env.CODEXFLOW_HTTP_TOKEN || process.env.CODEBASE_BRIDGE_HTTP_TOKEN || '';
   try {
     const response = await fetch(healthUrl, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -3503,6 +3518,54 @@ async function probeRuntimeHealth(runtime, profile) {
       detail: error instanceof Error ? error.message : String(error)
     };
   }
+}
+
+function companionUrl(runtime, profile) {
+  const rawBase = typeof runtime?.localBase === 'string' && runtime.localBase.trim()
+    ? runtime.localBase.trim()
+    : safeStatusUrl(runtime?.localStatusUrl);
+  if (!rawBase) throw new Error('No local companion URL was recorded for this runtime. Restart CodexFlow and try again.');
+  const url = new URL(rawBase);
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('The recorded local companion URL is invalid.');
+  url.pathname = '/';
+  url.search = '';
+  url.hash = '';
+  const token = typeof runtime?.localAuthToken === 'string' && runtime.localAuthToken
+    ? runtime.localAuthToken
+    : typeof profile?.token === 'string' && profile.token
+      ? profile.token
+      : process.env.CODEXFLOW_HTTP_TOKEN || process.env.CODEBASE_BRIDGE_HTTP_TOKEN || '';
+  if (token) url.searchParams.set('codexflow_token', token);
+  return url.toString();
+}
+
+async function runApp(argv) {
+  const args = parseArgs(argv);
+  if (args.help) {
+    usage();
+    return;
+  }
+  const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? process.cwd());
+  const profile = args.noProfile ? {} : loadWorkspaceProfile(root);
+  const runtime = readJsonFile(runtimeStatusPathForRoot(root));
+  if (!runtime || typeof runtime !== 'object' || Array.isArray(runtime) || runtime.root !== root || !processIsAlive(runtime.pid)) {
+    throw new Error('CodexFlow is not running for this workspace. Run codexflow first, then use codexflow app from any terminal.');
+  }
+  const url = companionUrl(runtime, profile);
+  const health = await probeRuntimeHealth(runtime, profile);
+  if (!['ok', 'unknown'].includes(health.status)) {
+    throw new Error(`The local companion is not ready: ${health.detail}`);
+  }
+  if (openUrl(url)) {
+    statusLine('ok', 'Opened the CodexFlow local companion.');
+    return;
+  }
+  const copied = copyToClipboard(url);
+  if (copied.ok) {
+    statusLine('warn', `Could not open the browser automatically. The private companion URL was copied with ${copied.command}.`);
+    return;
+  }
+  throw new Error('Could not open or copy the private companion URL. In the original CodexFlow terminal, press o to open it.');
 }
 
 async function runStatus(argv) {
@@ -3839,7 +3902,7 @@ function runControlPanel(details, cleanup = cleanupChildren, options = {}) {
           console.log('\nNo local status page URL is available for this run.');
         } else {
           const opened = openUrl(details.localStatusUrl);
-          console.log(opened ? '\nOpened local CodexFlow status/settings dashboard.' : `\nCould not open automatically. Open this URL:\n${details.localStatusUrl}`);
+          console.log(opened ? '\nOpened the CodexFlow local companion.' : '\nCould not open automatically. Run codexflow app from another terminal or try again.');
         }
         writeControlPrompt();
       } else if (normalized === 'p') {
@@ -3889,6 +3952,10 @@ async function main() {
   }
   if (subcommand === 'status' || subcommand === 'state') {
     await runStatus(argv.slice(1));
+    return;
+  }
+  if (subcommand === 'app' || subcommand === 'gui' || subcommand === 'open') {
+    await runApp(argv.slice(1));
     return;
   }
   if (subcommand === 'execute-handoff' || subcommand === 'execute' || subcommand === 'run-handoff') {

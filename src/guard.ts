@@ -36,7 +36,7 @@ export function displayPath(absPath: string, root: string): string {
   return normalizeRelPath(rel);
 }
 
-function workspaceIdForRoot(realRoot: string): string {
+export function workspaceIdForRoot(realRoot: string): string {
   return `ws_${createHash("sha256").update(realRoot).digest("hex").slice(0, 24)}`;
 }
 

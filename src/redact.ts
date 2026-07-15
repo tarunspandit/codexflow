@@ -8,6 +8,7 @@ const CODEXFLOW_TOKEN_FIELD_PATTERN = /(["']?codexflow_token["']?\s*:\s*)(?:"[^"
 const SECRET_ASSIGNMENT_PATTERN = /\b[A-Za-z0-9_]{0,64}(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PRIVATE[_-]?KEY)[A-Za-z0-9_]{0,64}\s*=\s*(?:"[^"\r\n]{12,512}"|'[^'\r\n]{12,512}'|`[^`\r\n]{12,512}`|[A-Za-z0-9_./+=-]{20,512})/gi;
 const SECRET_FIELD_PATTERN = /(["']?[A-Za-z0-9_]{0,64}(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PRIVATE[_-]?KEY)[A-Za-z0-9_]{0,64}["']?\s*:\s*)(?:"[^"\r\n]{12,512}"|'[^'\r\n]{12,512}'|`[^`\r\n]{12,512}`|[A-Za-z0-9_./+=-]{20,512})/gi;
 const SECRET_PATTERNS = [OPENAI_SECRET_PATTERN, COMMON_TOKEN_PATTERN, BEARER_TOKEN_PATTERN, CLI_TOKEN_PATTERN, QUERY_TOKEN_PATTERN, CODEXFLOW_TOKEN_ASSIGNMENT_PATTERN, CODEXFLOW_TOKEN_FIELD_PATTERN, SECRET_ASSIGNMENT_PATTERN, SECRET_FIELD_PATTERN];
+const SECRET_KEY_PATTERN = /(?:api[_-]?key|token|secret|password|private[_-]?key)/i;
 
 export function hasSecretValue(text: string): boolean {
   for (const pattern of SECRET_PATTERNS) {
@@ -41,7 +42,9 @@ export function redactStructured<T>(value: T, depth = 0): T {
 
   const out: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value)) {
-    out[key] = redactStructured(item, depth + 1);
+    out[key] = SECRET_KEY_PATTERN.test(key) && typeof item === "string" && item
+      ? "[REDACTED_SECRET]"
+      : redactStructured(item, depth + 1);
   }
   return out as T;
 }
