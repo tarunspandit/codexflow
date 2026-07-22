@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-The 0.31.0 source and public-site release is complete. The 0.32.0 parity release adds native Codex local-environment compatibility, inherited setup/actions, `.worktreeinclude` hydration, and first-class environment controls in the Mac app. Literal Codex desktop parity is not claimed; the remaining gaps are tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and a final live two-chat ChatGPT acceptance pass remain account-authenticated release checks.
+The 0.32.0 source and public-site release is complete. The 0.33.0 parity release adds durable local-project preparation for ChatGPT Scheduled while preserving ChatGPT as the sole scheduler and model surface. Literal Codex desktop parity is not claimed; the remaining gaps are tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and live ChatGPT scheduled/two-chat acceptance remain account-authenticated release checks.
 
 ## Product truth
 
@@ -52,8 +52,9 @@ The 0.31.0 source and public-site release is complete. The 0.32.0 parity release
 | FUNC-001 | Project discovery combines default/allowed roots, nested markers, and optional Codex metadata without per-folder setup. | Required | Verified | `src/projectCatalog.ts`, `src/codexSessions.ts` | Existing catalog, HTTP, and stress tests. |
 | FUNC-002 | The broker advertises repository instructions, user/workspace/plugin skills, plugin manifests, and configured MCP names. | Required | Verified | `src/capabilitiesOps.ts`, `src/server.ts` | Existing capability and complete smoke suites. |
 | FUNC-003 | Native Now, Projects, Environments, Worktrees, Chats, Connection, and Policy views render real overview/profile data. | Required | Verified | Native views + authenticated broker APIs | Fixture and API regression coverage includes all destinations. |
-| FUNC-004 | Connection URL credentials are never displayed or logged; the complete URL is copied only on explicit action. | Required | Verified | Native clipboard path and redacted UI | UI/source/log checks found no credential; explicit copy is the sole full-URL path. |
-| FUNC-005 | Native policy settings save through the authenticated profile API and clearly require a broker restart. | Required | Verified | Native policy editor | Tool-card policy saved, remained inactive, then became effective after native restart. |
+| FUNC-004 | ChatGPT Scheduled can reacquire a stable local project route and optionally use its selected environment in a clean managed worktree. | Required | Verified locally | `prepare_scheduled_task`, private routes, environments, worktrees | MCP regression verifies durable prompt content and route/environment/worktree preparation; live schedule creation requires an authenticated ChatGPT surface. |
+| FUNC-005 | Connection URL credentials are never displayed or logged; the complete URL is copied only on explicit action. | Required | Verified | Native clipboard path and redacted UI | UI/source/log checks found no credential; explicit copy is the sole full-URL path. |
+| FUNC-006 | Native policy settings save through the authenticated profile API and clearly require a broker restart. | Required | Verified | Native policy editor | Tool-card policy saved, remained inactive, then became effective after native restart. |
 | DATA-001 | Launch configuration and runtime records are local, restrictive, and contain no additional persisted chat content. | Required | Verified | Private desktop/runtime/profile files | Temporary-home audit confirmed mode `0600`, non-secret config, and no chat content. |
 | DATA-002 | Session/activity telemetry remains memory-only, bounded, expiring, and content-free; transport probes are not presented as user chats. | Required | Verified | `src/runtimeMonitor.ts` | Monitor and HTTP assertions distinguish routed chats, project-selection sessions, and raw connections. |
 | AUTH-001 | Native API calls authenticate with the private runtime token; public requests remain fail-closed. | Required | Verified | Native bearer client, `src/http.ts` | Live unauthorized request returned 401; native/authorized request returned 200. |

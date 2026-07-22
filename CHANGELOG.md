@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.33.0 (2026-07-22)
+
+- Added `prepare_scheduled_task`, which turns concrete local-project work into a durable ChatGPT Scheduled prompt that reacquires a fresh private route, selects the stable project ID, restores the selected local environment, and optionally creates a clean managed worktree for every run.
+- Kept scheduling, model execution, cadence, and run history in ChatGPT Scheduled rather than introducing a second model backend, Codex CLI process, local cron daemon, API key, or separate usage bill.
+- Added explicit unattended-run boundaries: focused verification and `show_changes` are on by default, publishing is off by default, missing projects/tools fail closed, and the prompt reminds users that the computer, broker, and stable plugin URL must remain available.
+
 ## 0.32.0 (2026-07-22)
 
 - Added native Codex local-environment compatibility: CodexFlow discovers the same version-1 `.codex/environments/*.toml` files, honors platform-specific setup and cleanup scripts, exposes named actions, and supplies `CODEX_SOURCE_TREE_PATH` plus `CODEX_WORKTREE_PATH` without invoking the Codex CLI.

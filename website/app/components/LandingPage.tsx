@@ -16,7 +16,7 @@ const content = {
     nav: [["System", "#system"], ["Flow", "#flow"], ["Desktop app", "#companion"], ["Surface", "#surface"], ["Boundaries", "#safety"]],
     eyebrow: "Local agent infrastructure / Flow7 Tech",
     hero: ["One command.", "Every project.", "Any chat."],
-    heroBody: "CodexFlow gives ChatGPT a serious local coding backend. Projects, shared local environments, managed worktrees, guarded Git workflows, persistent terminals, skills, and instructions become available through one deliberate connection.",
+    heroBody: "CodexFlow gives ChatGPT a serious local coding backend. Projects, shared environments, managed worktrees, guarded Git, persistent terminals, and scheduled project runs become available through one deliberate connection.",
     copy: "Copy",
     copied: "Copied",
     seePath: "See the path",
@@ -66,6 +66,7 @@ const content = {
       ["Parallelize", "One task, one managed checkout.", "Creates isolated worktrees, carries current changes in safely, and refuses to overwrite a destination that changed independently.", "GUARDED HANDOFF"],
       ["Verify", "Git and terminal state that continue.", "Stages and commits only the selected project, runs bounded verification, and keeps a private route terminal alive across tool transports.", "PERSISTENT"],
       ["Adapt", "Your project environment travels too.", "Uses the same checked-in Codex environment format for setup, cleanup, named actions, skills, plugins, and MCP inventory—without running Codex.", "INTEROPERABLE"],
+      ["Schedule", "Recurring work keeps its project.", "Prepares durable ChatGPT Scheduled runs that reacquire a private route and use a clean managed worktree without adding another model backend.", "CHATGPT NATIVE"],
     ],
     safetyKicker: "Power with edges",
     safetyTitle: "Local access should feel serious.",
@@ -85,6 +86,7 @@ const content = {
       ["Does CodexFlow run the Codex CLI?", "No. ChatGPT supplies the model and conversation. CodexFlow supplies the local project context and tool backend through MCP. It never starts, resumes, or impersonates a Codex session."],
       ["Do I register every project manually?", "No. Running codexflow discovers recent project folders and configured roots automatically. Each conversation chooses one project for itself."],
       ["Can several chats work at once?", "Yes. One broker and one tunnel can serve many conversations. Each chat gets a private route that survives separate tool connections and broker restarts."],
+      ["Can scheduled tasks use my local project?", "Yes. ChatGPT Scheduled owns the model turn and cadence; CodexFlow prepares each run to reacquire the project, environment, and an optional clean worktree. Keep the computer and broker running."],
       ["Is this a quota or model proxy?", "No. Requests still use your own ChatGPT account and its normal product limits. CodexFlow does not pool accounts, resell access, or bypass quotas."],
       ["What does installation require?", "Node.js 20 or newer, macOS 14 or newer for the native app, and ChatGPT Apps / Developer Mode access. The launcher installs and opens the app automatically; no separate desktop setup is required."],
     ],
@@ -102,7 +104,7 @@ const content = {
     nav: [["系统", "#system"], ["流程", "#flow"], ["桌面应用", "#companion"], ["能力", "#surface"], ["边界", "#safety"]],
     eyebrow: "本地代理基础设施 / Flow7 Tech",
     hero: ["一个命令。", "所有项目。", "任意对话。"],
-    heroBody: "CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、共享本地环境、受管 worktrees、受保护 Git 流程、持久终端、skills 与指令，都通过一条清晰可控的连接进入对话。",
+    heroBody: "CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、共享本地环境、受管 worktrees、受保护 Git、持久终端和定时项目任务，都通过一条清晰可控的连接进入对话。",
     copy: "复制",
     copied: "已复制",
     seePath: "查看完整流程",
@@ -152,6 +154,7 @@ const content = {
       ["并行", "一个任务，一个受管 checkout。", "创建隔离 worktrees，安全带入当前改动；如果目标 checkout 被独立修改，则拒绝覆盖。", "受保护交接"],
       ["验证", "Git 与终端状态持续存在。", "只暂存并提交所选项目，运行受限验证，并让私有路由终端跨工具连接保持运行。", "持久"],
       ["适配", "项目环境也会随行。", "使用与 Codex 相同的项目环境格式提供 setup、cleanup、actions、skills、plugins 和 MCP 清单，但不运行 Codex。", "可互操作"],
+      ["定时", "重复任务始终回到正确项目。", "为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。", "CHATGPT 原生"],
     ],
     safetyKicker: "能力必须有边界",
     safetyTitle: "本地访问应该被认真对待。",
@@ -160,7 +163,7 @@ const content = {
     guards: [["Token 保护的公网 URL", "未经身份验证的请求无法进入工具面。"], ["工作区 root 强制执行", "路径与 symlink 检查让所有操作始终在范围内。"], ["Secret 感知输出", "凭据和常见 secret 模式会被拦截或隐藏。"], ["受保护写入与终端", "安全默认值一直生效，直到你明确扩大权限。"], ["冲突感知 Worktrees", "交接前会验证两个 checkout，避免覆盖独立改动。"], ["可信环境边界", "项目 setup 与 action 脚本仅在 workspace 写入和 shell 执行均启用时运行。"]],
     faqKicker: "直接回答",
     faqTitle: "连接之前。",
-    faqs: [["CodexFlow 会运行 Codex CLI 吗？", "不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。"], ["需要手动注册每个项目吗？", "不需要。运行 codexflow 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。"], ["多个聊天可以同时工作吗？", "可以。一个 broker 和 tunnel 能服务多个对话。每个聊天都有独立私有路由，跨工具连接和 broker 重启后仍保持项目绑定。"], ["这是额度或模型代理吗？", "不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。"], ["安装需要什么？", "需要 Node.js 20 或更高版本；原生应用需要 macOS 14 或更高版本；并需要 ChatGPT Apps / Developer Mode 访问。启动器会自动安装和打开应用，无需单独设置桌面端。"]],
+    faqs: [["CodexFlow 会运行 Codex CLI 吗？", "不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。"], ["需要手动注册每个项目吗？", "不需要。运行 codexflow 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。"], ["多个聊天可以同时工作吗？", "可以。一个 broker 和 tunnel 能服务多个对话。每个聊天都有独立私有路由，跨工具连接和 broker 重启后仍保持项目绑定。"], ["定时任务能使用本地项目吗？", "可以。ChatGPT Scheduled 负责模型运行与 cadence；CodexFlow 让每次运行重新获得项目、环境和可选的干净 worktree。电脑与 broker 需要保持运行。"], ["这是额度或模型代理吗？", "不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。"], ["安装需要什么？", "需要 Node.js 20 或更高版本；原生应用需要 macOS 14 或更高版本；并需要 ChatGPT Apps / Developer Mode 访问。启动器会自动安装和打开应用，无需单独设置桌面端。"]],
     finalKicker: "项目已经在你的电脑里",
     finalTitle: "现在，在对话中与它们相遇。",
     finalBody: "安装一次，从任何目录运行；原生应用会打开，每个聊天在开始时选择自己的工作区。",
@@ -210,7 +213,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
               <div className="instrument-readout"><p><span className="live-dot" aria-hidden="true" />{c.brokerReady}</p><dl>{c.readout.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>
             </div>
           </div>
-          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.32.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.33.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
         </section>
 
         <section className="system section-pad" id="system">

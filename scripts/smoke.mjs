@@ -235,13 +235,13 @@ await client.request('initialize', {
 client.notify('notifications/initialized');
 const tools = await client.request('tools/list', {});
 const toolNames = tools.tools.map((tool) => tool.name);
-for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inventory', 'list_projects', 'select_project', 'list_workspaces', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'inspect_workspace', 'tree', 'search', 'load_skill', 'read', 'write', 'edit', 'apply_patch', 'bash', 'terminal', 'git_status', 'git_diff', 'git_workflow', 'local_environment', 'worktree', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
+for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inventory', 'list_projects', 'select_project', 'list_workspaces', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'inspect_workspace', 'tree', 'search', 'load_skill', 'read', 'write', 'edit', 'apply_patch', 'bash', 'terminal', 'git_status', 'git_diff', 'git_workflow', 'local_environment', 'worktree', 'prepare_scheduled_task', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
   if (!toolNames.includes(expected)) throw new Error(`missing tool: ${expected}`);
 }
 const toolCardUri = 'ui://widget/codexflow-tool-card-v12.html';
 const projectPickerUri = 'ui://widget/codexflow-project-picker-v3.html';
 const toolsByName = new Map(tools.tools.map((tool) => [tool.name, tool]));
-for (const routeAwareTool of ['list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'read', 'tree', 'bash', 'local_environment']) {
+for (const routeAwareTool of ['list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'read', 'tree', 'bash', 'local_environment', 'prepare_scheduled_task']) {
   if (!toolsByName.get(routeAwareTool)?.inputSchema?.properties?.route_id) {
     throw new Error(`${routeAwareTool} did not advertise private route_id input`);
   }
@@ -318,6 +318,24 @@ const environmentAction = await client.request('tools/call', {
 });
 if (environmentAction.isError || !environmentAction.structuredContent.output?.includes('local-environment-action')) {
   throw new Error(`local_environment action did not run in the route terminal: ${JSON.stringify(environmentAction)}`);
+}
+const scheduledTask = await client.request('tools/call', {
+  name: 'prepare_scheduled_task',
+  arguments: {
+    route_id: pickerRouteId,
+    task: 'Run the focused tests and summarize regressions.',
+    run_location: 'worktree',
+    chat_mode: 'same_chat'
+  }
+});
+if (
+  scheduledTask.isError ||
+  scheduledTask.structuredContent.scheduler !== 'chatgpt_scheduled' ||
+  scheduledTask.structuredContent.creates_schedule !== false ||
+  !scheduledTask.structuredContent.prompt?.includes(defaultChoice.project_id) ||
+  !scheduledTask.structuredContent.prompt?.includes('Smoke local') && !scheduledTask.structuredContent.environment_config_path
+) {
+  throw new Error(`prepare_scheduled_task did not produce durable project context: ${JSON.stringify(scheduledTask)}`);
 }
 await fs.chmod(unreadableCodexSessionPath, 0o600);
 const parkedSymlinkNames = [...new Set([...danglingSymlinks, symlinkEscapePath.split('/')[0]])];
@@ -998,8 +1016,8 @@ async function assertToolMode(mode, expected, hidden, extraEnv = {}) {
   modeClient.close();
 }
 
-await assertToolMode('', ['codexflow', 'server_config', 'codexflow_self_test', 'list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'inspect_workspace', 'tree', 'search', 'load_skill', 'read', 'write', 'edit', 'apply_patch', 'bash', 'show_changes', 'read_handoff', 'wait_for_handoff', 'export_pro_context', 'handoff_to_agent'], ['codexflow_inventory', 'workspace_snapshot', 'git_status', 'git_diff', 'codex_context', 'handoff_to_codex']);
-await assertToolMode('minimal', ['codexflow', 'server_config', 'codexflow_self_test', 'list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'load_skill', 'read', 'write', 'edit', 'apply_patch', 'bash', 'show_changes'], ['inspect_workspace', 'tree', 'search', 'read_handoff', 'wait_for_handoff', 'export_pro_context', 'handoff_to_agent', 'codex_context']);
+await assertToolMode('', ['codexflow', 'server_config', 'codexflow_self_test', 'list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'inspect_workspace', 'tree', 'search', 'load_skill', 'read', 'write', 'edit', 'apply_patch', 'bash', 'show_changes', 'prepare_scheduled_task', 'read_handoff', 'wait_for_handoff', 'export_pro_context', 'handoff_to_agent'], ['codexflow_inventory', 'workspace_snapshot', 'git_status', 'git_diff', 'codex_context', 'handoff_to_codex']);
+await assertToolMode('minimal', ['codexflow', 'server_config', 'codexflow_self_test', 'list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'load_skill', 'read', 'write', 'edit', 'apply_patch', 'bash', 'show_changes'], ['inspect_workspace', 'tree', 'search', 'prepare_scheduled_task', 'read_handoff', 'wait_for_handoff', 'export_pro_context', 'handoff_to_agent', 'codex_context']);
 await assertToolMode('', ['codexflow', 'server_config', 'show_changes', 'search'], ['inspect_workspace'], { CODEXFLOW_ANALYSIS: '0' });
 
 const handoffWriteClient = new McpStdioClient('node', ['dist/stdio.js', '--root', tmp, '--allow-root', tmp, '--write', 'handoff'], {

@@ -95,6 +95,7 @@ ChatGPT Web 可以操作：
   terminal 维持每个聊天自己的交互式/后台进程
   local_environment 使用共享的本地环境配置和 actions
   worktree 创建隔离 checkout 并安全交接改动
+  prepare_scheduled_task 为 ChatGPT Scheduled 准备可靠的本地项目运行提示
   show_changes 查看当前改动摘要
 
 本地执行器仍然有价值：
@@ -136,6 +137,12 @@ codexflow app
 CodexFlow 直接读取项目中 version-1 `.codex/environments/*.toml`。setup、cleanup、平台专用脚本和命名 actions 都可在 ChatGPT 或原生应用中使用。创建受管 worktree 时，选定环境会自动运行 setup，并提供 `CODEX_SOURCE_TREE_PATH` 与 `CODEX_WORKTREE_PATH`。需要复制到 worktree 的 gitignored 本地文件可写入 `.worktreeinclude`。
 
 这些脚本属于受信任的项目代码，只会在 workspace 写入和 shell 执行都启用时运行。CodexFlow 共享的是格式和项目配置，不会启动 Codex CLI。
+
+### 定时项目任务
+
+ChatGPT Web 负责 schedule、模型、cadence 与运行历史。需要定时处理本地项目时，让 ChatGPT 使用 CodexFlow 并创建 Scheduled task。`prepare_scheduled_task` 会生成稳定提示：每次运行重新获得私有 route，以稳定 project ID 选择项目，恢复本地环境，并可默认创建干净的受管 worktree。
+
+默认提示会执行聚焦验证、调用 `show_changes`、保留 worktree 供审查，并禁止 push/publish。电脑需要保持唤醒，CodexFlow broker 必须运行，Plugin URL 必须稳定。CodexFlow 不会创建本地 cron、不调用 Codex，也不会自己运行模型。
 
 ## 其他启动方式
 

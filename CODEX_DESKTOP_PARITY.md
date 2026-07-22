@@ -20,7 +20,7 @@ The honest status is **strong local workflow parity, not literal Codex desktop p
 | Codex local environments | Available | Reads the same version-1 `.codex/environments/*.toml`, including OS-specific setup/cleanup and named actions; exposes the same source-tree/worktree variables. |
 | Native management app | Available on macOS | Broker lifecycle, projects, environments, worktrees, chats, connection, and policy are first-class SwiftUI views. |
 | Chat lifecycle | Available locally | Search, local rename, pin, archive, restore, and project-route resumption without storing prompts or tool contents. |
-| Scheduled/background agent tasks | Not yet | CodexFlow can keep local processes alive, but it has no independent model runtime that can create a future model turn after the initiating ChatGPT conversation ends. |
+| Scheduled/background agent tasks | Available through ChatGPT Scheduled | `prepare_scheduled_task` creates a durable local-project prompt for same-chat or standalone schedules. ChatGPT owns future model turns and run history; each run reacquires its CodexFlow route and can use a clean managed worktree. |
 | Remote/cloud/SSH environments | Not yet | The current execution target is the user’s local allowed roots; there is no Codex-style local/cloud target switch or remote environment catalog. |
 | Computer Use and browser control | Not yet | CodexFlow does not capture or operate arbitrary desktop applications, Chrome, or an embedded browser. |
 | Rich native diff/review workspace | Partial | Diff and Git actions exist, but the Mac app does not yet match Codex’s full visual diff inspection, inline comment, and per-hunk interaction experience. |
@@ -35,13 +35,12 @@ Managed worktrees also honor `.worktreeinclude` for selected gitignored setup fi
 
 ## What remains for literal parity
 
-Literal parity requires capabilities outside a request/response MCP broker:
+Literal parity still requires capabilities outside the current local MCP surface:
 
-1. A durable model-task runtime for schedules, queues, retries, notifications, and unattended continuation.
-2. Remote execution targets with explicit local/cloud/SSH selection, provisioning, secrets, and lifecycle policy.
-3. Computer Use and browser-control permissions, capture, confirmation, and audit UX.
-4. A richer native coding workspace for diff review, inline comments, hunk operations, plans, and task progress.
-5. Equivalent native clients beyond macOS.
+1. Remote execution targets with explicit local/cloud/SSH selection, provisioning, secrets, and lifecycle policy.
+2. Computer Use and browser-control permissions, capture, confirmation, and audit UX.
+3. A richer native coding workspace for diff review, inline comments, hunk operations, plans, and task progress.
+4. Equivalent native clients beyond macOS.
 
 Those additions must preserve the product boundary: no Codex CLI execution, no quota proxying, and no hidden automation of the ChatGPT website.
 

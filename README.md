@@ -76,6 +76,7 @@ CodexFlow starts one local MCP server for all discovered projects. Each ChatGPT 
 - reuse Codex-compatible `.codex/environments/*.toml` setup, cleanup, and project actions
 - review changed files with `show_changes`
 - create isolated managed worktrees, hydrate selected ignored setup files through `.worktreeinclude`, and hand changes between local and parallel checkouts
+- prepare recurring local-project runs for ChatGPT Scheduled without adding another model backend
 - stage, unstage, discard explicit paths, branch, commit, push, and open pull requests through approval-visible Git actions
 - write handoff plans under `.ai-bridge`
 - export a selected context bundle for model surfaces that cannot call tools
@@ -157,6 +158,12 @@ command = "npm test"
 ```
 
 Select an environment from ChatGPT or the native app. New managed worktrees run its setup automatically and receive `CODEX_SOURCE_TREE_PATH` and `CODEX_WORKTREE_PATH`. Add gitignored files such as local fixtures to `.worktreeinclude` when they should be copied into new worktrees. No Codex process is started.
+
+## Scheduled Project Work
+
+ChatGPT web already owns scheduling, model selection, cadence, and run history. When a recurring task needs this computer, ask ChatGPT to use CodexFlow and schedule it. CodexFlow’s `prepare_scheduled_task` tool produces the durable run prompt: every run gets a fresh private route, selects the project by stable ID, restores the chosen local environment, and can create a clean managed worktree before doing the work.
+
+The default prompt verifies changes, calls `show_changes`, leaves the worktree available for review, and does not push or publish. The computer must stay awake, CodexFlow must stay running, and the ChatGPT plugin must use a stable URL. CodexFlow does not create a cron job, invoke Codex, or run a model itself.
 
 ## Normal Commands
 

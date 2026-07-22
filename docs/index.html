@@ -59,7 +59,7 @@
           <div class="hero-copy reveal">
             <p class="eyebrow">Local agent infrastructure / Flow7 Tech</p>
             <h1 id="hero-title"><span>One command.</span><span>Every project.</span><span>Any chat.</span></h1>
-            <p class="hero-lede">CodexFlow gives ChatGPT a serious local coding backend. Projects, shared local environments, managed worktrees, guarded Git workflows, persistent terminals, skills, and instructions become available through one deliberate connection.</p>
+            <p class="hero-lede">CodexFlow gives ChatGPT a serious local coding backend. Projects, shared environments, managed worktrees, guarded Git, persistent terminals, and scheduled project runs become available through one deliberate connection.</p>
             <div class="hero-actions">
               <div class="command-control" role="group" aria-label="Install CodexFlow">
                 <span aria-hidden="true">$</span>
@@ -87,7 +87,7 @@
             </div>
           </div>
         </div>
-        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.32.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.33.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
       </section>
 
       <section class="system section-pad" id="system" aria-labelledby="system-title">
@@ -234,6 +234,7 @@
             <article class="reveal"><span>04</span><div><p class="micro-label">Parallelize</p><h3>One task, one managed checkout.</h3></div><p>Creates isolated worktrees, carries current changes in safely, and refuses to overwrite a destination that changed independently.</p><small>GUARDED HANDOFF</small></article>
             <article class="reveal"><span>05</span><div><p class="micro-label">Verify</p><h3>Git and terminal state that continue.</h3></div><p>Stages and commits only the selected project, runs bounded verification, and keeps a private route terminal alive across tool transports.</p><small>PERSISTENT</small></article>
             <article class="reveal"><span>06</span><div><p class="micro-label">Adapt</p><h3>Your project environment travels too.</h3></div><p>Uses the same checked-in Codex environment format for setup, cleanup, named actions, skills, plugins, and MCP inventory—without running Codex.</p><small>INTEROPERABLE</small></article>
+            <article class="reveal"><span>07</span><div><p class="micro-label">Schedule</p><h3>Recurring work keeps its project.</h3></div><p>Prepares durable ChatGPT Scheduled runs that reacquire a private route and use a clean managed worktree without adding another model backend.</p><small>CHATGPT NATIVE</small></article>
           </div>
         </div>
       </section>
@@ -263,6 +264,7 @@
             <details open><summary>Does CodexFlow run the Codex CLI?<span aria-hidden="true">+</span></summary><p>No. ChatGPT supplies the model and conversation. CodexFlow supplies the local project context and tool backend through MCP. It never starts, resumes, or impersonates a Codex session.</p></details>
             <details><summary>Do I register every project manually?<span aria-hidden="true">+</span></summary><p>No. Running <code>codexflow</code> discovers recent project folders and configured roots automatically. Each conversation chooses one project for itself.</p></details>
             <details><summary>Can several chats work at once?<span aria-hidden="true">+</span></summary><p>Yes. One broker and one tunnel can serve many conversations. Each chat gets a private route that survives separate tool transports and broker restarts.</p></details>
+            <details><summary>Can scheduled tasks use my local project?<span aria-hidden="true">+</span></summary><p>Yes. ChatGPT Scheduled owns the model turn and cadence; CodexFlow prepares each run to reacquire the project, environment, and an optional clean worktree. Keep the computer and broker running.</p></details>
             <details><summary>Why is CodexFlow missing when I use Pro?<span aria-hidden="true">+</span></summary><p>ChatGPT’s Pro model variants do not expose Apps. Use Extra High or another non-Pro model. Your Pro subscription is still supported.</p></details>
             <details><summary>Is this a quota or model proxy?<span aria-hidden="true">+</span></summary><p>No. Requests still use your own ChatGPT account and its normal product limits. CodexFlow does not pool accounts, resell access, or bypass quotas.</p></details>
             <details><summary>What does installation require?<span aria-hidden="true">+</span></summary><p>Node.js 20 or newer and ChatGPT Apps / Developer Mode access. The normal launcher includes Cloudflare quick tunnel support and also offers stable tunnel modes.</p></details>
