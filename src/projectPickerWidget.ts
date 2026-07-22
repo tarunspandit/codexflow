@@ -279,11 +279,13 @@ export const projectPickerWidgetHtml = String.raw`
       selectedProjectName = String(persisted.selectedProjectName || selectedProjectName || "");
       const projects = data.projects;
       const rows = projects.map(function (project) {
-        const sources = Array.isArray(project.sources) ? project.sources.join(" · ") : "local";
-        const searchable = String((project.name || "") + " " + (project.root || "") + " " + sources).toLowerCase();
+        const location = project.location === "remote" ? "remote" : "local";
+        const host = location === "remote" ? String(project.host_alias || "remote") : "";
+        const sources = location === "remote" ? "Remote · " + host : "Local";
+        const searchable = String((project.name || "") + " " + (project.root || "") + " " + host + " " + sources).toLowerCase();
         const selected = project.project_id === selectedProjectId || project.selected;
         if (selected && !selectedProjectName) selectedProjectName = project.name || "Project";
-        return '<button class="project" type="button" data-id="' + esc(project.project_id) + '" data-name="' + esc(project.name || "Project") + '" data-search="' + esc(searchable) + '" aria-pressed="' + (selected ? "true" : "false") + '">' +
+        return '<button class="project" type="button" data-id="' + esc(project.project_id) + '" data-name="' + esc(project.name || "Project") + '" data-location="' + location + '" data-host="' + esc(host) + '" data-search="' + esc(searchable) + '" aria-pressed="' + (selected ? "true" : "false") + '">' +
           '<span class="project-copy"><span class="project-name">' + esc(project.name || "Project") + '</span><span class="project-path">' + esc(project.root || "") + ' · ' + esc(sources) + '</span></span>' +
           '<span class="action">' + (selected ? "Selected" : "Use project") + '</span></button>';
       }).join("");
@@ -356,12 +358,14 @@ export const projectPickerWidgetHtml = String.raw`
       });
     }
 
-    async function publishRouteContext(routeId, workspaceId, name, root) {
+    async function publishRouteContext(routeId, workspaceId, name, root, location, host) {
       const context = {
         route_id: routeId,
         workspace_id: workspaceId,
         project_name: name,
         root: root,
+        location: location,
+        host_alias: host || null,
         instruction: "Pass this exact route_id on every CodexFlow project-scoped tool call. Do not fall back to the broker default project."
       };
       try {
@@ -384,7 +388,7 @@ export const projectPickerWidgetHtml = String.raw`
         await rpcRequest("ui/update-model-context", {
           content: [{
             type: "text",
-            text: "CodexFlow project selected by the user. route_id=" + routeId + "; workspace_id=" + workspaceId + "; project=" + name + "; root=" + root + ". Pass this exact route_id on every later CodexFlow project-scoped tool call and never substitute the broker default project."
+            text: "CodexFlow project selected by the user. route_id=" + routeId + "; workspace_id=" + workspaceId + "; project=" + name + "; location=" + location + (host ? "; ssh_host=" + host : "") + "; root=" + root + ". Pass this exact route_id on every later CodexFlow project-scoped tool call and never substitute the broker default project."
           }]
         });
         return true;
@@ -396,6 +400,8 @@ export const projectPickerWidgetHtml = String.raw`
     async function selectProject(button) {
       const id = button.getAttribute("data-id") || "";
       const name = button.getAttribute("data-name") || "project";
+      const buttonLocation = button.getAttribute("data-location") || "local";
+      const buttonHost = button.getAttribute("data-host") || "";
       if (!id) return;
       setBusy(true);
       setStatus("Binding this chat to " + name + "…", "");
@@ -411,7 +417,7 @@ export const projectPickerWidgetHtml = String.raw`
           activeRouteId = routeId;
           selectedProjectName = String(selected.name || name);
           markSelected(workspaceId);
-          await publishRouteContext(routeId, workspaceId, selectedProjectName, root);
+          await publishRouteContext(routeId, workspaceId, selectedProjectName, root, String(selected.location || buttonLocation), String(selected.host_alias || buttonHost));
           setStatus(name + " is selected. Continue in chat with the task.", "good");
         } else if (window.openai && typeof window.openai.sendFollowUpMessage === "function") {
           await window.openai.sendFollowUpMessage({ prompt: "Select the CodexFlow project named " + name + " with project_id " + id + " and route_id " + activeRouteId + ". Preserve that route_id on every later CodexFlow project tool call, then wait for my task.", scrollToBottom: true });

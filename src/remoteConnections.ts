@@ -5,13 +5,16 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { minimatch } from "minimatch";
 import { codexFlowHome } from "./profileStore.js";
+import { probeRemoteProject } from "./remoteWorkspace.js";
 
 const ALIAS_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const SSH_PATTERN_CHARS = /[*?!]/;
 const MAX_CONFIG_FILES = 128;
 const MAX_HOSTS = 250;
+const MAX_REMOTE_PROJECTS = 500;
+const REMOTE_PROJECT_ID_PATTERN = /^rws_[a-f0-9]{24}$/;
 
-interface SavedRemoteHost {
+export interface SavedRemoteHost {
   alias: string;
   fingerprint: string;
   verifiedAt: string;
@@ -21,9 +24,22 @@ interface SavedRemoteHost {
   hasGit: boolean;
 }
 
+export interface SavedRemoteProject {
+  id: string;
+  hostAlias: string;
+  hostFingerprint: string;
+  root: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  gitRoot?: string;
+  gitRelativePath?: string;
+}
+
 interface RemoteHostStore {
-  version: 1;
+  version: 2;
   hosts: SavedRemoteHost[];
+  projects: SavedRemoteProject[];
 }
 
 export interface RemoteHostOverview {
@@ -39,12 +55,27 @@ export interface RemoteHostOverview {
   home: string | null;
   hasNode: boolean | null;
   hasGit: boolean | null;
+  projectCount: number;
+}
+
+export interface RemoteProjectOverview {
+  id: string;
+  hostAlias: string;
+  root: string;
+  name: string;
+  status: "available" | "host_unapproved" | "config_changed" | "node_unavailable" | "project_stale";
+  available: boolean;
+  createdAt: string;
+  updatedAt: string;
+  gitRoot: string | null;
+  gitRelativePath: string | null;
 }
 
 export interface RemoteConnectionsOverview {
   ok: true;
   configPath: string;
   hosts: RemoteHostOverview[];
+  projects: RemoteProjectOverview[];
   approved: number;
   discovered: number;
 }
@@ -201,15 +232,24 @@ function storePath(): string {
 
 function readStore(): RemoteHostStore {
   try {
-    const parsed = JSON.parse(fs.readFileSync(storePath(), "utf8")) as Partial<RemoteHostStore>;
+    const parsed = JSON.parse(fs.readFileSync(storePath(), "utf8")) as Partial<RemoteHostStore> & { version?: number };
     const hosts = Array.isArray(parsed.hosts)
       ? parsed.hosts.filter((host): host is SavedRemoteHost => Boolean(
           host && concreteAlias(host.alias) && typeof host.fingerprint === "string" && typeof host.verifiedAt === "string"
         ))
       : [];
-    return { version: 1, hosts };
+    const projects = Array.isArray(parsed.projects)
+      ? parsed.projects.filter((project): project is SavedRemoteProject => Boolean(
+          project && REMOTE_PROJECT_ID_PATTERN.test(project.id) && concreteAlias(project.hostAlias) &&
+          typeof project.hostFingerprint === "string" && /^[a-f0-9]{64}$/.test(project.hostFingerprint) &&
+          typeof project.root === "string" && path.posix.isAbsolute(project.root) && project.root.length <= 4096 &&
+          typeof project.name === "string" && Boolean(project.name) &&
+          typeof project.createdAt === "string" && typeof project.updatedAt === "string"
+        )).slice(-MAX_REMOTE_PROJECTS)
+      : [];
+    return { version: 2, hosts, projects };
   } catch {
-    return { version: 1, hosts: [] };
+    return { version: 2, hosts: [], projects: [] };
   }
 }
 
@@ -229,7 +269,8 @@ function writeStore(store: RemoteHostStore): void {
 
 function overview(configPath = sshConfigPath()): RemoteConnectionsOverview {
   const aliases = discoverAliases(configPath);
-  const saved = new Map(readStore().hosts.map((host) => [host.alias, host]));
+  const store = readStore();
+  const saved = new Map(store.hosts.map((host) => [host.alias, host]));
   const hosts: RemoteHostOverview[] = [];
   for (const [alias, source] of aliases) {
     const resolved = resolveHost(alias);
@@ -247,14 +288,43 @@ function overview(configPath = sshConfigPath()): RemoteConnectionsOverview {
       platform: approved ? previous?.platform ?? null : null,
       home: approved ? previous?.home ?? null : null,
       hasNode: approved ? previous?.hasNode ?? false : null,
-      hasGit: approved ? previous?.hasGit ?? false : null
+      hasGit: approved ? previous?.hasGit ?? false : null,
+      projectCount: store.projects.filter((project) => project.hostAlias === alias).length
     });
   }
   hosts.sort((left, right) => Number(right.approved) - Number(left.approved) || left.alias.localeCompare(right.alias));
+  const hostByAlias = new Map(hosts.map((host) => [host.alias, host]));
+  const projects: RemoteProjectOverview[] = store.projects.map((project) => {
+    const host = hostByAlias.get(project.hostAlias);
+    const savedHost = saved.get(project.hostAlias);
+    const configChanged = Boolean(host && savedHost && host.status === "config_changed");
+    const status: RemoteProjectOverview["status"] = configChanged
+      ? "config_changed"
+      : !host?.approved
+        ? "host_unapproved"
+        : savedHost?.fingerprint !== project.hostFingerprint
+          ? "project_stale"
+        : !host.hasNode
+          ? "node_unavailable"
+          : "available";
+    return {
+      id: project.id,
+      hostAlias: project.hostAlias,
+      root: project.root,
+      name: project.name,
+      status,
+      available: status === "available" && savedHost?.fingerprint === project.hostFingerprint,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+      gitRoot: project.gitRoot ?? null,
+      gitRelativePath: project.gitRelativePath ?? null
+    };
+  }).sort((left, right) => Number(right.available) - Number(left.available) || left.name.localeCompare(right.name));
   return {
     ok: true,
     configPath,
     hosts,
+    projects,
     approved: hosts.filter((host) => host.approved).length,
     discovered: hosts.length
   };
@@ -321,10 +391,78 @@ export function verifyRemoteConnection(alias: string): RemoteVerificationResult 
   return { ...overview(configPath), verifiedAlias: alias, message: `${alias} is verified and approved for CodexFlow remote access.` };
 }
 
+function approvedHost(alias: string): SavedRemoteHost {
+  if (!concreteAlias(alias)) throw new Error("Choose a concrete SSH host alias from the discovered list.");
+  const configPath = sshConfigPath();
+  if (!discoverAliases(configPath).has(alias)) throw new Error("That SSH host is no longer present as a concrete alias in the local SSH config.");
+  const resolved = resolveHost(alias);
+  const saved = readStore().hosts.find((host) => host.alias === alias);
+  if (!resolved || !saved || saved.fingerprint !== resolved.fingerprint) {
+    throw new Error("This SSH host is not currently approved. Verify it again before saving or using remote projects.");
+  }
+  if (!saved.hasNode) throw new Error("CodexFlow remote projects require Node.js on the approved host.");
+  return saved;
+}
+
+export function listSavedRemoteProjects(options: { availableOnly?: boolean } = {}): RemoteProjectOverview[] {
+  const projects = overview().projects;
+  return options.availableOnly ? projects.filter((project) => project.available) : projects;
+}
+
+export function getApprovedRemoteProject(projectId: string): SavedRemoteProject {
+  if (!REMOTE_PROJECT_ID_PATTERN.test(projectId)) throw new Error("Invalid remote project id.");
+  const store = readStore();
+  const project = store.projects.find((candidate) => candidate.id === projectId);
+  if (!project) throw new Error("The saved remote project no longer exists.");
+  const host = approvedHost(project.hostAlias);
+  if (host.fingerprint !== project.hostFingerprint) throw new Error("The remote project's approved host identity changed. Verify the host and save the project again.");
+  return { ...project };
+}
+
+export function saveRemoteProject(alias: string, requestedRoot: string): RemoteConnectionsOverview & { message: string; savedProjectId: string } {
+  const rawRoot = requestedRoot.trim();
+  if (!rawRoot || rawRoot.length > 4096 || /[\0\r\n]/.test(rawRoot)) throw new Error("Enter one valid remote folder path.");
+  const host = approvedHost(alias);
+  const probe = probeRemoteProject(alias, rawRoot);
+  if (!path.posix.isAbsolute(probe.root) || probe.root.length > 4096) throw new Error("The remote host returned an invalid project path.");
+  const id = `rws_${createHash("sha256").update(`${alias}\0${host.fingerprint}\0${probe.root}`).digest("hex").slice(0, 24)}`;
+  const store = readStore();
+  const existing = store.projects.find((project) => project.id === id);
+  const now = new Date().toISOString();
+  const project: SavedRemoteProject = {
+    id,
+    hostAlias: alias,
+    hostFingerprint: host.fingerprint,
+    root: probe.root,
+    name: (probe.name || path.posix.basename(probe.root) || alias).slice(0, 160),
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    ...(probe.gitRoot ? { gitRoot: probe.gitRoot } : {}),
+    ...(probe.gitRelativePath ? { gitRelativePath: probe.gitRelativePath } : {})
+  };
+  store.projects = [...store.projects.filter((candidate) => candidate.id !== id && !(candidate.hostAlias === alias && candidate.root === probe.root)), project]
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .slice(-MAX_REMOTE_PROJECTS);
+  writeStore(store);
+  return { ...overview(), savedProjectId: id, message: `${project.name} on ${alias} is now available in the CodexFlow project picker.` };
+}
+
+export function removeRemoteProject(projectId: string): RemoteConnectionsOverview & { message: string } {
+  if (!REMOTE_PROJECT_ID_PATTERN.test(projectId)) throw new Error("Invalid remote project id.");
+  const store = readStore();
+  const project = store.projects.find((candidate) => candidate.id === projectId);
+  if (!project) throw new Error("The saved remote project no longer exists.");
+  store.projects = store.projects.filter((candidate) => candidate.id !== projectId);
+  writeStore(store);
+  return { ...overview(), message: `${project.name} was removed from the CodexFlow project picker.` };
+}
+
 export function disconnectRemoteConnection(alias: string): RemoteConnectionsOverview & { message: string } {
   if (!concreteAlias(alias)) throw new Error("Choose a concrete SSH host alias from the discovered list.");
   const store = readStore();
   const next = store.hosts.filter((host) => host.alias !== alias);
-  if (next.length !== store.hosts.length) writeStore({ version: 1, hosts: next });
+  if (next.length !== store.hosts.length || store.projects.some((project) => project.hostAlias === alias)) {
+    writeStore({ version: 2, hosts: next, projects: store.projects.filter((project) => project.hostAlias !== alias) });
+  }
   return { ...overview(), message: `${alias} is no longer approved for CodexFlow remote access.` };
 }

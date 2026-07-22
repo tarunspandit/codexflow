@@ -78,6 +78,7 @@ CodexFlow starts one local MCP server for all discovered projects. Each ChatGPT 
 - create isolated managed worktrees, hydrate selected ignored setup files through `.worktreeinclude`, and hand changes between local and parallel checkouts
 - prepare recurring local-project runs for ChatGPT Scheduled without adding another model backend
 - stage, unstage, discard explicit paths, branch, commit, push, and open pull requests through approval-visible Git actions
+- approve named SSH hosts, save canonical remote project folders, and route bounded file, search, edit, patch, Bash, and Git review tools to them from the same project picker
 - write handoff plans under `.ai-bridge`
 - export a selected context bundle for model surfaces that cannot call tools
 
@@ -104,7 +105,7 @@ conversation. The native app makes the broker legible and controllable:
 - **Worktrees** creates, reveals, audits, and safely removes isolated checkouts.
 - **Changes** separates staged and unstaged files, renders bounded color-coded diffs, and performs explicit file-level stage, unstage, or discard actions.
 - **Chats** shows independent project routing for real tool-using conversations, with local search, rename, pin, archive, and restore controls; background MCP discovery and component-fetch connections are deliberately hidden.
-- **Hosts** discovers concrete aliases from `~/.ssh/config`, requires a bounded local OpenSSH verification, and revokes approval automatically if the alias resolves to a different destination.
+- **Hosts** discovers concrete aliases from `~/.ssh/config`, requires bounded local OpenSSH verification, saves canonical remote project folders, and revokes routing automatically if an alias resolves to a different destination.
 - **Connection** provides the private Server URL without displaying its credential.
 - **Policy** shows the effective boundary and edits protected next-launch defaults.
 
@@ -113,11 +114,14 @@ among multiple local runtimes. It calls the existing CodexFlow broker and never
 uses the Codex CLI as an execution backend. The authenticated browser page is a
 small recovery fallback only; it no longer duplicates the application.
 
-Remote-host approval is an explicit foundation, not a claim of remote execution
-parity yet. CodexFlow ignores wildcard-only SSH entries, never returns or stores
-private-key paths, requires an already trusted host key, and never installs or
-invokes Codex on the remote host. Remote project selection and tool routing are
-still tracked as unfinished in `CODEX_DESKTOP_PARITY.md`.
+Remote projects use CodexFlow's own ephemeral Node helper over non-interactive
+OpenSSH; Codex and the Codex CLI are never installed or invoked on the host.
+Only concrete aliases already present in SSH config can be approved. Every call
+rechecks the destination fingerprint, canonical project root, blocked paths,
+symlink containment, size limits, and the current write/Bash policy. Remote
+persistent terminals, environments, worktrees, handoff, repository analysis,
+and remote workspace-skill discovery are still tracked as unfinished in
+`CODEX_DESKTOP_PARITY.md`.
 
 Operational session telemetry stays in process memory, is bounded, and expires
 shortly after a chat closes. It contains only a non-actionable display

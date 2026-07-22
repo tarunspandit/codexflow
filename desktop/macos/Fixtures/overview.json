@@ -23,7 +23,7 @@
     "generated_at": "2026-07-15T08:31:14.000Z",
     "broker": {
       "state": "ready",
-      "version": "0.35.0",
+      "version": "0.36.0",
       "started_at": "2026-07-15T06:09:00.000Z",
       "uptime_ms": 8534000,
       "default_root": "/Users/demo/Work/atlas-studio",
@@ -112,10 +112,13 @@
     "discovered": 3,
     "message": null,
     "verified_alias": null,
+    "projects": [
+      {"id":"rws_0123456789abcdef01234567","host_alias":"studio","root":"/Users/demo/Projects/atlas","name":"atlas","status":"available","available":true,"created_at":"2026-07-22T11:25:00.000Z","updated_at":"2026-07-22T11:25:00.000Z","git_root":"/Users/demo/Projects/atlas","git_relative_path":"."}
+    ],
     "hosts": [
-      {"alias":"studio","hostname":"studio.internal","user":"demo","port":22,"source":"/Users/demo/.ssh/config","approved":true,"status":"approved","verified_at":"2026-07-22T11:24:00.000Z","platform":"Darwin","home":"/Users/demo","has_node":true,"has_git":true},
-      {"alias":"renderbox","hostname":"render.internal","user":"demo","port":22,"source":"/Users/demo/.ssh/config","approved":false,"status":"available","verified_at":null,"platform":null,"home":null,"has_node":null,"has_git":null},
-      {"alias":"archive","hostname":"archive.internal","user":"ops","port":2222,"source":"/Users/demo/.ssh/config","approved":false,"status":"config_changed","verified_at":null,"platform":null,"home":null,"has_node":null,"has_git":null}
+      {"alias":"studio","hostname":"studio.internal","user":"demo","port":22,"source":"/Users/demo/.ssh/config","approved":true,"status":"approved","verified_at":"2026-07-22T11:24:00.000Z","platform":"Darwin","home":"/Users/demo","has_node":true,"has_git":true,"project_count":1},
+      {"alias":"renderbox","hostname":"render.internal","user":"demo","port":22,"source":"/Users/demo/.ssh/config","approved":false,"status":"available","verified_at":null,"platform":null,"home":null,"has_node":null,"has_git":null,"project_count":0},
+      {"alias":"archive","hostname":"archive.internal","user":"ops","port":2222,"source":"/Users/demo/.ssh/config","approved":false,"status":"config_changed","verified_at":null,"platform":null,"home":null,"has_node":null,"has_git":null,"project_count":0}
     ]
   },
   "profile": {

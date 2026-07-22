@@ -19,10 +19,21 @@ try {
   const stat = await fs.stat(filePath);
   assert.equal(stat.mode & 0o777, 0o600);
   const payload = JSON.parse(await fs.readFile(filePath, 'utf8'));
-  assert.equal(payload.version, 1);
+  assert.equal(payload.version, 2);
   assert.equal(payload.routes.length, 1);
   assert.equal(payload.routes[0].routeId, routeId);
   assert.equal(payload.routes[0].workspaceId, 'ws_route_smoke');
+  assert.equal(payload.routes[0].location, 'local');
+
+  const remoteRouteId = first.createRouteId();
+  first.bindRemote(remoteRouteId, {
+    id: 'rws_0123456789abcdef01234567',
+    root: '/srv/example',
+    hostAlias: 'devbox',
+    hostFingerprint: 'a'.repeat(64)
+  });
+  assert.equal(first.get(remoteRouteId)?.location, 'remote');
+  assert.equal(first.get(remoteRouteId)?.remoteHostAlias, 'devbox');
 
   const restored = new ChatRouteStore(root);
   assert.deepEqual(restored.get(routeId), first.get(routeId));
