@@ -18,11 +18,9 @@ New-Item $Stage -ItemType Directory -Force | Out-Null
 dotnet publish (Join-Path $PSScriptRoot "CodexFlow.Windows\CodexFlow.Windows.csproj") `
   -c $Configuration -r $Runtime --self-contained true -p:PublishSingleFile=false -o $Stage
 dotnet publish (Join-Path $PSScriptRoot "CodexFlowComputer\CodexFlowComputer.csproj") `
-  -c $Configuration -r $Runtime --self-contained false -p:PublishSingleFile=false -o $HelperStage
+  -c $Configuration -r $Runtime --self-contained true -p:PublishSingleFile=false -o $HelperStage
 
-foreach ($Name in @("CodexFlowComputer.exe", "CodexFlowComputer.dll", "CodexFlowComputer.deps.json", "CodexFlowComputer.runtimeconfig.json")) {
-  Copy-Item (Join-Path $HelperStage $Name) (Join-Path $Stage $Name) -Force
-}
+Copy-Item (Join-Path $HelperStage "*") $Stage -Recurse -Force
 Set-Content (Join-Path $Stage "version.txt") $Version -NoNewline
 
 $Archive = Join-Path $OutputRoot "CodexFlow-Windows-$Architecture.zip"
