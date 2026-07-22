@@ -9,6 +9,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case chats
     case hosts
     case computer
+    case browser
     case connection
     case policy
 
@@ -24,6 +25,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .chats: "Chats"
         case .hosts: "Hosts"
         case .computer: "Computer"
+        case .browser: "Browser"
         case .connection: "Connection"
         case .policy: "Policy"
         }
@@ -39,6 +41,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .chats: "bubble.left.and.bubble.right"
         case .hosts: "server.rack"
         case .computer: "macwindow.on.rectangle"
+        case .browser: "safari"
         case .connection: "point.3.connected.trianglepath.dotted"
         case .policy: "slider.horizontal.3"
         }
@@ -467,6 +470,93 @@ struct ComputerCommand: Encodable {
     let bundleId: String?
 }
 
+struct BrowserOverview: Decodable {
+    let ok: Bool
+    let status: BrowserStatus
+    let alwaysAllowed: [BrowserAllowedOrigin]
+    let hostRequests: [BrowserHostRequest]
+    let actionRequests: [BrowserActionRequest]
+    let sessions: [BrowserSessionOverview]
+    let recentActivity: [BrowserActivity]
+    let commands: [BrowserNativeCommand]
+    let message: String?
+}
+
+struct BrowserStatus: Decodable {
+    let available: Bool
+    let profile: String
+    let engine: String
+    let nativeConnected: Bool
+}
+
+struct BrowserAllowedOrigin: Decodable, Identifiable, Hashable {
+    let origin: String
+    let approvedAt: String
+    var id: String { origin }
+}
+
+struct BrowserHostRequest: Decodable, Identifiable, Hashable {
+    let id: String
+    let origin: String
+    let reason: String
+    let routeDisplay: String
+    let createdAt: String
+    let expiresAt: String
+}
+
+struct BrowserActionRequest: Decodable, Identifiable, Hashable {
+    let id: String
+    let sessionId: String
+    let origin: String
+    let operation: String
+    let target: String
+    let valuePreview: String?
+    let routeDisplay: String
+    let createdAt: String
+    let expiresAt: String
+}
+
+struct BrowserSessionOverview: Decodable, Identifiable, Hashable {
+    let id: String
+    let origin: String
+    let currentUrl: String
+    let title: String
+}
+
+struct BrowserActivity: Decodable, Identifiable, Hashable {
+    let at: String
+    let routeDisplay: String
+    let origin: String
+    let operation: String
+    let outcome: String
+    var id: String { "\(at):\(routeDisplay):\(operation)" }
+}
+
+struct BrowserNativeCommand: Decodable, Identifiable {
+    let id: String
+    let action: String
+    let sessionId: String
+    let url: String?
+    let allowedOrigins: [String]?
+    let snapshotId: String?
+    let elementId: String?
+    let operation: String?
+    let value: String?
+    let key: String?
+}
+
+struct BrowserCommand: Encodable {
+    let action: String
+    let requestId: String?
+    let decision: String?
+    let approve: Bool?
+    let origin: String?
+}
+
+struct BrowserCompletionResponse: Decodable {
+    let ok: Bool
+}
+
 struct RemoteProjectOverview: Decodable, Identifiable, Hashable {
     let id: String
     let hostAlias: String
@@ -607,6 +697,7 @@ struct DesktopFixture: Decodable {
     let changes: ChangesResponse?
     let remotes: RemoteConnectionsResponse?
     let computer: ComputerOverview?
+    let browser: BrowserOverview?
     let initialSection: String?
 }
 

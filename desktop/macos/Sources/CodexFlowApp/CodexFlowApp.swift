@@ -24,8 +24,9 @@ struct CodexFlowDesktopApp: App {
                 Button("Chats") { model.section = .chats }.keyboardShortcut("6", modifiers: .command)
                 Button("Hosts") { model.section = .hosts }.keyboardShortcut("7", modifiers: .command)
                 Button("Computer") { model.section = .computer }.keyboardShortcut("8", modifiers: .command)
-                Button("Connection") { model.section = .connection }.keyboardShortcut("9", modifiers: .command)
-                Button("Policy") { model.section = .policy }.keyboardShortcut("0", modifiers: .command)
+                Button("Browser") { model.section = .browser }.keyboardShortcut("9", modifiers: .command)
+                Button("Connection") { model.section = .connection }.keyboardShortcut("0", modifiers: .command)
+                Button("Policy") { model.section = .policy }
                 Divider()
                 Button("Refresh") { Task { await model.refresh() } }.keyboardShortcut("r", modifiers: .command)
                 Button("Start Broker") { model.startBroker() }.keyboardShortcut("s", modifiers: [.command, .shift])

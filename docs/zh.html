@@ -57,7 +57,7 @@
           <div class="hero-copy reveal">
             <p class="eyebrow">本地代理基础设施 / Flow7 Tech</p>
             <h1 id="hero-title"><span>一个命令。</span><span>所有项目。</span><span>任意对话。</span></h1>
-            <p class="hero-lede">CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、共享本地环境、受管 worktrees、受保护 Git、持久终端、原生改动审查和定时项目任务，都通过一条清晰可控的连接进入对话。</p>
+            <p class="hero-lede">CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、共享环境、worktrees、Git、持久终端、原生审查、定时任务、Computer Use 与临时浏览器，都通过一条清晰可控的连接进入对话。</p>
             <div class="hero-actions">
               <div class="command-control" role="group" aria-label="安装 CodexFlow">
                 <span aria-hidden="true">$</span><code>npm i -g @tarunspandit/codexflow</code><button type="button" data-copy="npm install -g @tarunspandit/codexflow" data-copy-label="复制安装命令" data-copy-done="已复制">复制</button>
@@ -82,7 +82,7 @@
             </div>
           </div>
         </div>
-        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.40.1</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
+        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.41.0</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
       </section>
 
       <section class="system section-pad" id="system" aria-labelledby="system-title">
@@ -145,13 +145,13 @@
         <div class="section-shell">
           <div class="section-heading companion-heading reveal">
             <div><p class="eyebrow dark-label">原生桌面应用</p><h2 id="companion-title">你的电脑。<br />一个清晰界面。</h2></div>
-            <p>CodexFlow 会在 Mac 上打开原生应用。统一管理 broker、项目、环境、worktrees、diff、聊天路由、SSH hosts，以及应用级 Computer Use 审批。</p>
+            <p>CodexFlow 会在 Mac 上打开原生应用。统一管理 broker、项目、环境、worktrees、diff、聊天路由、SSH hosts、Computer Use 与网站 origin 审批。</p>
           </div>
           <div class="companion-frame reveal" aria-label="CodexFlow 原生桌面应用预览">
             <aside class="companion-rail">
               <div class="companion-lockup"><img src="./assets/brand/flow7-tech-dark.webp" alt="" width="1024" height="1024" /><span><strong>CodexFlow</strong><small>原生桌面应用</small></span></div>
               <div class="companion-ready"><i aria-hidden="true"></i><span>正在此电脑上运行</span></div>
-              <ol><li class="is-active"><span>01</span>当前</li><li><span>02</span>项目</li><li><span>03</span>环境</li><li><span>04</span>Worktrees</li><li><span>05</span>改动</li><li><span>06</span>聊天</li><li><span>07</span>Hosts</li><li><span>08</span>Computer</li><li><span>09</span>连接</li><li><span>10</span>策略</li></ol>
+              <ol><li class="is-active"><span>01</span>当前</li><li><span>02</span>项目</li><li><span>03</span>环境</li><li><span>04</span>Worktrees</li><li><span>05</span>改动</li><li><span>06</span>聊天</li><li><span>07</span>Hosts</li><li><span>08</span>Computer</li><li><span>09</span>Browser</li><li><span>10</span>连接</li><li><span>11</span>策略</li></ol>
               <small>ENDORSED BY FLOW7</small>
             </aside>
             <div class="companion-stage">
@@ -188,6 +188,7 @@
             <article class="reveal"><span>08</span><div><p class="micro-label">定时</p><h3>重复任务始终回到正确项目。</h3></div><p>为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。</p><small>CHATGPT 原生</small></article>
             <article class="reveal"><span>09</span><div><p class="micro-label">远程</p><h3>同一个 picker，也能连接另一台机器。</h3></div><p>批准命名 OpenSSH host 后，即可在独立路由中使用持久终端、Codex 环境、项目 skills、仓库分析、受管 worktrees、受保护交接、文件编辑、Bash 与 Git review；远程端不会调用 Codex。</p><small>远程工作区已上线</small></article>
             <article class="reveal"><span>10</span><div><p class="micro-label">操作</p><h3>视觉操作仍然先征求同意。</h3></div><p>从聊天请求一个已签名的原生应用，在 Mac 上批准，查看最新窗口快照，并在本机确认每个敏感的元素级操作。</p><small>COMPUTER USE / 已授权</small></article>
+            <article class="reveal"><span>11</span><div><p class="micro-label">浏览</p><h3>使用干净的 Web profile，而不是你的个人浏览器。</h3></div><p>批准一个网站 origin 后，路由聊天可在可见的临时 WebKit tab 中检查并操作语义 DOM 目标。跨 origin 跳转、下载、凭据与敏感操作会被拒绝或要求本机确认。</p><small>WEBKIT / ORIGIN 范围</small></article>
           </div>
         </div>
       </section>
@@ -202,6 +203,7 @@
             <li><span>04</span><div><strong>受保护写入与终端</strong><p>安全默认值一直生效，直到你明确扩大权限。</p></div></li>
             <li><span>05</span><div><strong>冲突感知 Worktrees</strong><p>交接前会验证两个 checkout，避免覆盖独立改动。</p></div></li>
             <li><span>06</span><div><strong>受限 SSH 项目路由</strong><p>只接受具体 alias 与既有 host-key trust；每次调用都会重新检查目标、项目 root、blocked paths、symlink 与策略。</p></div></li>
+            <li><span>07</span><div><strong>临时浏览器隔离</strong><p>每个 tab 使用非持久 WebKit profile；origin 权限按 route 隔离或明确持久化，每个重要 DOM 操作都绑定最新快照并在本机确认。</p></div></li>
           </ol>
         </div>
       </section>

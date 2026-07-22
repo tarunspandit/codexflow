@@ -24,10 +24,14 @@ final class AppModel: ObservableObject {
     @Published private(set) var remoteBusyAlias: String?
     @Published private(set) var computer: ComputerOverview?
     @Published private(set) var computerBusy = false
+    @Published private(set) var browser: BrowserOverview?
+    @Published private(set) var browserBusy = false
+    let browserController = BrowserController()
 
     private let fileManager = FileManager.default
     private let session: URLSession
     private var pollTask: Task<Void, Never>?
+    private var browserPollTask: Task<Void, Never>?
     private var launchedProcess: Process?
     private var didStart = false
     private var fixture: DesktopFixture?
@@ -51,6 +55,7 @@ final class AppModel: ObservableObject {
 
     deinit {
         pollTask?.cancel()
+        browserPollTask?.cancel()
     }
 
     var selectedRuntime: RuntimeRecord? {
@@ -100,6 +105,7 @@ final class AppModel: ObservableObject {
             changes = fixture.changes
             remotes = fixture.remotes
             computer = fixture.computer
+            browser = fixture.browser
             if let initialSection = fixture.initialSection, let fixtureSection = AppSection(rawValue: initialSection) {
                 section = fixtureSection
             }
@@ -114,6 +120,13 @@ final class AppModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: 2_500_000_000)
                 guard !Task.isCancelled else { return }
                 await self?.refresh(forceProjectRefresh: false)
+            }
+        }
+        browserPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 450_000_000)
+                guard !Task.isCancelled else { return }
+                await self?.pollBrowserCommands()
             }
         }
     }
@@ -149,6 +162,7 @@ final class AppModel: ObservableObject {
             changes = nil
             remotes = nil
             computer = nil
+            browser = nil
             if state != .starting && state != .stopping { state = .offline }
             return
         }
@@ -161,12 +175,15 @@ final class AppModel: ObservableObject {
             profile = try await nextProfile
             remotes = try? await request(runtime: runtime, path: "/admin/remotes")
             computer = try? await request(runtime: runtime, path: "/admin/computer")
+            browser = try? await request(runtime: runtime, path: "/admin/browser")
+            if let browser { browserController.reconcile(sessionIDs: Set(browser.sessions.map(\.id))) }
             state = .ready
         } catch {
             overview = nil
             profile = nil
             remotes = nil
             computer = nil
+            browser = nil
             if state != .starting && state != .stopping {
                 state = .degraded(error.localizedDescription)
             }
@@ -610,6 +627,64 @@ final class AppModel: ObservableObject {
         } catch {
             notice = error.localizedDescription
         }
+    }
+
+    func decideBrowserHost(_ requestID: String, decision: String) async {
+        await sendBrowserCommand(BrowserCommand(action: "decide_host", requestId: requestID, decision: decision, approve: nil, origin: nil))
+    }
+
+    func decideBrowserAction(_ requestID: String, approve: Bool) async {
+        await sendBrowserCommand(BrowserCommand(action: "decide_action", requestId: requestID, decision: nil, approve: approve, origin: nil))
+    }
+
+    func revokeBrowserOrigin(_ origin: String) async {
+        await sendBrowserCommand(BrowserCommand(action: "revoke", requestId: nil, decision: nil, approve: nil, origin: origin))
+    }
+
+    func selectBrowserSession(_ sessionID: String) {
+        browserController.select(sessionID)
+    }
+
+    private func sendBrowserCommand(_ command: BrowserCommand) async {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, !browserBusy else { return }
+        browserBusy = true
+        defer { browserBusy = false }
+        do {
+            let response: BrowserOverview = try await request(runtime: runtime, path: "/admin/browser", method: "POST", body: try JSONEncoder().encode(command))
+            browser = response
+            browserController.reconcile(sessionIDs: Set(response.sessions.map(\.id)))
+            notice = response.message
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    private func pollBrowserCommands() async {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive else { return }
+        do {
+            let response: BrowserOverview = try await request(runtime: runtime, path: "/admin/browser", query: [URLQueryItem(name: "take", value: "1")])
+            browser = response
+            browserController.reconcile(sessionIDs: Set(response.sessions.map(\.id)))
+            for command in response.commands where browserController.begin(command.id) {
+                do {
+                    let result = try await browserController.execute(command)
+                    try await completeBrowserCommand(runtime: runtime, commandID: command.id, ok: true, result: result, error: nil)
+                } catch {
+                    try? await completeBrowserCommand(runtime: runtime, commandID: command.id, ok: false, result: nil, error: error.localizedDescription)
+                }
+                browserController.finish(command.id)
+            }
+        } catch {
+            // The normal broker refresh owns the visible degraded/offline state.
+        }
+    }
+
+    private func completeBrowserCommand(runtime: RuntimeRecord, commandID: String, ok: Bool, result: [String: Any]?, error: String?) async throws {
+        var payload: [String: Any] = ["commandId": commandID, "ok": ok]
+        if let result { payload["result"] = result }
+        if let error { payload["error"] = error }
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let _: BrowserCompletionResponse = try await request(runtime: runtime, path: "/admin/browser/complete", method: "POST", body: body)
     }
 
     private func sendReviewCommand(_ command: ChangesCommand) async {
