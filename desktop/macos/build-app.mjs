@@ -13,7 +13,9 @@ const appRoot = path.join(outputRoot, 'CodexFlow.app');
 const contents = path.join(appRoot, 'Contents');
 const macos = path.join(contents, 'MacOS');
 const resources = path.join(contents, 'Resources');
+const helpers = path.join(contents, 'Helpers');
 const sourcesRoot = path.join(here, 'Sources', 'CodexFlowApp');
+const computerSourcesRoot = path.join(here, 'Sources', 'CodexFlowComputer');
 const fontRoot = path.join(here, 'Resources', 'Fonts');
 
 function run(command, args, options = {}) {
@@ -66,6 +68,7 @@ fs.rmSync(appRoot, { recursive: true, force: true });
 fs.mkdirSync(buildRoot, { recursive: true });
 fs.mkdirSync(macos, { recursive: true });
 fs.mkdirSync(resources, { recursive: true });
+fs.mkdirSync(helpers, { recursive: true });
 
 buildFonts();
 
@@ -92,6 +95,32 @@ for (const arch of ['arm64', 'x86_64']) {
 }
 run('lipo', ['-create', ...binaries, '-output', path.join(macos, 'CodexFlow')]);
 fs.chmodSync(path.join(macos, 'CodexFlow'), 0o755);
+
+const computerSourceFiles = fs.readdirSync(computerSourcesRoot).filter((name) => name.endsWith('.swift')).sort().map((name) => path.join(computerSourcesRoot, name));
+const computerBinaries = [];
+for (const arch of ['arm64', 'x86_64']) {
+  const binary = path.join(buildRoot, `CodexFlowComputer-${arch}`);
+  run('xcrun', [
+    'swiftc',
+    '-swift-version', '5',
+    '-parse-as-library',
+    '-O',
+    '-whole-module-optimization',
+    '-target', `${arch}-apple-macosx14.0`,
+    '-sdk', sdk,
+    '-framework', 'AppKit',
+    '-framework', 'ApplicationServices',
+    '-framework', 'CoreGraphics',
+    '-framework', 'Foundation',
+    '-framework', 'ScreenCaptureKit',
+    '-framework', 'Security',
+    '-o', binary,
+    ...computerSourceFiles
+  ]);
+  computerBinaries.push(binary);
+}
+run('lipo', ['-create', ...computerBinaries, '-output', path.join(helpers, 'CodexFlowComputer')]);
+fs.chmodSync(path.join(helpers, 'CodexFlowComputer'), 0o755);
 
 for (const name of ['Regular', 'Medium', 'SemiBold', 'Bold']) {
   copy(path.join(fontRoot, `Geologica-${name}.ttf`), path.join(resources, `Geologica-${name}.ttf`));

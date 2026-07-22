@@ -30,6 +30,7 @@ codexflow can expose:
 - `.ai-bridge` planning files
 - optional shell command execution through the `bash` tool, hidden when bash mode is off
 - optional write/edit/apply_patch capability depending on `CODEXFLOW_WRITE_MODE`, advertised only in workspace write mode
+- optional native macOS Computer Use for one explicitly approved, code-signing-bound app, with fresh window captures and bounded accessibility metadata
 - optional local handoff execution through `codexflow execute-handoff`, run from the user's terminal only
 - optional local execute/review looping through `codexflow loop-handoff`, run from the user's terminal only with a user-provided reviewer command and iteration limit
 
@@ -58,6 +59,10 @@ Review changes against these failure modes before release:
 | Remote worktree handoff overwrites independent work | Source and destination must share one Git common directory and HEAD. Owner-only manifests retain both state fingerprints; handoff refuses a changed destination, transfer is byte-bounded, symlinks/non-files are rejected, and removal snapshots dirty tracked and untracked project state before deleting the checkout. |
 | A stale or forged hunk action applies an unintended patch | The native app submits only a content-derived hunk ID. The authenticated broker resolves the guarded project path, regenerates the current raw Git diff, reconstructs the matching patch locally, checks it with `git apply --check`, and refuses missing, stale, staged-lane, or untracked-file mismatches. |
 | Native review notes leak into content-free telemetry | Review comments are deliberate user-authored project content stored separately in an owner-only mode-0600 file. They never enter runtime session/activity telemetry; they are returned only by authenticated Changes responses and the selected local project’s `show_changes`. Secret-looking comments are rejected. |
+| A chat silently captures or controls an arbitrary app | Computer Use requires Screen Recording and Accessibility permission on the Mac, then a second CodexFlow-native app grant. Allow-once grants are route-private and expire; persistent grants are stored owner-only and can be revoked. |
+| A different binary reuses an approved bundle identifier | Every app listing, snapshot, and action validates the executable signature and binds approval to its signing identifier, team, and code-directory hash. An identity change fails closed and requires fresh approval. |
+| A stale or altered desktop action executes | Snapshots are route-bound and short-lived. Sensitive actions require a local confirmation sealed to the chat, app, snapshot, element, operation, and value; a successful action invalidates the snapshot. |
+| Computer Use bypasses another safety boundary | Generic desktop control blocks terminals, ChatGPT/CodexFlow, System Settings, and browser apps. It refuses secure fields and secret-looking text. Browser control requires a separate host-scoped design. |
 | A displayed chat identifier can be replayed against MCP | The app exposes a one-way display fingerprint, never the random transport identifier used by the MCP endpoint. |
 | Remote MCP tool runs Codex/OpenCode/Pi directly | Agent execution remains a user-started CLI/watch process on the local machine. |
 | Autonomous loop drives ChatGPT Web or bypasses approvals | `loop-handoff` only runs local terminal commands over `.ai-bridge` files; it does not resume browser sessions, approve prompts, or expose a remote MCP executor. |
@@ -77,6 +82,7 @@ The main risks are:
 - trusting a downloaded `cloudflared` binary without understanding where it came from
 - approving an SSH alias whose OpenSSH configuration, proxy command, or destination you do not control
 - saving a remote project owned by another user or enabling full Bash/workspace writes on an untrusted remote checkout
+- granting persistent Computer Use access to an app you do not trust
 
 ## Safer Defaults
 
@@ -135,6 +141,7 @@ codexflow \
 - Prefer a repo-specific `--root` instead of `--allow-home`.
 - Use `--no-install-cloudflared --cloudflared <path>` if your organization requires a managed Cloudflare Tunnel binary.
 - Verify SSH hosts only after normal `ssh <alias>` access works and the destination fingerprint is expected. Remove approval in the native Hosts view before changing an alias to a different machine.
+- Grant Computer Use only for the named app and task you expect. Prefer Allow Once, review every action confirmation, and revoke persistent access from the native Computer view when it is no longer needed.
 
 ## Cloudflare Binary Install
 

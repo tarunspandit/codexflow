@@ -22,6 +22,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var changesBusy = false
     @Published private(set) var remotes: RemoteConnectionsResponse?
     @Published private(set) var remoteBusyAlias: String?
+    @Published private(set) var computer: ComputerOverview?
+    @Published private(set) var computerBusy = false
 
     private let fileManager = FileManager.default
     private let session: URLSession
@@ -97,6 +99,7 @@ final class AppModel: ObservableObject {
             profile = fixture.profile
             changes = fixture.changes
             remotes = fixture.remotes
+            computer = fixture.computer
             if let initialSection = fixture.initialSection, let fixtureSection = AppSection(rawValue: initialSection) {
                 section = fixtureSection
             }
@@ -145,6 +148,7 @@ final class AppModel: ObservableObject {
             profile = nil
             changes = nil
             remotes = nil
+            computer = nil
             if state != .starting && state != .stopping { state = .offline }
             return
         }
@@ -156,11 +160,13 @@ final class AppModel: ObservableObject {
             overview = try await nextOverview
             profile = try await nextProfile
             remotes = try? await request(runtime: runtime, path: "/admin/remotes")
+            computer = try? await request(runtime: runtime, path: "/admin/computer")
             state = .ready
         } catch {
             overview = nil
             profile = nil
             remotes = nil
+            computer = nil
             if state != .starting && state != .stopping {
                 state = .degraded(error.localizedDescription)
             }
@@ -565,6 +571,45 @@ final class AppModel: ObservableObject {
             path: selected.path, staged: selected.staged, hunkId: nil,
             line: nil, body: nil, commentId: comment.id
         ))
+    }
+
+    func requestComputerPermissions() async {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, !computerBusy else { return }
+        computerBusy = true
+        defer { computerBusy = false }
+        do {
+            let command = ComputerCommand(action: "request_permissions", requestId: nil, decision: nil, approve: nil, bundleId: nil)
+            let response: ComputerPermissionResponse = try await request(runtime: runtime, path: "/admin/computer", method: "POST", body: try JSONEncoder().encode(command))
+            notice = response.message ?? "Review the macOS permission prompts."
+            computer = try? await request(runtime: runtime, path: "/admin/computer")
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func decideComputerAccess(_ requestID: String, decision: String) async {
+        await sendComputerCommand(ComputerCommand(action: "decide_access", requestId: requestID, decision: decision, approve: nil, bundleId: nil))
+    }
+
+    func decideComputerAction(_ requestID: String, approve: Bool) async {
+        await sendComputerCommand(ComputerCommand(action: "decide_action", requestId: requestID, decision: nil, approve: approve, bundleId: nil))
+    }
+
+    func revokeComputerApp(_ bundleID: String) async {
+        await sendComputerCommand(ComputerCommand(action: "revoke", requestId: nil, decision: nil, approve: nil, bundleId: bundleID))
+    }
+
+    private func sendComputerCommand(_ command: ComputerCommand) async {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, !computerBusy else { return }
+        computerBusy = true
+        defer { computerBusy = false }
+        do {
+            let response: ComputerOverview = try await request(runtime: runtime, path: "/admin/computer", method: "POST", body: try JSONEncoder().encode(command))
+            computer = response
+            notice = response.message
+        } catch {
+            notice = error.localizedDescription
+        }
     }
 
     private func sendReviewCommand(_ command: ChangesCommand) async {

@@ -40,6 +40,7 @@ test("renders the complete English launch page", async () => {
   assert.match(html, /Environments/);
   assert.match(html, /Changes/);
   assert.match(html, /Hosts/);
+  assert.match(html, /Computer/);
   assert.match(html, /staged and unstaged files/i);
   assert.match(html, /one hunk at a time/i);
   assert.match(html, /line-anchored review notes/i);
@@ -48,7 +49,9 @@ test("renders the complete English launch page", async () => {
   assert.match(html, /The same picker reaches another machine/);
   assert.match(html, /REMOTE WORKSPACE LIVE/);
   assert.match(html, /isolated terminals, Codex environments, project skills, repository analysis/i);
-  assert.match(html, /CODEXFLOW \/ 0\.39\.0/);
+  assert.match(html, /Visual work still asks first/i);
+  assert.match(html, /COMPUTER USE \/ CONSENTED/i);
+  assert.match(html, /CODEXFLOW \/ 0\.40\.0/);
   assert.match(html, /representative native-app preview/i);
   assert.match(html, /Content-free telemetry/);
   assert.match(html, /public website cannot see your projects or chats/i);
@@ -73,10 +76,12 @@ test("renders the Chinese edition", async () => {
   assert.match(html, /逐行 review note/i);
   assert.match(html, /定时项目任务/);
   assert.match(html, /Hosts/);
+  assert.match(html, /Computer Use/);
   assert.match(html, /同一个 picker，也能连接另一台机器/);
   assert.match(html, /远程工作区已上线/);
   assert.match(html, /持久终端、Codex 环境、项目 skills、仓库分析/);
-  assert.match(html, /CODEXFLOW \/ 0\.39\.0/);
+  assert.match(html, /视觉操作仍然先征求同意/);
+  assert.match(html, /CODEXFLOW \/ 0\.40\.0/);
   assert.match(html, /一切运行，一目了然/);
   assert.match(html, /示意预览/);
   assert.match(html, /不包含内容的遥测/);

@@ -1660,6 +1660,244 @@ private struct RemoteHostCard: View {
     }
 }
 
+struct ComputerView: View {
+    @EnvironmentObject private var model: AppModel
+
+    private var overview: ComputerOverview? { model.computer }
+    private var permissionReady: Bool {
+        overview?.status.screenRecording == true && overview?.status.accessibility == true
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 21) {
+                HStack(alignment: .bottom) {
+                    SectionHeading(
+                        eyebrow: "Visual work, with consent",
+                        title: "Computer",
+                        detail: "Let one routed web chat inspect and operate one approved native app without handing it the rest of your desktop."
+                    )
+                    Spacer()
+                    if model.hasLiveRuntime {
+                        Button {
+                            Task { await model.refresh(forceProjectRefresh: false) }
+                        } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                            .buttonStyle(FlowButtonStyle(kind: .secondary))
+                            .disabled(model.computerBusy)
+                    }
+                }
+
+                HStack(spacing: 11) {
+                    Image(systemName: "hand.raised.fill").foregroundStyle(FlowColor.success)
+                    Text("App access and action approval happen here, on this Mac. Terminal, ChatGPT, CodexFlow, system privacy settings, browser apps, secure fields, and secret-looking text are refused.")
+                        .font(FlowType.body(11)).foregroundStyle(FlowColor.inkMuted)
+                    Spacer()
+                    Text("LOCAL APPROVAL REQUIRED").font(FlowType.label(8)).tracking(1.1).foregroundStyle(FlowColor.success)
+                }
+                .padding(.horizontal, 15).frame(minHeight: 53)
+                .background(FlowColor.success.opacity(0.07)).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(FlowColor.success.opacity(0.18), lineWidth: 1))
+
+                if !model.hasLiveRuntime {
+                    OfflineInlineCard(title: "Start the local broker to use Computer Use.", detail: "The web chat can request an app only while this authenticated local approval surface is available.")
+                } else if let overview {
+                    permissionCard(overview.status)
+
+                    if !overview.actionRequests.isEmpty {
+                        requestSection(
+                            eyebrow: "Exact next step",
+                            title: "Action confirmations",
+                            detail: "Each press or text/key entry is sealed to the chat, snapshot, element, operation, and value shown here."
+                        ) {
+                            ForEach(overview.actionRequests) { request in ComputerActionApprovalCard(request: request) }
+                        }
+                    }
+
+                    if !overview.accessRequests.isEmpty {
+                        requestSection(
+                            eyebrow: "New app boundary",
+                            title: "Access requests",
+                            detail: "Allow once stays with one chat for ten minutes. Always allow persists locally until you revoke it."
+                        ) {
+                            ForEach(overview.accessRequests) { request in ComputerAccessApprovalCard(request: request) }
+                        }
+                    }
+
+                    HStack(alignment: .top, spacing: 17) {
+                        allowedAppsCard(overview).frame(maxWidth: .infinity)
+                        availableAppsCard(overview).frame(maxWidth: .infinity)
+                    }
+
+                    if !overview.recentActivity.isEmpty {
+                        PaperCard {
+                            CardHeading(title: "Recent Computer Use", detail: "Content-free approval and operation outcomes", symbol: "waveform.path.ecg")
+                            FlowDivider().padding(.vertical, 14)
+                            VStack(spacing: 0) {
+                                ForEach(Array(overview.recentActivity.prefix(12).enumerated()), id: \.element.id) { index, activity in
+                                    HStack(spacing: 12) {
+                                        StateDot(color: activity.outcome == "ok" || activity.outcome.contains("allow") || activity.outcome == "approved" ? FlowColor.success : activity.outcome.contains("pending") ? FlowColor.warning : FlowColor.inkMuted)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("\(activity.operation.codexFlowTitle) · \(activity.appName)").font(FlowType.label(11)).foregroundStyle(FlowColor.ink)
+                                            Text(activity.routeDisplay).font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted)
+                                        }
+                                        Spacer()
+                                        Text(activity.outcome.replacingOccurrences(of: "_", with: " ").uppercased()).font(FlowType.label(8)).tracking(0.7).foregroundStyle(FlowColor.inkMuted)
+                                        Text(Format.relative(activity.at)).font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted)
+                                    }
+                                    .frame(minHeight: 49)
+                                    if index < min(overview.recentActivity.count, 12) - 1 { FlowDivider() }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    PaperCard { EmptyState(symbol: "macwindow.badge.plus", title: "Computer Use is loading", detail: "The native helper and local permission state will appear when the broker responds.") }
+                }
+            }
+            .padding(.horizontal, 25).padding(.top, 25).padding(.bottom, 42)
+            .frame(maxWidth: 1160, alignment: .leading)
+        }
+    }
+
+    private func permissionCard(_ status: ComputerPermissionStatus) -> some View {
+        PaperCard(padding: 18) {
+            HStack(spacing: 17) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 13).fill((permissionReady ? FlowColor.success : FlowColor.warning).opacity(0.1))
+                    Image(systemName: permissionReady ? "checkmark.shield.fill" : "lock.desktopcomputer")
+                        .font(.system(size: 21, weight: .medium)).foregroundStyle(permissionReady ? FlowColor.success : FlowColor.warning)
+                }.frame(width: 52, height: 52)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(permissionReady ? "Native control is ready" : "macOS permissions are incomplete").font(FlowType.title(15)).foregroundStyle(FlowColor.ink)
+                    Text(status.error ?? "Screen Recording lets CodexFlow capture only the approved app window. Accessibility lets it target explicit interface elements.")
+                        .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted)
+                }
+                Spacer()
+                PermissionPill(label: "Screen Recording", granted: status.screenRecording)
+                PermissionPill(label: "Accessibility", granted: status.accessibility)
+                if !permissionReady {
+                    Button(model.computerBusy ? "Requesting…" : "Request access") {
+                        Task { await model.requestComputerPermissions() }
+                    }.buttonStyle(FlowButtonStyle(kind: .primary)).disabled(model.computerBusy || !status.available)
+                }
+            }
+        }
+    }
+
+    private func requestSection<Content: View>(eyebrow: String, title: String, detail: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Text(eyebrow.uppercased()).font(FlowType.label(8)).tracking(1.2).foregroundStyle(FlowColor.warning)
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).font(FlowType.title(19)).foregroundStyle(FlowColor.ink)
+                Text(detail).font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted)
+            }
+            LazyVStack(spacing: 10) { content() }
+        }
+    }
+
+    private func allowedAppsCard(_ overview: ComputerOverview) -> some View {
+        PaperCard {
+            CardHeading(title: "Always allowed", detail: "Owner-only local policy", symbol: "checkmark.seal")
+            FlowDivider().padding(.vertical, 14)
+            if overview.alwaysAllowed.isEmpty {
+                Text("No app has persistent access. Allow once is the safer default.").font(FlowType.body(11)).foregroundStyle(FlowColor.inkMuted)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(overview.alwaysAllowed) { app in
+                        HStack(spacing: 10) {
+                            Image(systemName: "app.fill").foregroundStyle(FlowColor.signal)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(app.appName).font(FlowType.label(11)).foregroundStyle(FlowColor.ink)
+                                Text(app.bundleId).font(FlowType.mono(8)).foregroundStyle(FlowColor.inkMuted).lineLimit(1)
+                            }
+                            Spacer()
+                            Button("Revoke") { Task { await model.revokeComputerApp(app.bundleId) } }
+                                .buttonStyle(FlowButtonStyle(kind: .danger)).disabled(model.computerBusy)
+                        }.frame(minHeight: 42)
+                    }
+                }
+            }
+        }
+    }
+
+    private func availableAppsCard(_ overview: ComputerOverview) -> some View {
+        PaperCard {
+            CardHeading(title: "Running apps", detail: "Exact names chats can request", symbol: "square.grid.2x2")
+            FlowDivider().padding(.vertical, 14)
+            VStack(spacing: 7) {
+                ForEach(overview.apps.prefix(12)) { app in
+                    HStack(spacing: 9) {
+                        StateDot(color: app.prohibited ? FlowColor.inkMuted : app.active ? FlowColor.success : FlowColor.signal)
+                        Text(app.name).font(FlowType.label(10)).foregroundStyle(app.prohibited ? FlowColor.inkMuted : FlowColor.ink)
+                        Spacer()
+                        Text(app.prohibited ? "BLOCKED" : app.bundleId).font(FlowType.mono(8)).foregroundStyle(FlowColor.inkMuted).lineLimit(1)
+                    }.frame(minHeight: 31)
+                    .help(app.prohibitedReason ?? app.bundleId)
+                }
+            }
+        }
+    }
+}
+
+private struct PermissionPill: View {
+    let label: String
+    let granted: Bool
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+            Text(label)
+        }
+        .font(FlowType.label(9)).foregroundStyle(granted ? FlowColor.success : FlowColor.warning)
+        .padding(.horizontal, 9).frame(minHeight: 28)
+        .background((granted ? FlowColor.success : FlowColor.warning).opacity(0.08)).clipShape(Capsule())
+    }
+}
+
+private struct ComputerAccessApprovalCard: View {
+    @EnvironmentObject private var model: AppModel
+    let request: ComputerAccessRequest
+    var body: some View {
+        PaperCard(padding: 17) {
+            HStack(spacing: 15) {
+                ZStack { Circle().fill(FlowColor.warning.opacity(0.1)); Image(systemName: "app.badge.checkmark").foregroundStyle(FlowColor.warning) }.frame(width: 46, height: 46)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(request.appName).font(FlowType.title(14)).foregroundStyle(FlowColor.ink)
+                    Text(request.reason).font(FlowType.body(11)).foregroundStyle(FlowColor.ink).lineLimit(3)
+                    Text("\(request.routeDisplay) · expires \(Format.relative(request.expiresAt))").font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted)
+                }
+                Spacer()
+                Button("Deny") { Task { await model.decideComputerAccess(request.id, decision: "deny") } }.buttonStyle(FlowButtonStyle(kind: .danger)).disabled(model.computerBusy)
+                Button("Allow once") { Task { await model.decideComputerAccess(request.id, decision: "allow_once") } }.buttonStyle(FlowButtonStyle(kind: .secondary)).disabled(model.computerBusy)
+                Button("Always allow") { Task { await model.decideComputerAccess(request.id, decision: "always_allow") } }.buttonStyle(FlowButtonStyle(kind: .primary)).disabled(model.computerBusy)
+            }
+        }
+    }
+}
+
+private struct ComputerActionApprovalCard: View {
+    @EnvironmentObject private var model: AppModel
+    let request: ComputerActionRequest
+    var body: some View {
+        PaperCard(padding: 17) {
+            HStack(spacing: 15) {
+                ZStack { Circle().fill(FlowColor.warning.opacity(0.1)); Image(systemName: "cursorarrow.click.2").foregroundStyle(FlowColor.warning) }.frame(width: 46, height: 46)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 8) {
+                        Text(request.appName).font(FlowType.title(14)).foregroundStyle(FlowColor.ink)
+                        StatusPill(label: request.operation.replacingOccurrences(of: "_", with: " ").uppercased(), color: FlowColor.warning)
+                    }
+                    Text(request.target).font(FlowType.body(11)).foregroundStyle(FlowColor.ink)
+                    if let preview = request.valuePreview { Text("Value: \(preview)").font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted).lineLimit(2) }
+                    Text("\(request.routeDisplay) · one use · expires \(Format.relative(request.expiresAt))").font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted)
+                }
+                Spacer()
+                Button("Deny") { Task { await model.decideComputerAction(request.id, approve: false) } }.buttonStyle(FlowButtonStyle(kind: .danger)).disabled(model.computerBusy)
+                Button("Approve step") { Task { await model.decideComputerAction(request.id, approve: true) } }.buttonStyle(FlowButtonStyle(kind: .primary)).disabled(model.computerBusy)
+            }
+        }
+    }
+}
+
 struct ConnectionView: View {
     @EnvironmentObject private var model: AppModel
 

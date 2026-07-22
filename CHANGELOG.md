@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.40.0 (2026-07-23)
+
+- Added permissioned native macOS Computer Use for the cases where project, terminal, Git, and review tools are insufficient: a routed web chat can request one exact running app, observe its focused window, and address bounded accessibility elements without receiving arbitrary coordinate control.
+- Built the approval surface into the native Computer workspace. Access is decided locally as route-private ten-minute access or explicit persistent access; presses and text/key entry are separately sealed to one chat, app, snapshot, element, operation, and value before approval.
+- Bound app grants and every later observation/action to the target’s validated code-signing identifier, team, and code-directory hash, so a replaced binary cannot inherit approval from a matching bundle identifier.
+- Added Screen Recording and Accessibility readiness UX, expiring route-bound snapshots, post-action invalidation, content-free activity, owner-only approval persistence, secret-aware text refusal, secure-field refusal, and explicit revocation.
+- Kept the hard boundaries explicit: Terminal apps, ChatGPT/CodexFlow, System Settings, and browser apps cannot be reached through generic desktop control. Browser automation remains a separate future surface with per-host permissions.
+- Added universal signed helper packaging, native fixture/visual verification, and end-to-end regressions for permission state, route isolation, action confirmation, stale snapshots, identity replacement, prohibited apps, secret refusal, persistence permissions, and revocation.
+
 ## 0.39.0 (2026-07-23)
 
 - Rebuilt the native Changes diff reader around first-class unified-diff hunks with one-click stage, unstage, and explicitly confirmed working-tree revert actions.
