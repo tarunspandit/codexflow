@@ -73,7 +73,15 @@ jobs:
         run: |
           $Stage = ".\desktop\windows\dist\win-x64\CodexFlow"
           $Smoke = Join-Path $env:RUNNER_TEMP "codexflow-windows-smoke.json"
-          & (Join-Path $Stage "CodexFlow.exe") --smoke --smoke-output $Smoke
+          $Info = [System.Diagnostics.ProcessStartInfo]::new()
+          $Info.FileName = Join-Path $Stage "CodexFlow.exe"
+          $Info.UseShellExecute = $false
+          $Info.ArgumentList.Add("--smoke")
+          $Info.ArgumentList.Add("--smoke-output")
+          $Info.ArgumentList.Add($Smoke)
+          $Process = [System.Diagnostics.Process]::Start($Info)
+          $Process.WaitForExit()
+          if ($Process.ExitCode -ne 0) { throw "Windows desktop process failed with exit code $($Process.ExitCode)." }
           $Result = Get-Content $Smoke -Raw | ConvertFrom-Json
           if (-not $Result.ok -or $Result.platform -ne "win32") { throw "Windows desktop smoke failed." }
           $Helper = '{"action":"status"}' | & (Join-Path $Stage "CodexFlowComputer.exe") | ConvertFrom-Json
