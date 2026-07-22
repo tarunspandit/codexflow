@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-The 0.33.0 source and public-site release is complete. It adds durable local-project preparation for ChatGPT Scheduled while preserving ChatGPT as the sole scheduler and model surface. Literal Codex desktop parity is not claimed; the remaining gaps are tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and live ChatGPT scheduled/two-chat acceptance remain account-authenticated release checks.
+The 0.34.0 source, native-app, and public-site release is complete. It adds a first-class native Changes workspace with authenticated staged/unstaged review, bounded color-coded diffs, and explicit file-level Git actions. Literal Codex desktop parity is not claimed; remote execution targets, Computer Use, inline comments, and per-hunk operations remain tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and live ChatGPT scheduled/two-chat acceptance remain account-authenticated release checks.
 
 ## Product truth
 
@@ -51,15 +51,16 @@ The 0.33.0 source and public-site release is complete. It adds durable local-pro
 | FLOW-005 | The app can discover and switch among multiple active/recent workspace runtimes. | Required | Verified | Runtime catalog and switcher | Private runtime records, active-first sorting, stale cleanup, and workspace reconciliation verified. |
 | FUNC-001 | Project discovery combines default/allowed roots, nested markers, and optional Codex metadata without per-folder setup. | Required | Verified | `src/projectCatalog.ts`, `src/codexSessions.ts` | Existing catalog, HTTP, and stress tests. |
 | FUNC-002 | The broker advertises repository instructions, user/workspace/plugin skills, plugin manifests, and configured MCP names. | Required | Verified | `src/capabilitiesOps.ts`, `src/server.ts` | Existing capability and complete smoke suites. |
-| FUNC-003 | Native Now, Projects, Environments, Worktrees, Chats, Connection, and Policy views render real overview/profile data. | Required | Verified | Native views + authenticated broker APIs | Fixture and API regression coverage includes all destinations. |
+| FUNC-003 | Native Now, Projects, Environments, Worktrees, Changes, Chats, Connection, and Policy views render real broker/project data. | Required | Verified | Native views + authenticated broker APIs | Fixture and API regression coverage includes all destinations. |
 | FUNC-004 | ChatGPT Scheduled can reacquire a stable local project route and optionally use its selected environment in a clean managed worktree. | Required | Verified locally | `prepare_scheduled_task`, private routes, environments, worktrees | MCP regression verifies durable prompt content and route/environment/worktree preparation; live schedule creation requires an authenticated ChatGPT surface. |
 | FUNC-005 | Connection URL credentials are never displayed or logged; the complete URL is copied only on explicit action. | Required | Verified | Native clipboard path and redacted UI | UI/source/log checks found no credential; explicit copy is the sole full-URL path. |
 | FUNC-006 | Native policy settings save through the authenticated profile API and clearly require a broker restart. | Required | Verified | Native policy editor | Tool-card policy saved, remained inactive, then became effective after native restart. |
+| FUNC-007 | Native Git review separates staged/unstaged files, renders bounded diffs, and keeps destructive actions explicit. | Required | Verified | `ChangesView`, `/admin/changes`, guarded Git workflow | HTTP, Git workflow, universal-app build, and visual fixture checks cover tracked/untracked review and policy enforcement. |
 | DATA-001 | Launch configuration and runtime records are local, restrictive, and contain no additional persisted chat content. | Required | Verified | Private desktop/runtime/profile files | Temporary-home audit confirmed mode `0600`, non-secret config, and no chat content. |
 | DATA-002 | Session/activity telemetry remains memory-only, bounded, expiring, and content-free; transport probes are not presented as user chats. | Required | Verified | `src/runtimeMonitor.ts` | Monitor and HTTP assertions distinguish routed chats, project-selection sessions, and raw connections. |
 | AUTH-001 | Native API calls authenticate with the private runtime token; public requests remain fail-closed. | Required | Verified | Native bearer client, `src/http.ts` | Live unauthorized request returned 401; native/authorized request returned 200. |
 | AUTH-002 | Workspace file/tool boundaries and transport-session isolation remain unchanged. | Required | Verified | Guard, operations, HTTP transport | Existing complete smoke/stress suites. |
-| UI-001 | The native IA is Now / Projects / Environments / Worktrees / Chats / Connection / Policy, composed from first principles for desktop. | Required | Verified | Native navigation shell | All destinations build and fixture/API states are covered by native smoke checks. |
+| UI-001 | The native IA is Now / Projects / Environments / Worktrees / Changes / Chats / Connection / Policy, composed from first principles for desktop. | Required | Verified | Native navigation shell | All destinations build and fixture/API states are covered by native smoke checks. |
 | UI-002 | The native product uses Flow7 Endorsed expression: Ground, cool Signal, daylight work surface, Geologica, spatial hierarchy, and quiet technical motion. | Required | Verified | Native tokens, fonts, icon, and components | Flow7 adoption audit passed; interface is original and native-first. |
 | UI-003 | Keyboard navigation, visible focus, semantic labels, 44px targets, AA contrast, and reduced motion are respected. | Required | Verified | SwiftUI semantics + responsive fallback | Accessibility tree, focus/target source audit, contrast, narrow layout, and reduced-motion rules verified. |
 | UI-004 | The browser `o` page is rebuilt as a small branded fallback that explains and opens the native app; it is not a duplicate dashboard. | Required | Verified | `src/localAppPage.ts`, fallback CSS/JS | HTTP smoke plus 1440×900 and 390×844 visual/overflow checks passed. |
@@ -82,24 +83,25 @@ The 0.33.0 source and public-site release is complete. It adds durable local-pro
 | Installation | Package-shipped universal app copied to `~/Applications` on first launch | Preserves the one-command experience without a separate installer. | CLI compares the complete bundle and atomically refreshes stale copies, including same-version development builds. |
 | Startup ownership | Native app may launch the existing Node broker using a non-secret desktop config | Enables useful offline launch and lifecycle controls while keeping one runtime implementation. | App starts `codexflow start --non-interactive --no-open-app`; logs remain local. |
 | Runtime discovery | Read all private runtime records under `~/.codexflow/runtime` | Supports multiple projects/brokers and resumption without a registry service. | Tokens are held in memory and never rendered. |
-| Native information architecture | Now / Projects / Environments / Worktrees / Chats / Connection / Policy | Maps directly to “what is live, where, how projects initialize, which checkouts exist, who is connected, how to connect, what is allowed.” | No fake chat composer or redundant model experience. |
+| Native information architecture | Now / Projects / Environments / Worktrees / Changes / Chats / Connection / Policy | Maps directly to “what is live, where, how projects initialize, which checkouts exist, what changed, who is connected, how to connect, what is allowed.” | No fake chat composer or redundant model experience. |
 | Session observability | Existing memory-only, content-free overview | Operators need route/health visibility without retaining prompts or repository content. | Show fingerprints, project, tool name/status/duration, and timestamps only. |
 | Browser fallback | Authenticated status + deep link + emergency connection actions | Non-macOS and recovery paths still need a small local surface. | The `o` key opens native app on macOS; the page remains manually reachable. |
 
 ## Verification evidence
 
-- Root TypeScript build, the complete smoke suite, and stress suite pass for 0.33.0.
+- Root TypeScript build, the complete smoke suite, and stress suite pass for 0.34.0.
 - The dedicated project picker renders and selects a real project in an isolated browser harness without console errors; `list_projects` uses its cache-versioned resource while `select_project` is usable without an output template.
 - Runtime and HTTP regression tests confirm that multiple MCP transports sharing one private route aggregate into one GUI chat, simultaneous routes remain isolated, route-level calls/errors are accumulated correctly, and unbound discovery/picker transports stay hidden from chat telemetry.
 - The native app builds for `x86_64 arm64`, passes strict signature/plist/resource checks, launches in fixture mode, and refreshes a deliberately corrupted same-version installation.
 - A real private temporary broker was authenticated, stopped, started, policy-edited, restarted, and checked through the signed GUI; unauthorized HTTP remained 401 and the native log contained no credential.
-- npm dry-run packaging contains the complete signed 0.33.0 app and required resources in a 4.5 MB tarball; the website audit is clean and the root audit reports two moderate transitive `@hono/node-server` advisories with no high-severity finding.
-- The public website passes lint, build, and English/Chinese rendered-output tests locally. GitHub Pages and the Flow7-hosted product site both publicly serve 0.33.0.
+- npm dry-run packaging contains the complete signed 0.34.0 app and required resources in a 4.7 MB tarball; the website audit is clean and the root audit reports two moderate transitive `@hono/node-server` advisories with no high-severity finding.
+- The public website passes lint, build, and English/Chinese rendered-output tests locally. GitHub Pages and the Flow7-hosted product site both publicly serve 0.34.0.
 - The Flow7 adoption checklist and Full Product Completion Contract were re-read after implementation; every local gate passes.
 - The existing public URLs remain `https://tarunspandit.github.io/codexflow/` and `https://codexflow.tarunspandit.chatgpt.site/`; both were verified after the 0.30.4 source release.
 - Pull request 14 was squash-merged to `main` at commit `9e95eb0`; the corresponding GitHub Pages deployment completed successfully.
 - Pull request 16 was squash-merged to `main` at commit `9c22565`; release `v0.32.0`, GitHub Pages, and Sites version 8 are live.
 - Pull request 18 was squash-merged to `main` at commit `33a3148`; release `v0.33.0`, GitHub Pages, and Sites version 9 are live.
+- Pull request 20 was squash-merged to `main` at commit `3292e40`; release `v0.34.0`, GitHub Pages, and Sites version 10 are live.
 - The permanent `https://codexflow.flow7.org` tunnel is reachable and correctly returns `401` for unauthenticated root and MCP requests.
 - The stale `CodexFlow Local` ChatGPT connector was uninstalled, leaving `CodexFlow` as the current connector.
 
@@ -114,4 +116,4 @@ The 0.33.0 source and public-site release is complete. It adds durable local-pro
 
 ## Completion record
 
-Every required ledger row remains verified. The full 0.33.0 local release matrix passes, including build, complete smoke, stress, native bundle/signature checks, package dry-run, website lint/build/render tests, dependency audits, scheduled-project prompt durability, environment/worktree interoperability, and concurrent-route regression coverage. Source, release, GitHub Pages, the Flow7-hosted site, and the permanent tunnel are live; npm publication and the account-authenticated ChatGPT acceptance passes remain external checks.
+Every required ledger row remains verified. The full 0.34.0 local release matrix passes, including build, complete smoke, stress, native bundle/signature and Changes visual checks, package dry-run, website lint/build/render tests, dependency audits, scheduled-project prompt durability, environment/worktree interoperability, explicit tracked/untracked Git review, and concurrent-route regression coverage. Source, release, GitHub Pages, the Flow7-hosted site, and the permanent tunnel are live; npm publication and the account-authenticated ChatGPT acceptance passes remain external checks.
