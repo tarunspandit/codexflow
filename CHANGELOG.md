@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.38.0 (2026-07-23)
+
+- Added CodexFlow-managed Git worktrees on approved SSH projects. A web chat can create a detached remote checkout, carry bounded tracked and untracked project changes into it, and immediately continue on the new saved project route.
+- Added guarded remote source/worktree handoff with repository identity, HEAD, and destination-state fingerprints. Independently changed destinations are refused before any files are replaced.
+- Added remote environment continuity across worktree route switches: selected Codex environment setup runs after creation, cleanup runs before removal, and failed setup rolls the route, saved project, manifest, and Git checkout back to the source project.
+- Added owner-only remote worktree manifests, bounded dirty-state snapshots, automatic project-picker registration/removal, unavailable-checkout reporting, canonical macOS path handling, and transactional registration cleanup.
+- Extended end-to-end SSH regression coverage through create, environment setup, edit, handoff, conflict refusal, environment cleanup, dirty snapshot, removal, picker cleanup, mode-0600 metadata, and failed-setup orphan prevention.
+- Kept the parity claim honest: Computer Use/browser control, inline review comments, per-hunk actions, richer native task progress, and equivalent native clients beyond macOS remain unfinished.
+
 ## 0.37.0 (2026-07-22)
 
 - Added persistent terminals for approved SSH projects with per-chat cwd/environment/process state, concurrent route isolation, bounded transcript cursors, background commands, full-mode input, timeouts, and host/project revalidation on every action.

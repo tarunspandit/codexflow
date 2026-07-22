@@ -63,12 +63,12 @@ const content = {
       ["Discover", "Projects are already there.", "Reads recent local project metadata and configured roots, then presents a clean picker in each new conversation.", "AUTOMATIC"],
       ["Understand", "Repository context before action.", "Loads AGENTS.md, maps files and symbols, locates tests, reads git state, and identifies likely impact before changing code.", "PROJECT NATIVE"],
       ["Change", "Precise edits inside one root.", "Search, read, write, edit, and apply guarded patches without exposing another project or wandering through the machine.", "WORKSPACE SCOPED"],
-      ["Parallelize", "One task, one managed checkout.", "Creates isolated worktrees, carries current changes in safely, and refuses to overwrite a destination that changed independently.", "GUARDED HANDOFF"],
+      ["Parallelize", "One task, one managed checkout.", "Creates isolated worktrees locally or on an approved SSH host, carries current changes in safely, and refuses to overwrite a destination that changed independently.", "GUARDED HANDOFF"],
       ["Verify", "Git and terminal state that continue.", "Stages and commits only the selected project, runs bounded verification, and keeps a private route terminal alive across tool transports.", "PERSISTENT"],
       ["Review", "The diff belongs on your machine.", "Separates staged and unstaged files in the native app, renders bounded color-coded diffs, and keeps stage, unstage, and discard actions explicit.", "NATIVE"],
       ["Adapt", "Your project environment travels too.", "Uses the same checked-in Codex environment format for setup, cleanup, named actions, skills, plugins, and MCP inventory—without running Codex.", "INTEROPERABLE"],
       ["Schedule", "Recurring work keeps its project.", "Prepares durable ChatGPT Scheduled runs that reacquire a private route and use a clean managed worktree without adding another model backend.", "CHATGPT NATIVE"],
-      ["Remote", "The same picker reaches another machine.", "Approve a named OpenSSH host, then keep isolated terminals, Codex environments, project skills, repository analysis, file edits, Bash, and Git review on that route—without invoking Codex there.", "REMOTE WORKSPACE LIVE"],
+      ["Remote", "The same picker reaches another machine.", "Approve a named OpenSSH host, then keep isolated terminals, Codex environments, project skills, repository analysis, managed worktrees, guarded handoff, file edits, Bash, and Git review on that route—without invoking Codex there.", "REMOTE WORKSPACE LIVE"],
     ],
     safetyKicker: "Power with edges",
     safetyTitle: "Local access should feel serious.",
@@ -218,7 +218,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
               <div className="instrument-readout"><p><span className="live-dot" aria-hidden="true" />{c.brokerReady}</p><dl>{c.readout.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>
             </div>
           </div>
-          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.37.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.38.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
         </section>
 
         <section className="system section-pad" id="system">

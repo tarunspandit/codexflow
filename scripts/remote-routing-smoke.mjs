@@ -41,9 +41,11 @@ const fixture = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-remote-routin
 const localRoot = path.join(fixture, 'local');
 const remoteRoot = path.join(fixture, 'remote');
 const codexflowHome = path.join(fixture, 'home');
+const remoteHome = path.join(fixture, 'remote-home');
 const sshConfig = path.join(fixture, 'ssh-config');
 const fakeSsh = path.join(fixture, 'ssh');
 await fs.mkdir(localRoot, { recursive: true });
+await fs.mkdir(remoteHome, { recursive: true });
 await fs.mkdir(path.join(remoteRoot, 'src'), { recursive: true });
 await fs.mkdir(path.join(remoteRoot, '.codex', 'environments'), { recursive: true });
 await fs.mkdir(path.join(remoteRoot, '.codex', 'skills', 'remote-smoke'), { recursive: true });
@@ -100,6 +102,7 @@ const port = await freePort();
 const token = 'remote-routing-smoke-token';
 const env = {
   ...process.env,
+  HOME: remoteHome,
   CODEXFLOW_ROOT: localRoot,
   CODEXFLOW_ALLOWED_ROOTS: localRoot,
   CODEXFLOW_HOME: codexflowHome,
@@ -316,13 +319,120 @@ try {
     assert.match(environmentCleanup.output, /remote-environment-cleanup/);
     await call(client, 'terminal', { route_id: listed.route_id, workspace_id: remote.project_id, action: 'stop' });
 
+    const createdWorktree = await call(client, 'worktree', {
+      route_id: listed.route_id,
+      workspace_id: remote.project_id,
+      action: 'create',
+      include_changes: true
+    });
+    assert.equal(createdWorktree.location, 'remote');
+    assert.equal(createdWorktree.route_switched, true);
+    assert.notEqual(createdWorktree.workspace_id, remote.project_id);
+    assert.match(createdWorktree.setup.output, /remote-environment-setup/);
+    assert.equal(createdWorktree.untracked_copied, 1);
+    assert.match(await fs.readFile(path.join(createdWorktree.root, 'src', 'routed.js'), 'utf8'), /false/);
+    assert.equal((await fs.stat(path.join(codexflowHome, 'remote-worktrees.json'))).mode & 0o777, 0o600);
+
+    const listedWorktrees = await call(client, 'worktree', {
+      route_id: listed.route_id,
+      workspace_id: createdWorktree.workspace_id,
+      action: 'list'
+    });
+    assert.equal(listedWorktrees.count, 1);
+    assert.equal(listedWorktrees.worktrees[0].available, true);
+    assert.equal(listedWorktrees.worktrees[0].dirty, true);
+
+    await call(client, 'edit', {
+      route_id: listed.route_id,
+      workspace_id: createdWorktree.workspace_id,
+      path: 'src/value.js',
+      old_text: 'value = 1',
+      new_text: 'value = 2'
+    });
+    await call(client, 'write', {
+      route_id: listed.route_id,
+      workspace_id: createdWorktree.workspace_id,
+      path: 'src/worktree-only.txt',
+      content: 'handoff payload\n'
+    });
+    const handedLocal = await call(client, 'worktree', {
+      route_id: listed.route_id,
+      workspace_id: createdWorktree.workspace_id,
+      action: 'handoff',
+      worktree_id: createdWorktree.worktree.id,
+      destination: 'local',
+      transfer_changes: true
+    });
+    assert.equal(handedLocal.workspace_id, remote.project_id);
+    assert.equal(handedLocal.route_switched, true);
+    assert.match(await fs.readFile(path.join(remoteRoot, 'src', 'value.js'), 'utf8'), /value = 2/);
+    assert.equal(await fs.readFile(path.join(remoteRoot, 'src', 'worktree-only.txt'), 'utf8'), 'handoff payload\n');
+
+    await fs.writeFile(path.join(createdWorktree.root, 'src', 'value.js'), 'export const value = 3;\n');
+    await assert.rejects(
+      call(client, 'worktree', {
+        route_id: listed.route_id,
+        workspace_id: remote.project_id,
+        action: 'handoff',
+        worktree_id: createdWorktree.worktree.id,
+        destination: 'worktree',
+        transfer_changes: true
+      }),
+      /Destination changed independently/
+    );
+
+    const removedWorktree = await call(client, 'worktree', {
+      route_id: listed.route_id,
+      workspace_id: remote.project_id,
+      action: 'remove',
+      worktree_id: createdWorktree.worktree.id
+    });
+    assert.equal(removedWorktree.workspace_id, remote.project_id);
+    assert.equal(removedWorktree.route_switched, true);
+    assert.match(removedWorktree.cleanup.output, /remote-environment-cleanup/);
+    assert.ok(removedWorktree.snapshot_path);
+    assert.equal((await fs.stat(removedWorktree.snapshot_path)).isDirectory(), true);
+    assert.match(await fs.readFile(path.join(removedWorktree.snapshot_path, 'changes.patch'), 'utf8'), /value = 3/);
+    await assert.rejects(fs.stat(createdWorktree.root), /ENOENT/);
+    const emptyWorktrees = await call(client, 'worktree', {
+      route_id: listed.route_id,
+      workspace_id: remote.project_id,
+      action: 'list'
+    });
+    assert.equal(emptyWorktrees.count, 0);
+    const projectsAfterRemoval = await call(client, 'list_projects', { refresh: false });
+    assert.equal(projectsAfterRemoval.projects.some((project) => project.project_id === createdWorktree.workspace_id), false);
+
+    const environmentPath = path.join(remoteRoot, '.codex', 'environments', 'remote.toml');
+    const workingEnvironment = await fs.readFile(environmentPath, 'utf8');
+    await fs.writeFile(environmentPath, workingEnvironment.replace('printf remote-environment-setup', 'exit 23'));
+    await assert.rejects(
+      call(client, 'worktree', {
+        route_id: listed.route_id,
+        workspace_id: remote.project_id,
+        action: 'create',
+        include_changes: true
+      }),
+      /Remote environment setup failed with exit 23/
+    );
+    await fs.writeFile(environmentPath, workingEnvironment);
+    const worktreeList = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd: remoteRoot, encoding: 'utf8' });
+    assert.equal(worktreeList.status, 0);
+    assert.equal((worktreeList.stdout.match(/^worktree /gm) ?? []).length, 1, 'failed setup left an orphaned Git worktree');
+    const worktreesAfterRollback = await call(client, 'worktree', {
+      route_id: listed.route_id,
+      workspace_id: remote.project_id,
+      action: 'list'
+    });
+    assert.equal(worktreesAfterRollback.count, 0);
+
     const status = await call(client, 'show_changes', { route_id: listed.route_id, workspace_id: remote.project_id, include_diff: true, since: 'workspace' });
     assert.match(status.status, /src\/routed\.js/);
     assert.match(await fs.readFile(path.join(remoteRoot, 'src', 'routed.js'), 'utf8'), /false/);
   } finally {
     await client.close();
   }
-  console.log('✓ saved remote project routes files, Bash, Git, isolated terminals, Codex environments, skills, and analysis over SSH');
+  console.log('✓ saved remote project routes files, Bash, Git, isolated terminals, Codex environments, skills, analysis, and managed worktrees over SSH');
 } finally {
   child.kill('SIGTERM');
   await new Promise((resolve) => child.once('exit', resolve));

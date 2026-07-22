@@ -1,6 +1,6 @@
 # Codex Desktop Parity
 
-Updated: 2026-07-22
+Updated: 2026-07-23
 
 CodexFlow gives a ChatGPT web conversation a Codex-like local coding surface without starting, resuming, or delegating work to the Codex CLI. ChatGPT supplies the model and conversation; the local CodexFlow broker supplies bounded project, file, Git, worktree, terminal, environment, instruction, skill, and MCP context.
 
@@ -21,7 +21,7 @@ The honest status is **strong local workflow parity, not literal Codex desktop p
 | Native management app | Available on macOS | Broker lifecycle, projects, environments, worktrees, changes, chats, connection, and policy are first-class SwiftUI views. |
 | Chat lifecycle | Available locally | Search, local rename, pin, archive, restore, and project-route resumption without storing prompts or tool contents. |
 | Scheduled/background agent tasks | Available through ChatGPT Scheduled | `prepare_scheduled_task` creates a durable local-project prompt for same-chat or standalone schedules. ChatGPT owns future model turns and run history; each run reacquires its CodexFlow route and can use a clean managed worktree. |
-| Remote/cloud/SSH environments | Partial | The native Hosts workspace approves concrete OpenSSH aliases and saves canonical project folders. The ordinary chat picker routes bounded files, search, edits, patches, Bash, persistent per-chat terminals, Codex environment setup/actions, workspace skills, repository inspection, Git status/diff, and change review through a CodexFlow-owned SSH helper. Every call revalidates host identity, root containment, blocked paths, limits, and policy. Remote managed worktrees and local/remote handoff are not yet available. |
+| Remote/cloud/SSH environments | Available | The native Hosts workspace approves concrete OpenSSH aliases and saves canonical project folders. The ordinary chat picker routes bounded files, search, edits, patches, Bash, persistent per-chat terminals, Codex environment setup/actions, workspace skills, repository inspection, Git review, and managed Git worktrees through a CodexFlow-owned SSH helper. Remote worktree creation, source/worktree handoff, environment continuity, conflict refusal, dirty snapshots, removal, and picker registration share the private chat route. Every call revalidates host identity, root containment, blocked paths, limits, and policy. |
 | Computer Use and browser control | Not yet | CodexFlow does not capture or operate arbitrary desktop applications, Chrome, or an embedded browser. |
 | Rich native diff/review workspace | Partial | The Mac app now provides staged/unstaged file lanes, bounded color-coded diffs, stats, and explicit file-level stage, unstage, and discard. Inline comments and per-hunk actions are not yet available. |
 | Multi-agent orchestration | Partial | Parallel chats and worktrees are independent, but CodexFlow itself does not run a model task queue or spawn model agents. |
@@ -37,10 +37,9 @@ Managed worktrees also honor `.worktreeinclude` for selected gitignored setup fi
 
 Literal parity still requires capabilities outside the current local MCP surface:
 
-1. Complete the shipped remote-project execution slice with managed worktrees, local/remote handoff, and richer remote lifecycle policy.
-2. Computer Use and browser-control permissions, capture, confirmation, and audit UX.
-3. Inline review comments, per-hunk stage/revert, and richer native plan/task progress inside the coding workspace.
-4. Equivalent native clients beyond macOS.
+1. Computer Use and browser-control permissions, capture, confirmation, and audit UX.
+2. Inline review comments, per-hunk stage/revert, and richer native plan/task progress inside the coding workspace.
+3. Equivalent native clients beyond macOS.
 
 Those additions must preserve the product boundary: no Codex CLI execution, no quota proxying, and no hidden automation of the ChatGPT website.
 

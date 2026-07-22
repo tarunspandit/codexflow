@@ -46,6 +46,12 @@ import {
 import { hasSecretValue, redactSensitiveText, redactStructured } from "./redact.js";
 import { inspectWorkspace, invalidateWorkspaceAnalysis, reviewWorkspaceChanges } from "./analysis/index.js";
 import { inspectRemoteWorkspace } from "./remoteAnalysisOps.js";
+import {
+  createRemoteManagedWorktree,
+  handoffRemoteManagedWorktree,
+  listRemoteManagedWorktrees,
+  removeRemoteManagedWorktree
+} from "./remoteWorktreeOps.js";
 import { CODEXFLOW_VERSION } from "./version.js";
 import { ChatRouteStore, isChatRouteId } from "./chatRoutes.js";
 import { codexFlowHome } from "./profileStore.js";
@@ -3400,7 +3406,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     "worktree",
     {
       title: "Managed Worktree",
-      description: "List, create, hand off to/from, or remove CodexFlow-managed Git worktrees. Create and handoff preserve this private chat route while changing its working checkout. Removal saves a patch snapshot when tracked changes exist.",
+      description: "List, create, hand off to/from, or remove CodexFlow-managed Git worktrees in the selected local or approved SSH project. Create and handoff preserve this private chat route while changing its checkout. Removal saves dirty-state snapshots before cleanup.",
       inputSchema: {
         workspace_id: z.string().optional().describe("Workspace id from the active local project or managed worktree."),
         action: z.enum(["list", "create", "handoff", "remove"]),
@@ -3409,7 +3415,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         base_ref: z.string().optional().describe("Commit-ish used to create a detached worktree. Default: HEAD."),
         include_changes: z.boolean().optional().describe("Copy current tracked and untracked project changes into a new worktree. Default: true."),
         environment_config_path: z.string().optional().describe("Selected .codex/environments TOML path, environment name, or filename. When omitted, use this route's selected environment if any."),
-        setup_timeout_ms: z.number().int().min(1000).max(600000).optional().describe("Local environment setup timeout. Default: 600000."),
+        setup_timeout_ms: z.number().int().min(1000).max(600000).optional().describe("Project environment setup or cleanup timeout. Default: 600000."),
         transfer_changes: z.boolean().optional().describe("Apply current tracked and untracked project changes to the handoff destination. Default: true.")
       },
       annotations: LOCAL_WRITE_ANNOTATIONS,
@@ -3420,7 +3426,133 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
+      const routeId = invocationRouteId();
+      if (target.kind === "remote") {
+        if (!routeId) throw new CodexFlowError("Remote worktree management requires the private route_id returned by list_projects or select_project.");
+        if (args.action === "list") {
+          const items = await listRemoteManagedWorktrees(config, target.project);
+          const rows = items.length
+            ? items.map((item) => `- ${item.id}  ${item.available === false ? "unavailable" : `${item.branch || "detached"}  ${item.dirty ? "dirty" : "clean"}`}  ${item.projectRoot}`).join("\n")
+            : "- No remote managed worktrees.";
+          return textResult(`# Remote Managed Worktrees\n\n${rows}`, {
+            workspace_id: workspace.id, root: workspace.root, location: "remote", host_alias: target.project.hostAlias,
+            worktrees: items, count: items.length
+          });
+        }
+        if (args.action === "create") {
+          const environmentSelector = args.environment_config_path ?? routeStore.get(routeId)?.environmentConfigPath;
+          const created = await createRemoteManagedWorktree(config, target.project, { baseRef: args.base_ref, includeChanges: args.include_changes });
+          persistentTerminals.stop(routeId);
+          routeStore.bindRemote(routeId, created.project);
+          let setup: unknown = null;
+          try {
+            if (environmentSelector) {
+              const selector = path.posix.isAbsolute(environmentSelector) ? path.posix.basename(environmentSelector) : environmentSelector;
+              const { environment, platform } = await resolveRemoteEnvironment(config, created.project, selector);
+              const command = environmentScriptForPlatform(environment, "setup", platform);
+              routeStore.selectEnvironment(routeId, environment.configPath);
+              if (command) {
+                const result = await persistentTerminals.runRemote(config, routeId, created.project,
+                  environmentTerminalCommand(command, target.project.root, created.project.root), {
+                  timeoutMs: args.setup_timeout_ms ?? 600_000, bashSessionId: undefined, trustedProjectCommand: true
+                  });
+                if (!result.completed || result.exitCode !== 0) throw new CodexFlowError(`Remote environment setup failed with exit ${result.exitCode ?? "unknown"}.`);
+                setup = result;
+              }
+            }
+          } catch (error) {
+            persistentTerminals.stop(routeId);
+            try { await removeRemoteManagedWorktree(config, created.project, created.worktree.id); } catch { /* preserve setup error */ }
+            routeStore.bindRemote(routeId, target.project);
+            if (environmentSelector) {
+              const selector = path.posix.isAbsolute(environmentSelector) ? path.posix.basename(environmentSelector) : environmentSelector;
+              try {
+                const { environment } = await resolveRemoteEnvironment(config, target.project, selector);
+                routeStore.selectEnvironment(routeId, environment.configPath);
+              } catch { routeStore.selectEnvironment(routeId, undefined); }
+            }
+            throw error;
+          }
+          return textResult([
+            "# Remote Worktree Created", "", `ID: ${created.worktree.id}`, `Project: ${created.project.root}`,
+            `Base: ${created.worktree.baseRef}`, `Tracked changes applied: ${created.patchApplied}`,
+            `Untracked files copied: ${created.untrackedCopied}`, environmentSelector ? "Environment: setup complete" : "Environment: none",
+            "This private chat route now uses the remote managed worktree."
+          ].join("\n"), {
+            workspace_id: created.project.id, root: created.project.root, location: "remote", host_alias: created.project.hostAlias,
+            worktree: created.worktree, patch_applied: created.patchApplied, untracked_copied: created.untrackedCopied,
+            setup, route_switched: true
+          });
+        }
+        if (args.action === "handoff") {
+          if (!args.worktree_id || !args.destination) throw new CodexFlowError("worktree_id and destination are required for handoff.");
+          const environmentSelector = routeStore.get(routeId)?.environmentConfigPath;
+          persistentTerminals.stop(routeId);
+          const handed = await handoffRemoteManagedWorktree(config, target.project, {
+            worktreeId: args.worktree_id, destination: args.destination, transferChanges: args.transfer_changes
+          });
+          routeStore.bindRemote(routeId, handed.project);
+          if (environmentSelector) {
+            const selector = path.posix.isAbsolute(environmentSelector) ? path.posix.basename(environmentSelector) : environmentSelector;
+            try {
+              const { environment } = await resolveRemoteEnvironment(config, handed.project, selector);
+              routeStore.selectEnvironment(routeId, environment.configPath);
+            } catch { routeStore.selectEnvironment(routeId, undefined); }
+          }
+          return textResult([
+            "# Remote Worktree Handoff", "", `Destination: ${args.destination}`, `Project: ${handed.project.root}`,
+            `Tracked changes applied: ${handed.patchApplied}`, `Untracked files copied: ${handed.untrackedCopied}`,
+            "This private chat route now uses the remote destination checkout."
+          ].join("\n"), {
+            workspace_id: handed.project.id, root: handed.project.root, location: "remote", host_alias: handed.project.hostAlias,
+            worktree: handed.worktree, destination: args.destination, patch_applied: handed.patchApplied,
+            untracked_copied: handed.untrackedCopied, route_switched: true
+          });
+        }
+        if (args.action === "remove") {
+          if (!args.worktree_id) throw new CodexFlowError("worktree_id is required for remove.");
+          const environmentSelector = routeStore.get(routeId)?.environmentConfigPath;
+          let cleanup: unknown = null;
+          if (environmentSelector) {
+            const worktree = (await listRemoteManagedWorktrees(config, target.project)).find((item) => item.id === args.worktree_id);
+            if (!worktree) throw new CodexFlowError("Remote managed worktree not found for this project.");
+            const worktreeProject = getApprovedRemoteProject(worktree.worktreeProjectId);
+            const selector = path.posix.isAbsolute(environmentSelector) ? path.posix.basename(environmentSelector) : environmentSelector;
+            const { environment, platform } = await resolveRemoteEnvironment(config, worktreeProject, selector);
+            const command = environmentScriptForPlatform(environment, "cleanup", platform);
+            if (command) {
+              const result = await persistentTerminals.runRemote(config, routeId, worktreeProject,
+                environmentTerminalCommand(command, getApprovedRemoteProject(worktree.sourceProjectId).root, worktreeProject.root), {
+                timeoutMs: args.setup_timeout_ms ?? 600_000, bashSessionId: undefined, trustedProjectCommand: true
+                });
+              if (!result.completed || result.exitCode !== 0) throw new CodexFlowError(`Remote environment cleanup failed with exit ${result.exitCode ?? "unknown"}.`);
+              cleanup = result;
+            }
+          }
+          persistentTerminals.stop(routeId);
+          const removed = await removeRemoteManagedWorktree(config, target.project, args.worktree_id);
+          routeStore.bindRemote(routeId, removed.project);
+          if (environmentSelector) {
+            const selector = path.posix.isAbsolute(environmentSelector) ? path.posix.basename(environmentSelector) : environmentSelector;
+            try {
+              const { environment } = await resolveRemoteEnvironment(config, removed.project, selector);
+              routeStore.selectEnvironment(routeId, environment.configPath);
+            } catch { routeStore.selectEnvironment(routeId, undefined); }
+          }
+          return textResult([
+            "# Remote Worktree Removed", "", `ID: ${removed.worktreeId}`,
+            removed.snapshotPath ? `Remote snapshot: ${removed.snapshotPath}` : "Remote snapshot: no changes",
+            `Project: ${removed.project.root}`, "This private chat route now uses the remote source checkout."
+          ].join("\n"), {
+            workspace_id: removed.project.id, root: removed.project.root, location: "remote", host_alias: removed.project.hostAlias,
+            worktree_id: removed.worktreeId, snapshot_path: removed.snapshotPath ?? null, cleanup, removed: true, route_switched: true
+          });
+        }
+        throw new CodexFlowError(`Unsupported remote worktree action: ${String(args.action)}`);
+      }
+
       if (args.action === "list") {
         const items = listManagedWorktrees(config, workspace);
         const rows = items.length
@@ -3434,7 +3566,6 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         });
       }
       if (args.action === "create") {
-        const routeId = invocationRouteId();
         const environmentSelector = args.environment_config_path ?? (routeId ? routeStore.get(routeId)?.environmentConfigPath : undefined);
         const environment = environmentSelector ? resolveLocalEnvironment(config, workspace, environmentSelector) : undefined;
         const created = await createManagedWorktree(config, workspace, {
