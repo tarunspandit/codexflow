@@ -572,6 +572,7 @@ const STANDARD_TOOL_NAMES = [
   "git_workflow",
   "local_environment",
   "worktree",
+  "prepare_scheduled_task",
   "read_handoff",
   "wait_for_handoff",
   "export_pro_context",
@@ -604,6 +605,7 @@ const FULL_TOOL_NAMES = [
   "git_workflow",
   "local_environment",
   "worktree",
+  "prepare_scheduled_task",
   "show_changes",
   "read_handoff",
   "wait_for_handoff",
@@ -624,6 +626,7 @@ const CONNECTION_TEST_HIDDEN_TOOLS = new Set<string>([
   "git_workflow",
   "local_environment",
   "worktree",
+  "prepare_scheduled_task",
   "export_pro_context",
   "handoff_to_agent",
   "handoff_to_codex"
@@ -751,6 +754,7 @@ function serverInstructions(config: CodexFlowConfig): string {
     config.writeMode === "workspace"
       ? "6a. Use local_environment to discover the project's shared .codex/environments configuration and run named actions. Use worktree to isolate parallel tasks; a selected local environment automatically sets up a new worktree. Creating or handing off a worktree moves this private chat route to that checkout while preserving project scope."
       : "",
+    "6b. When the user asks to schedule recurring or background project work, call prepare_scheduled_task. ChatGPT Scheduled owns the cadence, model turn, and run history; CodexFlow supplies the durable local project route and tools. Never create a local cron job or claim CodexFlow itself runs the model.",
     "7. Keep tool calls minimal. Prefer one targeted search plus show_changes instead of repeated broad inspection calls.",
     config.codexSessions !== "off"
       ? `8. Codex session history access is enabled in ${config.codexSessions} mode. Use it only when the user asks for local Codex session history.`
@@ -1884,6 +1888,96 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         write_mode: config.writeMode,
         tool_mode: config.toolMode
       }, { "openai/widgetSessionId": routeId });
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
+    "prepare_scheduled_task",
+    {
+      title: "Prepare Scheduled Task",
+      description:
+        "Prepare a durable ChatGPT Scheduled prompt for this local project. ChatGPT owns scheduling and model execution; CodexFlow reacquires a private route on every run and optionally creates an isolated managed worktree.",
+      inputSchema: {
+        workspace_id: z.string().optional().describe("Workspace id bound to this private route."),
+        task: z.string().trim().min(1).max(6000).describe("Concrete work to perform on every scheduled run."),
+        run_location: z.enum(["local", "worktree"]).optional().describe("Run directly in the project or create a new managed worktree for each run. Default: worktree when writes are enabled, otherwise local."),
+        chat_mode: z.enum(["same_chat", "standalone"]).optional().describe("Return each run to this chat or start an independent Scheduled run. Default: same_chat."),
+        verify: z.boolean().optional().describe("Require focused verification and show_changes before reporting. Default: true."),
+        allow_push: z.boolean().optional().describe("Permit the scheduled run to push or open a pull request. Default: false.")
+      },
+      annotations: SESSION_READ_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Preparing scheduled project work...",
+        "openai/toolInvocation/invoked": "Scheduled task context ready"
+      }
+    },
+    async (args) => {
+      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const routeId = invocationRouteId();
+      const route = routeId ? routeStore.get(routeId) : undefined;
+      const gitState = gitStatus(config, workspace).toLowerCase();
+      const gitAvailable = !gitState.includes("not a git repository") && !gitState.startsWith("git unavailable") && !gitState.startsWith("git exited");
+      const requestedLocation = args.run_location ?? (config.writeMode === "workspace" && gitAvailable ? "worktree" : "local");
+      if (requestedLocation === "worktree" && (config.writeMode !== "workspace" || !gitAvailable)) {
+        throw new CodexFlowError("Scheduled worktrees require a Git project and workspace write mode. Choose run_location=local or update the project policy.");
+      }
+      const chatMode = args.chat_mode ?? "same_chat";
+      const verify = parseBool(args.verify, true);
+      const allowPush = parseBool(args.allow_push, false);
+      if (allowPush && config.writeMode !== "workspace") {
+        throw new CodexFlowError("Scheduled push requires workspace write mode.");
+      }
+      const projectName = path.basename(workspace.root) || workspace.root;
+      const environmentConfigPath = route?.environmentConfigPath;
+      const steps = [
+        "Use the CodexFlow app for this run. Do not use the Codex CLI.",
+        "Call list_projects. Preserve the private route_id it returns for every later CodexFlow call in this run.",
+        `Call select_project with that route_id and project_id \"${workspace.id}\". Confirm the selected project is \"${projectName}\" before continuing.`,
+        ...(environmentConfigPath && config.writeMode === "workspace" && config.bashMode !== "off"
+          ? [`Call local_environment with action=select and config_path=${JSON.stringify(environmentConfigPath)} on the selected route.`]
+          : []),
+        ...(requestedLocation === "worktree"
+          ? ["Call worktree with action=create and include_changes=false. Perform all work in the returned managed worktree and leave it available for review."]
+          : ["Work directly in the selected local project. Do not switch projects during the run."]),
+        "Follow the project AGENTS.md and load any relevant advertised skills before editing.",
+        `Perform this task:\n\n${String(args.task).trim()}`,
+        ...(verify ? ["Run the narrowest relevant verification, then call show_changes and summarize files changed, checks run, and any remaining risk."] : []),
+        ...(allowPush
+          ? ["You may push or open a pull request only when the task clearly requires it; report the branch and URL."]
+          : ["Do not push, publish, merge, or open a pull request. Leave changes local for review."]),
+        "If the broker, project, required environment, or tool is unavailable, stop and report the exact blocker instead of changing another project."
+      ];
+      const prompt = steps.map((step, index) => `${index + 1}. ${step}`).join("\n\n");
+      return textResult([
+        "# Scheduled Task Context Ready",
+        "",
+        `Project: ${projectName}`,
+        `Project ID: ${workspace.id}`,
+        `Run location: ${requestedLocation}`,
+        `Chat mode: ${chatMode === "same_chat" ? "return to this chat" : "standalone run"}`,
+        "Scheduler: ChatGPT Scheduled (not CodexFlow)",
+        "",
+        "Ask ChatGPT to schedule the following durable prompt with your preferred cadence:",
+        "",
+        prompt,
+        "",
+        "Keep this computer awake, the CodexFlow broker running, and the plugin URL stable when a run needs local files."
+      ].join("\n"), {
+        workspace_id: workspace.id,
+        project_id: workspace.id,
+        project_name: projectName,
+        run_location: requestedLocation,
+        chat_mode: chatMode,
+        environment_config_path: environmentConfigPath ?? null,
+        prompt,
+        scheduler: "chatgpt_scheduled",
+        git_available: gitAvailable,
+        requires_running_broker: true,
+        creates_schedule: false
+      });
     }
   );
 

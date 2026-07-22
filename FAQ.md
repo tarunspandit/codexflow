@@ -327,6 +327,10 @@ Run one CodexFlow process. Open two ChatGPT conversations and choose a different
 
 Yes. CodexFlow reads version-1 `.codex/environments/*.toml` files directly, including platform-specific setup/cleanup scripts and named actions. Managed worktrees can run the selected setup and copy gitignored files matched by `.worktreeinclude`. The format is shared, but CodexFlow executes it through its own guarded local broker and never launches the Codex CLI.
 
+## Can scheduled ChatGPT tasks work on my local project?
+
+Yes, through ChatGPT Scheduled and the CodexFlow plugin. Ask ChatGPT to prepare and schedule the work; `prepare_scheduled_task` creates a durable prompt that reacquires the project route and can use a clean worktree on every run. Keep the computer awake, the broker running, and the plugin URL stable. ChatGPT owns the model turn and schedule—CodexFlow does not run a hidden model or local cron daemon.
+
 ## Where are the current docs?
 
 Use the [CodexFlow website](https://tarunspandit.github.io/codexflow/), the [GitHub repository](https://github.com/tarunspandit/codexflow), or the documentation shipped in the npm package.
