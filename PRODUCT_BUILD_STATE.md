@@ -1,6 +1,6 @@
 # Product Build State
 
-Updated: 2026-07-22
+Updated: 2026-07-23
 
 ## Objective
 
@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-The 0.37.0 source, native-app, and public-site release is complete. Approved OpenSSH projects now support route-private persistent terminals, host-platform Codex environment setup/actions, guarded workspace-skill discovery/loading, and bounded repository inspection in addition to the shipped file, search, edit, patch, Bash, Git, and change-review loop. The asynchronous CodexFlow-owned SSH backend never installs or invokes Codex. Literal Codex desktop parity is not claimed; remote managed worktrees/handoff, Computer Use/browser control, inline comments, and per-hunk operations remain tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and live ChatGPT scheduled/two-chat acceptance remain account-authenticated release checks.
+The 0.38.0 implementation and local release matrix are complete. Approved OpenSSH projects now support route-private persistent terminals, host-platform Codex environment setup/actions, guarded workspace-skill discovery/loading, bounded repository inspection, and managed remote worktrees with guarded source/worktree handoff, cleanup, dirty snapshots, and project-picker continuity. The asynchronous CodexFlow-owned SSH backend never installs or invokes Codex. Literal Codex desktop parity is not claimed; Computer Use/browser control, inline comments, per-hunk operations, richer native task progress, and native clients beyond macOS remain tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and live ChatGPT scheduled/two-chat acceptance remain account-authenticated release checks.
 
 ## Product truth
 
@@ -60,6 +60,7 @@ The 0.37.0 source, native-app, and public-site release is complete. Approved Ope
 | FUNC-008 | SSH hosts are discovered from concrete OpenSSH aliases and require explicit local approval that becomes invalid when routing changes. | Required | Verified | `remoteConnections`, `/admin/remotes`, `HostsView` | Included configs, wildcard rejection, unknown aliases, failed host-key trust, rerouting, revocation, mode-0600 persistence, authenticated API, native build, and visual states pass. |
 | FUNC-009 | Approved SSH hosts can expose saved project folders through the normal per-chat picker and route bounded coding tools without blocking other chats or invoking Codex. | Required | Verified | `remoteWorkspace`, remote route records, picker context, native Hosts project controls | Direct containment/trust/concurrency smoke plus end-to-end HTTP/MCP list/select/read/search/write/edit/Bash/Git routing pass. |
 | FUNC-010 | Remote project routes provide isolated persistent terminals, Codex-compatible environments, guarded workspace skills, and bounded repository inspection. | Required | Verified | `terminalOps`, `remoteEnvironmentOps`, `remoteCapabilitiesOps`, `remoteAnalysisOps` | End-to-end two-route regression proves terminal state isolation/concurrency/input, cwd rejection, environment list/select/setup/action/cleanup, skill advertising/loading, and file/symbol analysis on the selected host project. |
+| FUNC-011 | Approved SSH projects support managed worktree creation, route-preserving source/worktree handoff, environment lifecycle, conflict refusal, dirty snapshots, and removal. | Required | Verified | `remoteWorktreeOps`, `remoteWorkspace`, `server` | End-to-end SSH regression proves create/setup/edit/handoff, independent-destination refusal, cleanup/snapshot/removal, picker cleanup, owner-only metadata, and failed-setup rollback without orphaned checkouts. |
 | DATA-001 | Launch configuration and runtime records are local, restrictive, and contain no additional persisted chat content. | Required | Verified | Private desktop/runtime/profile files | Temporary-home audit confirmed mode `0600`, non-secret config, and no chat content. |
 | DATA-002 | Session/activity telemetry remains memory-only, bounded, expiring, and content-free; transport probes are not presented as user chats. | Required | Verified | `src/runtimeMonitor.ts` | Monitor and HTTP assertions distinguish routed chats, project-selection sessions, and raw connections. |
 | AUTH-001 | Native API calls authenticate with the private runtime token; public requests remain fail-closed. | Required | Verified | Native bearer client, `src/http.ts` | Live unauthorized request returned 401; native/authorized request returned 200. |
@@ -93,13 +94,13 @@ The 0.37.0 source, native-app, and public-site release is complete. Approved Ope
 
 ## Verification evidence
 
-- Root TypeScript build, the complete smoke suite, and stress suite pass for 0.37.0.
+- Root TypeScript build, the complete smoke suite, and stress suite pass for 0.38.0.
 - The dedicated project picker renders and selects a real project in an isolated browser harness without console errors; `list_projects` uses its cache-versioned resource while `select_project` is usable without an output template.
 - Runtime and HTTP regression tests confirm that multiple MCP transports sharing one private route aggregate into one GUI chat, simultaneous routes remain isolated, route-level calls/errors are accumulated correctly, and unbound discovery/picker transports stay hidden from chat telemetry.
 - The native app builds for `x86_64 arm64`, passes strict signature/plist/resource checks, launches in fixture mode, and refreshes a deliberately corrupted same-version installation.
 - A real private temporary broker was authenticated, stopped, started, policy-edited, restarted, and checked through the signed GUI; unauthorized HTTP remained 401 and the native log contained no credential.
-- npm dry-run packaging contains the complete signed 0.37.0 app, remote helper, and required resources in a 4.9 MB tarball; both root and website production audits report zero vulnerabilities.
-- The public website passes lint, build, and English/Chinese rendered-output tests locally. GitHub Pages and the Flow7-hosted product site both publicly serve 0.37.0 and `REMOTE WORKSPACE LIVE`.
+- npm dry-run packaging contains the complete signed 0.38.0 app, remote helper, and required resources; both root and website production audits report zero known vulnerabilities.
+- The 0.38.0 public website source describes managed SSH worktrees and guarded handoff; lint, build, and English/Chinese rendered-output tests pass locally.
 - Direct SSH-helper regression proves host/project trust invalidation, blocked-path rejection, bounded reads/writes, search/edit behavior, and genuinely concurrent remote operations. The HTTP/MCP regression proves the saved remote project appears in the ordinary picker, persists its private route, and provides isolated terminals, environment execution, workspace skills, repository inspection, file work, Bash, and Git at the intended root.
 - The Flow7 adoption checklist and Full Product Completion Contract were re-read after implementation; every local gate passes.
 - The existing public URLs remain `https://tarunspandit.github.io/codexflow/` and `https://codexflow.tarunspandit.chatgpt.site/`; both were verified after the 0.30.4 source release.
@@ -124,4 +125,4 @@ The 0.37.0 source, native-app, and public-site release is complete. Approved Ope
 
 ## Completion record
 
-Every required ledger row remains verified. The full 0.37.0 local release matrix passes, including build, complete smoke, stress, native bundle/signature checks, package dry-run, website lint/build/render tests, zero-vulnerability production audits, SSH trust and asynchronous remote-routing regressions, remote terminal/environment/skill/analysis coverage, scheduled-project prompt durability, local environment/worktree interoperability, explicit tracked/untracked Git review, and concurrent-route regression coverage. Source, release, GitHub Pages, the Flow7-hosted site, and the permanent tunnel are live; npm publication and the account-authenticated ChatGPT acceptance passes remain external checks.
+Every required ledger row remains verified. The full 0.38.0 local release matrix passes, including build, complete smoke, stress, native bundle/signature checks, package dry-run, website lint/build/render tests, zero-vulnerability production audits, SSH trust and asynchronous remote-routing regressions, remote terminal/environment/skill/analysis/worktree coverage, scheduled-project prompt durability, local environment/worktree interoperability, explicit tracked/untracked Git review, and concurrent-route regression coverage. Publication state is recorded in the verification evidence; npm publication and the account-authenticated ChatGPT acceptance passes remain external checks.

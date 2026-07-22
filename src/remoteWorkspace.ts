@@ -14,6 +14,10 @@ export type RemoteWorkspaceOperation =
   | { action: "list_skills"; root: string; maxSkills: number }
   | { action: "load_skill"; root: string; name: string; path?: string; maxSkills: number; maxBytes: number }
   | { action: "inspect"; root: string; maxFiles: number; maxAnalyzedFiles: number; maxScannedBytes: number; maxSymbols: number; maxRelationships: number }
+  | { action: "worktree_create"; root: string; worktreeId: string; baseRef: string; includeChanges: boolean; maxCopyBytes: number }
+  | { action: "worktree_status"; root: string }
+  | { action: "worktree_transfer"; sourceRoot: string; destinationRoot: string; expectedDestinationState: string; maxCopyBytes: number }
+  | { action: "worktree_remove"; sourceRoot: string; checkoutRoot: string; projectRoot: string; worktreeId: string; maxSnapshotBytes: number }
   | { action: "summary"; root: string; maxDepth: number; maxEntries: number }
   | { action: "tree"; root: string; path?: string; maxDepth: number; maxEntries: number; includeHidden: boolean }
   | { action: "read"; root: string; path: string; startLine?: number; endLine?: number; maxBytes: number }
@@ -470,6 +474,148 @@ function inspectProject(root, request, limits) {
   };
 }
 
+function checkedGit(cwd, args, input, maxBuffer) {
+  const result = run("git", args, { cwd: cwd, input: input, timeout: 120000, maxBuffer: maxBuffer || 16000000 });
+  if (result.status !== 0) throw new Error((result.stderr || result.stdout || "git failed").trim().slice(0, 2000));
+  return result.stdout;
+}
+
+function repoContextFor(root) {
+  const canonicalProjectRoot = fs.realpathSync(path.resolve(root));
+  const repositoryRoot = fs.realpathSync(checkedGit(canonicalProjectRoot, ["rev-parse", "--show-toplevel"]).trim());
+  const rawCommonDir = checkedGit(repositoryRoot, ["rev-parse", "--git-common-dir"]).trim();
+  const commonGitDir = fs.realpathSync(path.isAbsolute(rawCommonDir) ? rawCommonDir : path.resolve(repositoryRoot, rawCommonDir));
+  const projectRelativePath = path.relative(repositoryRoot, canonicalProjectRoot).replace(/\\/g, "/") || ".";
+  if (projectRelativePath === ".." || projectRelativePath.indexOf("../") === 0 || path.isAbsolute(projectRelativePath)) throw new Error("Project is outside its Git repository.");
+  const head = checkedGit(repositoryRoot, ["rev-parse", "HEAD"]).trim();
+  return { repositoryRoot: repositoryRoot, commonGitDir: commonGitDir, projectRelativePath: projectRelativePath, head: head };
+}
+
+function pathspecFor(relative) { return relative === "." ? ["."] : [relative]; }
+
+function untrackedFor(context) {
+  const output = checkedGit(context.repositoryRoot, ["ls-files", "--others", "--exclude-standard", "-z", "--"].concat(pathspecFor(context.projectRelativePath)), undefined, 16000000);
+  return output.split("\0").filter(Boolean).sort();
+}
+
+function worktreeState(root, maxBytes) {
+  const context = repoContextFor(root);
+  const patch = checkedGit(context.repositoryRoot, ["diff", "--binary", "HEAD", "--"].concat(pathspecFor(context.projectRelativePath)), undefined, maxBytes * 2);
+  const hash = crypto.createHash("sha256").update(context.head).update("\0").update(patch).update("\0untracked\0");
+  let bytes = Buffer.byteLength(patch, "utf8");
+  const untracked = untrackedFor(context);
+  const untrackedEntries = [];
+  untracked.forEach(function (name) {
+    const absolute = path.resolve(context.repositoryRoot, name);
+    if (!inside(context.repositoryRoot, absolute)) throw new Error("Unsafe untracked path.");
+    const stat = fs.lstatSync(absolute);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("Worktree transfer refuses symlinks and non-files: " + name);
+    bytes += stat.size;
+    if (bytes > maxBytes) throw new Error("Worktree changes exceed the configured transfer limit.");
+    const content = fs.readFileSync(absolute);
+    const mode = stat.mode & 0o777;
+    hash.update(name).update("\0").update(String(mode)).update("\0").update(content).update("\0");
+    untrackedEntries.push({ name: name, content: content, mode: mode });
+  });
+  return { context: context, patch: patch, untracked: untracked, untrackedEntries: untrackedEntries, state: hash.digest("hex"), bytes: bytes };
+}
+
+function clearProjectChanges(context) {
+  checkedGit(context.repositoryRoot, ["restore", "--source=HEAD", "--staged", "--worktree", "--"].concat(pathspecFor(context.projectRelativePath)));
+  untrackedFor(context).forEach(function (name) {
+    const absolute = path.resolve(context.repositoryRoot, name);
+    if (inside(context.repositoryRoot, absolute)) fs.rmSync(absolute, { force: true });
+  });
+}
+
+function restoreProjectState(state, maxBytes) {
+  clearProjectChanges(state.context);
+  if (state.patch) checkedGit(state.context.repositoryRoot, ["apply", "--whitespace=nowarn", "-"], state.patch, maxBytes * 2);
+  state.untrackedEntries.forEach(function (entry) {
+    const destination = path.resolve(state.context.repositoryRoot, entry.name);
+    if (!inside(state.context.repositoryRoot, destination)) throw new Error("Unsafe transfer path.");
+    fs.mkdirSync(path.dirname(destination), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(destination, entry.content, { flag: "wx", mode: entry.mode });
+  });
+}
+
+function transferWorktreeChanges(sourceRoot, destinationRoot, expectedDestinationState, maxBytes) {
+  const source = worktreeState(sourceRoot, maxBytes);
+  const destination = worktreeState(destinationRoot, maxBytes);
+  if (source.context.commonGitDir !== destination.context.commonGitDir) throw new Error("Source and destination are not worktrees of the same Git repository.");
+  if (source.context.head !== destination.context.head) throw new Error("Source and destination HEAD commits diverged. Reconcile Git history before handoff.");
+  if (source.state === destination.state) return { state: source.state, patchApplied: false, untrackedCopied: 0 };
+  if (destination.state !== expectedDestinationState) throw new Error("Destination changed independently since the last handoff. Refusing to overwrite it.");
+  try {
+    restoreProjectState(Object.assign({}, source, { context: destination.context }), maxBytes);
+    const state = worktreeState(destinationRoot, maxBytes).state;
+    if (state !== source.state) throw new Error("Remote worktree handoff verification failed; the destination does not match the source state.");
+    return { state: state, patchApplied: Boolean(source.patch), untrackedCopied: source.untrackedEntries.length };
+  } catch (error) {
+    try {
+      restoreProjectState(destination, maxBytes);
+      const restored = worktreeState(destinationRoot, maxBytes).state;
+      if (restored !== destination.state) throw new Error("Destination rollback verification failed.");
+    } catch (rollbackError) {
+      throw new Error((error && error.message ? error.message : String(error)) + " Destination rollback also failed: " + (rollbackError && rollbackError.message ? rollbackError.message : String(rollbackError)));
+    }
+    throw error;
+  }
+}
+
+function createRemoteWorktree(root, request) {
+  if (!/^rwt_[a-f0-9]{16}$/.test(request.worktreeId)) throw new Error("Invalid remote worktree id.");
+  const source = repoContextFor(root);
+  const resolvedBase = checkedGit(source.repositoryRoot, ["rev-parse", "--verify", request.baseRef + "^{commit}"]).trim();
+  const storage = path.join(process.env.HOME || "/tmp", ".codexflow", "worktrees", crypto.createHash("sha256").update(source.repositoryRoot).digest("hex").slice(0, 24), "checkouts");
+  const checkoutRoot = path.join(storage, request.worktreeId);
+  fs.mkdirSync(storage, { recursive: true, mode: 0o700 });
+  if (fs.existsSync(checkoutRoot)) throw new Error("Remote worktree path already exists.");
+  checkedGit(source.repositoryRoot, ["worktree", "add", "--detach", checkoutRoot, resolvedBase]);
+  try {
+    const projectRoot = source.projectRelativePath === "." ? checkoutRoot : path.join(checkoutRoot, source.projectRelativePath);
+    if (!fs.existsSync(projectRoot) || !fs.statSync(projectRoot).isDirectory()) throw new Error("Project path is absent from the new worktree.");
+    let transfer = { patchApplied: false, untrackedCopied: 0 };
+    if (request.includeChanges) {
+      const emptyState = worktreeState(projectRoot, request.maxCopyBytes).state;
+      transfer = transferWorktreeChanges(root, projectRoot, emptyState, request.maxCopyBytes);
+    }
+    const sourceState = worktreeState(root, request.maxCopyBytes).state;
+    const worktreeStateValue = worktreeState(projectRoot, request.maxCopyBytes).state;
+    return Object.assign({ repositoryRoot: source.repositoryRoot, checkoutRoot: checkoutRoot, projectRoot: projectRoot, projectRelativePath: source.projectRelativePath, baseRef: request.baseRef, sourceState: sourceState, worktreeState: worktreeStateValue }, transfer);
+  } catch (error) {
+    checkedGit(source.repositoryRoot, ["worktree", "remove", "--force", checkoutRoot]);
+    throw error;
+  }
+}
+
+function removeRemoteWorktree(request) {
+  const sourceRoot = canonicalRoot(request.sourceRoot);
+  const projectRoot = canonicalRoot(request.projectRoot);
+  const source = repoContextFor(sourceRoot);
+  const target = repoContextFor(projectRoot);
+  const checkoutRoot = fs.realpathSync(path.resolve(request.checkoutRoot));
+  if (source.commonGitDir !== target.commonGitDir || target.repositoryRoot !== checkoutRoot) throw new Error("Remote worktree identity no longer matches its manifest.");
+  const state = worktreeState(projectRoot, request.maxSnapshotBytes);
+  let snapshotPath;
+  if (state.patch || state.untracked.length) {
+    const snapshotRoot = path.join(process.env.HOME || "/tmp", ".codexflow", "worktree-snapshots", request.worktreeId, String(Date.now()));
+    fs.mkdirSync(snapshotRoot, { recursive: true, mode: 0o700 });
+    if (state.patch) fs.writeFileSync(path.join(snapshotRoot, "changes.patch"), state.patch, { mode: 0o600 });
+    state.untrackedEntries.forEach(function (entry) {
+      const sourceFile = path.resolve(target.repositoryRoot, entry.name);
+      const relativeToProject = path.relative(projectRoot, sourceFile);
+      if (relativeToProject === ".." || relativeToProject.indexOf("../") === 0) return;
+      const destination = path.join(snapshotRoot, "untracked", relativeToProject);
+      fs.mkdirSync(path.dirname(destination), { recursive: true, mode: 0o700 });
+      fs.writeFileSync(destination, entry.content, { flag: "wx", mode: entry.mode });
+    });
+    snapshotPath = snapshotRoot;
+  }
+  checkedGit(source.repositoryRoot, ["worktree", "remove", "--force", checkoutRoot]);
+  return { removed: true, snapshotPath: snapshotPath, sourceRoot: sourceRoot };
+}
+
 function execute(request, limits) {
   if (request.action === "probe_project") {
     const root = canonicalRoot(request.root);
@@ -477,7 +623,15 @@ function execute(request, limits) {
     const gitRoot = top !== "(no output)" && path.isAbsolute(top) ? fs.realpathSync(top.trim()) : undefined;
     return { root: root, name: path.basename(root) || root, gitRoot: gitRoot, gitRelativePath: gitRoot && inside(gitRoot, root) ? (path.relative(gitRoot, root) || ".").replace(/\\/g, "/") : undefined };
   }
+  if (request.action === "worktree_transfer") return transferWorktreeChanges(canonicalRoot(request.sourceRoot), canonicalRoot(request.destinationRoot), request.expectedDestinationState, request.maxCopyBytes);
+  if (request.action === "worktree_remove") return removeRemoteWorktree(request);
   const root = canonicalRoot(request.root);
+  if (request.action === "worktree_create") return createRemoteWorktree(root, request);
+  if (request.action === "worktree_status") {
+    const state = worktreeState(root, limits.maxOutputBytes * 8);
+    const branch = checkedGit(state.context.repositoryRoot, ["branch", "--show-current"]).trim();
+    return { state: state.state, dirty: Boolean(state.patch || state.untracked.length), branch: branch || undefined, head: state.context.head };
+  }
   if (request.action === "inspect") return inspectProject(root, request, limits);
   if (request.action === "list_skills" || request.action === "load_skill") {
     const skillFiles = [];
