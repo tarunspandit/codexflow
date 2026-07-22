@@ -57,7 +57,7 @@
           <div class="hero-copy reveal">
             <p class="eyebrow">本地代理基础设施 / Flow7 Tech</p>
             <h1 id="hero-title"><span>一个命令。</span><span>所有项目。</span><span>任意对话。</span></h1>
-            <p class="hero-lede">CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、实时任务进度、worktrees、Git、持久终端、原生审查、定时任务、Computer Use 与临时浏览器，都通过一条清晰可控的连接进入对话。</p>
+            <p class="hero-lede">CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、实时任务与 subagent 进度、worktrees、Git、持久终端、原生审查、定时任务、Computer Use 与临时浏览器，都通过一条清晰可控的连接进入对话。</p>
             <div class="hero-actions">
               <div class="command-control" role="group" aria-label="安装 CodexFlow">
                 <span aria-hidden="true">$</span><code>npm i -g @tarunspandit/codexflow</code><button type="button" data-copy="npm install -g @tarunspandit/codexflow" data-copy-label="复制安装命令" data-copy-done="已复制">复制</button>
@@ -82,7 +82,7 @@
             </div>
           </div>
         </div>
-        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.42.0</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
+        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.43.0</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
       </section>
 
       <section class="system section-pad" id="system" aria-labelledby="system-title">
@@ -93,7 +93,7 @@
             <p>CodexFlow 是两者之间精确的一层：理解项目、可检查，并始终被限制在每个对话自己选择的文件夹里。</p>
           </div>
           <div class="contract-grid reveal">
-            <article><span class="contract-index">01 / 模型层</span><h3>ChatGPT 负责思考和对话。</h3><p>你现有的 ChatGPT 账号提供模型、推理和对话。CodexFlow 不代理额度，不伪装成 Codex，也不在后台启动隐藏的代理会话。</p></article>
+            <article><span class="contract-index">01 / 模型层</span><h3>ChatGPT 负责思考和对话。</h3><p>你现有的 ChatGPT 账号提供模型、推理和对话。当 ChatGPT Work 创建 subagents 时，CodexFlow 只为每个 child 提供私有项目 route；它不会启动或代理模型。</p></article>
             <article><span class="contract-index">02 / 执行层</span><h3>你的电脑保存真实状态。</h3><p>仓库指令、当前文件、git 状态、项目 skills 和受控命令都保留在本地，只有当前对话请求时才会使用。</p></article>
             <article><span class="contract-index">03 / 连接层</span><h3>一个 broker 把关系保持清楚。</h3><p>一条经过身份验证的 MCP endpoint 可以服务多个聊天，同时为每个会话保留独立的项目绑定。</p></article>
           </div>
@@ -145,7 +145,7 @@
         <div class="section-shell">
           <div class="section-heading companion-heading reveal">
             <div><p class="eyebrow dark-label">原生桌面应用</p><h2 id="companion-title">你的电脑。<br />一个清晰界面。</h2></div>
-            <p>CodexFlow 会在 Mac 上打开原生应用。统一监督 web 任务、计划、阻塞、环境、worktrees、diff、SSH hosts、Computer Use 与网站 origin 审批。</p>
+            <p>CodexFlow 会在 Mac 上打开原生应用。统一监督 web 任务、嵌套 Active / Done agents、计划、阻塞、环境、worktrees、diff、SSH hosts、Computer Use 与网站 origin 审批。</p>
           </div>
           <div class="companion-frame reveal" aria-label="CodexFlow 原生桌面应用预览">
             <aside class="companion-rail">
@@ -161,11 +161,11 @@
                 <dl class="companion-metrics"><div><dt>项目</dt><dd>自动发现</dd></div><div><dt>环境</dt><dd>项目共享</dd></div><div><dt>聊天路由</dt><dd>各自独立</dd></div><div><dt>终端</dt><dd>随路由持久</dd></div></dl>
                 <div class="companion-ledgers">
                   <section aria-label="任务进度"><div class="companion-panel-head"><span>01 / 实时进度</span><strong>进行中的任务</strong></div><ol>
-                    <li><i aria-hidden="true"></i><div><strong>优化新手流程</strong><code>atlas-web</code></div><span>read · 完成</span><small>chat-a40c97f2</small></li>
-                    <li><i aria-hidden="true"></i><div><strong>重构身份验证</strong><code>signal-api</code></div><span>test · 完成</span><small>chat-7eac13b8</small></li>
+                    <li><i aria-hidden="true"></i><div><strong>优化新手流程</strong><code>atlas-web</code></div><span>2 agents · 运行中</span><small>chat-a40c97f2</small></li>
+                    <li><i aria-hidden="true"></i><div><strong>重构身份验证</strong><code>signal-api</code></div><span>reviewer · 完成</span><small>chat-7eac13b8</small></li>
                     <li><i aria-hidden="true"></i><div><strong>发布审查</strong><code>codexflow</code></div><span>git status · 运行中</span><small>chat-29d1f640</small></li>
                   </ol></section>
-                  <aside><span>02 / 隐私</span><strong>受限的本地进度</strong><p>只有明确设置的标签、生命周期选择、review notes，以及通过 task_progress 提交的标题、重点和计划会 owner-only 保存；prompts、源码、命令输出、tokens 与可用的 MCP session IDs 不会保留。</p></aside>
+                  <aside><span>02 / 隐私</span><strong>受限的本地进度</strong><p>只有标签、review notes、受限任务计划，以及短 agent 角色、状态与结果会 owner-only 保存；prompts、源码、命令输出、tokens、transport IDs 与 child route 凭据不会保留。</p></aside>
                 </div>
               </div>
             </div>
@@ -182,13 +182,14 @@
             <article class="reveal"><span>02</span><div><p class="micro-label">理解</p><h3>行动之前先读懂仓库。</h3></div><p>加载 AGENTS.md，映射文件和符号，定位测试，读取 git 状态，并在改动前识别潜在影响。</p><small>项目原生</small></article>
             <article class="reveal"><span>03</span><div><p class="micro-label">修改</p><h3>在一个 root 中精确编辑。</h3></div><p>搜索、读取、写入、编辑并应用受保护补丁，不暴露其他项目，也不在机器中越界。</p><small>工作区范围</small></article>
             <article class="reveal"><span>04</span><div><p class="micro-label">并行</p><h3>一个任务，一个受管 checkout。</h3></div><p>在本机或已批准的 SSH host 上创建隔离 worktrees，安全带入当前改动；如果目标 checkout 被独立修改，则拒绝覆盖。</p><small>受保护交接</small></article>
-            <article class="reveal"><span>05</span><div><p class="micro-label">验证</p><h3>Git 与终端状态持续存在。</h3></div><p>只暂存并提交所选项目，运行受限验证，并让私有路由终端跨工具连接保持运行。</p><small>持久</small></article>
-            <article class="reveal"><span>06</span><div><p class="micro-label">审查</p><h3>Diff 应该留在你的电脑。</h3></div><p>分开 staged 与 unstaged 文件，逐 hunk stage 或 revert，并把逐行 review note 带入 web chat 的下一次改动审查。</p><small>原生</small></article>
-            <article class="reveal"><span>07</span><div><p class="micro-label">适配</p><h3>项目环境也会随行。</h3></div><p>使用与 Codex 相同的项目环境格式提供 setup、cleanup、actions、skills、plugins 和 MCP 清单，但不运行 Codex。</p><small>可互操作</small></article>
-            <article class="reveal"><span>08</span><div><p class="micro-label">定时</p><h3>重复任务始终回到正确项目。</h3></div><p>为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。</p><small>CHATGPT 原生</small></article>
-            <article class="reveal"><span>09</span><div><p class="micro-label">远程</p><h3>同一个 picker，也能连接另一台机器。</h3></div><p>批准命名 OpenSSH host 后，即可在独立路由中使用持久终端、Codex 环境、项目 skills、仓库分析、受管 worktrees、受保护交接、文件编辑、Bash 与 Git review；远程端不会调用 Codex。</p><small>远程工作区已上线</small></article>
-            <article class="reveal"><span>10</span><div><p class="micro-label">操作</p><h3>视觉操作仍然先征求同意。</h3></div><p>从聊天请求一个已签名的原生应用，在 Mac 上批准，查看最新窗口快照，并在本机确认每个敏感的元素级操作。</p><small>COMPUTER USE / 已授权</small></article>
-            <article class="reveal"><span>11</span><div><p class="micro-label">浏览</p><h3>使用干净的 Web profile，而不是你的个人浏览器。</h3></div><p>批准一个网站 origin 后，路由聊天可在可见的临时 WebKit tab 中检查并操作语义 DOM 目标。跨 origin 跳转、下载、凭据与敏感操作会被拒绝或要求本机确认。</p><small>WEBKIT / ORIGIN 范围</small></article>
+            <article class="reveal"><span>05</span><div><p class="micro-label">协调</p><h3>每个真实 child 都有自己的 route。</h3></div><p>当 ChatGPT Work 创建 subagents 时，parent 分配独立项目 route，children 只能报告自己的受限状态；原生 Tasks 显示 Active 与 Done，但不会启动第二个模型后端。</p><small>CHATGPT WORK / ROUTE 隔离</small></article>
+            <article class="reveal"><span>06</span><div><p class="micro-label">验证</p><h3>Git 与终端状态持续存在。</h3></div><p>只暂存并提交所选项目，运行受限验证，并让私有路由终端跨工具连接保持运行。</p><small>持久</small></article>
+            <article class="reveal"><span>07</span><div><p class="micro-label">审查</p><h3>Diff 应该留在你的电脑。</h3></div><p>分开 staged 与 unstaged 文件，逐 hunk stage 或 revert，并把逐行 review note 带入 web chat 的下一次改动审查。</p><small>原生</small></article>
+            <article class="reveal"><span>08</span><div><p class="micro-label">适配</p><h3>项目环境也会随行。</h3></div><p>使用与 Codex 相同的项目环境格式提供 setup、cleanup、actions、skills、plugins 和 MCP 清单，但不运行 Codex。</p><small>可互操作</small></article>
+            <article class="reveal"><span>09</span><div><p class="micro-label">定时</p><h3>重复任务始终回到正确项目。</h3></div><p>为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。</p><small>CHATGPT 原生</small></article>
+            <article class="reveal"><span>10</span><div><p class="micro-label">远程</p><h3>同一个 picker，也能连接另一台机器。</h3></div><p>批准命名 OpenSSH host 后，即可在独立路由中使用持久终端、Codex 环境、项目 skills、仓库分析、受管 worktrees、受保护交接、文件编辑、Bash 与 Git review；远程端不会调用 Codex。</p><small>远程工作区已上线</small></article>
+            <article class="reveal"><span>11</span><div><p class="micro-label">操作</p><h3>视觉操作仍然先征求同意。</h3></div><p>从聊天请求一个已签名的原生应用，在 Mac 上批准，查看最新窗口快照，并在本机确认每个敏感的元素级操作。</p><small>COMPUTER USE / 已授权</small></article>
+            <article class="reveal"><span>12</span><div><p class="micro-label">浏览</p><h3>使用干净的 Web profile，而不是你的个人浏览器。</h3></div><p>批准一个网站 origin 后，路由聊天可在可见的临时 WebKit tab 中检查并操作语义 DOM 目标。跨 origin 跳转、下载、凭据与敏感操作会被拒绝或要求本机确认。</p><small>WEBKIT / ORIGIN 范围</small></article>
           </div>
         </div>
       </section>
@@ -215,6 +216,7 @@
             <details open><summary>CodexFlow 会运行 Codex CLI 吗？<span aria-hidden="true">+</span></summary><p>不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。</p></details>
             <details><summary>需要手动注册每个项目吗？<span aria-hidden="true">+</span></summary><p>不需要。运行 <code>codexflow</code> 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。</p></details>
             <details><summary>多个聊天可以同时工作吗？<span aria-hidden="true">+</span></summary><p>可以。一个 broker 和 tunnel 能服务多个对话。每个聊天都有独立私有路由，跨工具连接和 broker 重启后仍保持项目绑定。</p></details>
+            <details><summary>一个任务可以使用 subagents 吗？<span aria-hidden="true">+</span></summary><p>可以，但需要 ChatGPT Work 提供。ChatGPT 负责 child threads 与模型用量；CodexFlow 为每个真实 child 分配隔离项目 route、收集受限状态与结果，并在原生应用显示 Active / Done。</p></details>
             <details><summary>定时任务能使用本地项目吗？<span aria-hidden="true">+</span></summary><p>可以。ChatGPT Scheduled 负责模型运行与 cadence；CodexFlow 让每次运行重新获得项目、环境和可选的干净 worktree。电脑与 broker 需要保持运行。</p></details>
             <details><summary>为什么使用 Pro 时看不到 CodexFlow？<span aria-hidden="true">+</span></summary><p>ChatGPT 的 Pro 模型变体不会开放 Apps。请使用 Extra High 或其他非 Pro 模型；Pro 订阅本身仍然支持。</p></details>
             <details><summary>这是额度或模型代理吗？<span aria-hidden="true">+</span></summary><p>不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。</p></details>

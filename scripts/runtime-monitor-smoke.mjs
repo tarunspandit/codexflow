@@ -87,6 +87,28 @@ bounded.beginSession().bindTransport('88888888-8888-4888-8888-888888888888');
 assert.equal(bounded.snapshot().sessions.length, 0, 'connection probes should stay out of chat telemetry');
 assert.equal(bounded.snapshot().open_connections, 2, 'connection telemetry should remain count-bounded');
 
+const agentBounded = new RuntimeMonitor(10, 60_000, 32);
+const agentBoundedHandle = agentBounded.beginSession();
+agentBoundedHandle.bindTransport('89898989-8989-4989-8989-898989898989');
+agentBoundedHandle.selectProject(projectA, routeA);
+for (let index = 0; index < 16; index += 1) {
+  agentBounded.mutateRouteAgent(routeA, routeA, {
+    action: 'register',
+    childRouteId: `route_${index.toString(16).padStart(32, '0')}`,
+    name: `Agent ${index + 1}`,
+    role: 'Bounded parallel task'
+  });
+}
+assert.throws(
+  () => agentBounded.mutateRouteAgent(routeA, routeA, {
+    action: 'register',
+    childRouteId: 'route_ffffffffffffffffffffffffffffffff',
+    name: 'Agent 17',
+    role: 'Exceeds the bounded ledger'
+  }),
+  /at most 16/
+);
+
 const metadataRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-chat-lifecycle-'));
 const metadataPath = path.join(metadataRoot, 'chat-metadata.json');
 const lifecycle = new RuntimeMonitor(10, 50, 10, metadataPath);
@@ -105,12 +127,54 @@ lifecycle.updateRouteTask(routeA, {
   updatedAt: '2026-07-23T00:00:00.000Z'
 });
 lifecycle.updateSession(lifecycleId, { title: 'Release audit', pinned: true, archived: true });
+const childRouteA = 'route_dddddddddddddddddddddddddddddddd';
+const childRouteB = 'route_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+const registeredA = lifecycle.mutateRouteAgent(routeA, routeA, {
+  action: 'register',
+  childRouteId: childRouteA,
+  name: 'Explorer',
+  role: 'Map the implementation surface',
+  status: 'working',
+  detail: 'Inspecting bounded interfaces.'
+});
+const registeredB = lifecycle.mutateRouteAgent(routeA, routeA, {
+  action: 'register',
+  childRouteId: childRouteB,
+  name: 'Verifier',
+  role: 'Run isolated regression checks'
+});
+const agentA = registeredA.agent;
+const agentB = registeredB.agent;
+assert.match(agentA?.id ?? '', /^agt_[a-f0-9]{16}$/);
+assert.match(agentB?.id ?? '', /^agt_[a-f0-9]{16}$/);
+assert.notEqual(agentA?.id, agentB?.id);
+assert.throws(
+  () => lifecycle.mutateRouteAgent(routeA, childRouteA, { action: 'update', agentId: agentB.id, status: 'failed' }),
+  /only its own/
+);
+lifecycle.mutateRouteAgent(routeA, childRouteA, {
+  action: 'update',
+  agentId: agentA.id,
+  status: 'done',
+  detail: null,
+  result: 'Mapped the relevant interfaces.'
+});
+const childHandle = lifecycle.beginSession();
+childHandle.bindTransport('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+childHandle.selectProject(projectA, childRouteA);
+childHandle.recordTool({ name: 'search', status: 'ok', durationMs: 3, routeId: childRouteA });
 const labeled = lifecycle.snapshot().sessions[0];
 assert.equal(labeled.title, 'Release audit');
 assert.equal(labeled.pinned, true);
 assert.equal(labeled.archived, true);
 assert.equal(labeled.task?.title, 'Ship task progress');
 assert.equal(labeled.task?.steps[1]?.status, 'in_progress');
+assert.equal(labeled.agents.length, 2);
+assert.equal(labeled.agents[0].status, 'done');
+assert.equal(labeled.agents[0].result, 'Mapped the relevant interfaces.');
+assert.equal(lifecycle.snapshot().sessions.length, 1, 'child routes should remain nested under the parent task');
+assert.equal(lifecycle.snapshot().activity[0].session_id, lifecycleId, 'child activity should roll up to the parent task');
+childHandle.close();
 lifecycleHandle.close();
 assert.equal(lifecycle.snapshot(Date.now() + 100).sessions.length, 1, 'pinned or archived chats should survive normal closed-session pruning');
 
@@ -124,8 +188,12 @@ assert.equal(restoredSession.pinned, true);
 assert.equal(restoredSession.archived, true);
 assert.equal(restoredSession.task?.status, 'working');
 assert.equal(restoredSession.task?.detail, 'Running focused verification.');
+assert.equal(restoredSession.agents.length, 2, 'subagent ledger should survive broker restart');
+assert.equal(restored.mutateRouteAgent(routeA, childRouteA, { action: 'list' }).agents[0].result, 'Mapped the relevant interfaces.');
 restored.updateRouteTask(routeA, null);
 assert.equal(restored.snapshot().sessions[0].task, null, 'task progress should clear without changing chat lifecycle metadata');
+restored.mutateRouteAgent(routeA, routeA, { action: 'clear' });
+assert.equal(restored.snapshot().sessions[0].agents.length, 0, 'parent should be able to clear its subagent ledger');
 const metadataMode = (await fs.stat(metadataPath)).mode & 0o777;
 assert.equal(metadataMode, 0o600, 'chat metadata should be private to the local user');
 

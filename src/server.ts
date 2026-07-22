@@ -68,6 +68,7 @@ import {
   assertRemoteWriteContent,
   runRemoteWorkspaceOperation
 } from "./remoteWorkspace.js";
+import type { RuntimeAgentCommand, RuntimeAgentSnapshot } from "./runtimeMonitor.js";
 
 const STRUCTURED_STRING_MAX_CHARS = 30_000;
 
@@ -92,6 +93,12 @@ export interface CodexFlowRuntimeObserver {
       updatedAt: string;
     } | null;
   }): void;
+  onAgentProgress?(event: {
+    parentRouteId: string;
+    sourceRouteId: string;
+    workspace: Workspace;
+    command: RuntimeAgentCommand;
+  }): { agent?: RuntimeAgentSnapshot; agents: RuntimeAgentSnapshot[] };
 }
 
 function errorText(error: unknown): string {
@@ -606,6 +613,7 @@ const MINIMAL_TOOL_NAMES = [
   "apply_patch",
   "bash",
   "task_progress",
+  "agent_progress",
   "show_changes"
 ] as const;
 
@@ -654,6 +662,7 @@ const FULL_TOOL_NAMES = [
   "local_environment",
   "worktree",
   "task_progress",
+  "agent_progress",
   "prepare_scheduled_task",
   "computer_use",
   "browser_use",
@@ -678,6 +687,7 @@ const CONNECTION_TEST_HIDDEN_TOOLS = new Set<string>([
   "local_environment",
   "worktree",
   "task_progress",
+  "agent_progress",
   "prepare_scheduled_task",
   "computer_use",
   "browser_use",
@@ -810,8 +820,9 @@ function serverInstructions(config: CodexFlowConfig): string {
       : "",
     "6b. When the user asks to schedule recurring or background project work, call prepare_scheduled_task. ChatGPT Scheduled owns the cadence, model turn, and run history; CodexFlow supplies the durable local project route and tools. Never create a local cron job or claim CodexFlow itself runs the model.",
     "6c. For multi-step work, call task_progress after selecting the project, whenever the plan materially changes, when blocked, before review, and on completion. This gives the native app a bounded local progress board; it does not start another agent or replace updates in the web chat.",
-    "6d. Use computer_use only for a narrowly named native-app task when structured project tools are insufficient. Request the app first, wait for approval in the native CodexFlow Computer view, observe before every action, and never try to operate Terminal, ChatGPT/CodexFlow, system privacy settings, or a browser through generic desktop control.",
-    "6e. Use browser_use for website work in CodexFlow's dedicated ephemeral WebKit profile. Request each origin, wait for approval in the native Browser view, observe before every DOM action, and never drive Chrome, Safari, account/security pages, downloads, permission prompts, or browser extensions.",
+    "6d. When ChatGPT Work supports subagents and the user asks for parallel work, ChatGPT owns spawning, follow-up, waiting, and closing. The parent calls agent_progress register once per child, gives that child its child_route_id, coordination_route_id, and agent_id, and then lists or updates the shared ledger. Each child uses only its child route for project tools and reports its own bounded status/result. CodexFlow allocates isolated routes and displays Active/Done state; it never starts a model or claims that it spawned an agent.",
+    "6e. Use computer_use only for a narrowly named native-app task when structured project tools are insufficient. Request the app first, wait for approval in the native CodexFlow Computer view, observe before every action, and never try to operate Terminal, ChatGPT/CodexFlow, system privacy settings, or a browser through generic desktop control.",
+    "6f. Use browser_use for website work in CodexFlow's dedicated ephemeral WebKit profile. Request each origin, wait for approval in the native Browser view, observe before every DOM action, and never drive Chrome, Safari, account/security pages, downloads, permission prompts, or browser extensions.",
     "7. Keep tool calls minimal. Prefer one targeted search plus show_changes instead of repeated broad inspection calls.",
     config.codexSessions !== "off"
       ? `8. Codex session history access is enabled in ${config.codexSessions} mode. Use it only when the user asks for local Codex session history.`
@@ -2344,6 +2355,169 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
           steps: task.steps,
           updated_at: task.updatedAt
         }
+      });
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
+    "agent_progress",
+    {
+      title: "Coordinate Subagents",
+      description:
+        "Allocate independent project routes and maintain a bounded parent/child progress ledger for subagents that ChatGPT Work has actually spawned. CodexFlow never starts a model or process. The parent registers children; each child may update only its own record.",
+      inputSchema: {
+        route_id: ROUTE_ID_INPUT,
+        action: z.enum(["register", "update", "list", "clear"]).optional().describe("Register a child, update its state, list the ledger, or clear and revoke all child routes. Default: list."),
+        coordination_route_id: z.string().regex(/^route_[a-f0-9]{32}$/).optional().describe("Parent route returned by register. Required when a child updates or lists the parent ledger."),
+        agent_id: z.string().regex(/^agt_[a-f0-9]{16}$/).optional().describe("Agent id returned by register. Required for update."),
+        name: z.string().trim().min(1).max(80).optional().describe("Short child-agent name. Required for register."),
+        role: z.string().trim().min(1).max(120).optional().describe("Bounded responsibility assigned by the parent. Required for register."),
+        status: z.enum(["queued", "working", "waiting", "done", "failed", "stopped"]).optional().describe("Current child state."),
+        detail: z.string().trim().max(280).nullable().optional().describe("Short current focus or blocker. Never include prompts, credentials, file contents, or command output."),
+        result: z.string().trim().max(600).nullable().optional().describe("Short final outcome for the parent. Never include credentials, file contents, or command output.")
+      },
+      annotations: HANDOFF_WRITE_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Updating subagent coordination...",
+        "openai/toolInvocation/invoked": "Subagent coordination updated"
+      }
+    },
+    async (args) => {
+      const sourceRouteId = invocationRouteId();
+      if (!sourceRouteId) throw new CodexFlowError("agent_progress requires the private route_id returned by list_projects, select_project, or register.");
+      if (!observer.onAgentProgress) throw new CodexFlowError("Subagent coordination requires the managed CodexFlow HTTP broker.");
+      const action = args.action ?? "list";
+      const parentRouteId = args.coordination_route_id ?? sourceRouteId;
+      const parentRoute = routeStore.get(parentRouteId);
+      if (!parentRoute) throw new CodexFlowError("The coordination route is not bound to a project. Register subagents from the selected parent route.");
+      const workspace: Workspace = parentRoute.location === "remote"
+        ? { id: parentRoute.workspaceId, root: parentRoute.root, openedAt: parentRoute.updatedAt }
+        : workspaceForRoute(parentRouteId);
+
+      if (action === "register") {
+        if (sourceRouteId !== parentRouteId) throw new CodexFlowError("Only the selected parent route can register a subagent.");
+        const name = String(args.name ?? "").trim();
+        const role = String(args.role ?? "").trim();
+        if (!name || !role) throw new CodexFlowError("name and role are required when registering a subagent.");
+        const detail = typeof args.detail === "string" && args.detail.trim() ? args.detail.trim() : undefined;
+        if (hasSecretValue([name, role, detail ?? ""].join("\n"))) {
+          throw new CodexFlowError("Subagent coordination was not saved because its name, role, or detail appear to contain a credential.");
+        }
+        const childRouteId = routeStore.createRouteId();
+        if (parentRoute.location === "remote") {
+          if (!parentRoute.remoteHostAlias || !parentRoute.remoteHostFingerprint) throw new CodexFlowError("The remote parent route is incomplete. Select the project again.");
+          routeStore.bindRemote(childRouteId, {
+            id: parentRoute.workspaceId,
+            root: parentRoute.root,
+            hostAlias: parentRoute.remoteHostAlias,
+            hostFingerprint: parentRoute.remoteHostFingerprint
+          });
+        } else {
+          routeStore.bind(childRouteId, { id: parentRoute.workspaceId, root: parentRoute.root });
+        }
+        if (parentRoute.environmentConfigPath) routeStore.selectEnvironment(childRouteId, parentRoute.environmentConfigPath);
+        let coordination;
+        try {
+          coordination = observer.onAgentProgress({
+            parentRouteId,
+            sourceRouteId,
+            workspace,
+            command: {
+              action: "register",
+              childRouteId,
+              name,
+              role,
+              status: args.status ?? "queued",
+              ...(detail ? { detail } : {})
+            }
+          });
+        } catch (error) {
+          routeStore.remove(childRouteId);
+          throw error;
+        }
+        const agent = coordination.agent;
+        if (!agent) {
+          routeStore.remove(childRouteId);
+          throw new CodexFlowError("The local broker did not return the registered subagent.");
+        }
+        return textResult([
+          "# Subagent route registered",
+          "",
+          `Agent: ${agent.name} (${agent.id})`,
+          `Role: ${agent.role}`,
+          `Child route: ${agent.child_route_id}`,
+          `Coordination route: ${parentRouteId}`,
+          "",
+          "Give these three identifiers to the ChatGPT Work child that was actually spawned. The child must use child_route_id for every project tool and use agent_progress update with coordination_route_id and agent_id. For parallel writes, the child should create its own managed worktree before editing. CodexFlow allocated this route; it did not spawn the model."
+        ].join("\n"), {
+          route_id: parentRouteId,
+          coordination_route_id: parentRouteId,
+          child_route_id: agent.child_route_id,
+          workspace_id: workspace.id,
+          agent,
+          agents: coordination.agents
+        });
+      }
+
+      if (action === "update") {
+        const agentId = String(args.agent_id ?? "");
+        if (!/^agt_[a-f0-9]{16}$/.test(agentId)) throw new CodexFlowError("agent_id is required when updating subagent progress.");
+        const persistedText = [args.detail ?? "", args.result ?? ""].filter((value) => typeof value === "string").join("\n");
+        if (hasSecretValue(persistedText)) {
+          throw new CodexFlowError("Subagent progress was not saved because its detail or result appear to contain a credential.");
+        }
+        const coordination = observer.onAgentProgress({
+          parentRouteId,
+          sourceRouteId,
+          workspace,
+          command: {
+            action: "update",
+            agentId,
+            ...(args.status !== undefined ? { status: args.status } : {}),
+            ...(args.detail !== undefined ? { detail: args.detail } : {}),
+            ...(args.result !== undefined ? { result: args.result } : {})
+          }
+        });
+        return textResult("# Subagent progress updated\n\nThe parent task and native Active/Done view now reflect this bounded status.", {
+          route_id: sourceRouteId,
+          coordination_route_id: parentRouteId,
+          workspace_id: workspace.id,
+          agent: coordination.agent ?? null,
+          agents: coordination.agents
+        });
+      }
+
+      if (action === "clear") {
+        if (sourceRouteId !== parentRouteId) throw new CodexFlowError("Only the parent route can clear subagent coordination.");
+        const before = observer.onAgentProgress({ parentRouteId, sourceRouteId, workspace, command: { action: "list" } });
+        const coordination = observer.onAgentProgress({ parentRouteId, sourceRouteId, workspace, command: { action: "clear" } });
+        for (const agent of before.agents) routeStore.remove(agent.child_route_id);
+        return textResult("# Subagent coordination cleared\n\nAll registered child routes were revoked and removed from the native task ledger.", {
+          route_id: parentRouteId,
+          coordination_route_id: parentRouteId,
+          workspace_id: workspace.id,
+          cleared: true,
+          agents: coordination.agents
+        });
+      }
+
+      const coordination = observer.onAgentProgress({ parentRouteId, sourceRouteId, workspace, command: { action: "list" } });
+      const active = coordination.agents.filter((agent) => ["queued", "working", "waiting"].includes(agent.status)).length;
+      return textResult([
+        "# Subagent coordination",
+        "",
+        `${coordination.agents.length} registered · ${active} active · ${coordination.agents.length - active} done`,
+        coordination.agents.length
+          ? coordination.agents.map((agent) => `- ${agent.name}: ${agent.status} — ${agent.detail ?? agent.result ?? agent.role}`).join("\n")
+          : "No subagents are registered for this task."
+      ].join("\n"), {
+        route_id: sourceRouteId,
+        coordination_route_id: parentRouteId,
+        workspace_id: workspace.id,
+        agents: coordination.agents
       });
     }
   );

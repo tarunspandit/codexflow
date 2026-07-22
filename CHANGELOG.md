@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.43.0 (2026-07-23)
+
+- Added the route-scoped `agent_progress` protocol for real ChatGPT Work subagents: a parent task can allocate up to sixteen independent child project routes, publish bounded roles and state, collect short results, and revoke every child route without CodexFlow starting or proxying a model.
+- Made child authorization strict and private. A child can update only its own record, parent/child project routes remain independently usable across MCP transports, concurrent registration is isolated, cleared routes fail closed, and credential-like text is refused.
+- Extended native Tasks with nested Active and Done agent lanes, role/status/result search, parent-level activity and tool aggregation, owner-only restart persistence, and content-free telemetry that never exposes usable child route IDs.
+- Added runtime and HTTP regressions for concurrent registration, route inheritance, cross-child denial, persistence, secret refusal, parent aggregation, revocation, and native API privacy; rebuilt and visually verified the signed universal macOS app.
+- Updated the public English/Chinese product surfaces, security model, Flow7 adoption record, and parity ledger. CodexFlow now matches Codex’s web subagent coordination when ChatGPT Work supplies the actual child agents, while preserving ChatGPT as the sole model and conversation owner.
+
 ## 0.42.0 (2026-07-23)
 
 - Added the route-scoped `task_progress` tool so a web chat can publish a bounded title, current focus, task state, and complete plan snapshot to the local native app without starting another model or agent.
