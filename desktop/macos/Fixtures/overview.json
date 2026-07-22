@@ -1,4 +1,5 @@
 {
+  "initial_section": "changes",
   "runtime": {
     "version": 1,
     "root": "/Users/demo/Work/atlas-studio",
@@ -22,7 +23,7 @@
     "generated_at": "2026-07-15T08:31:14.000Z",
     "broker": {
       "state": "ready",
-      "version": "0.33.0",
+      "version": "0.34.0",
       "started_at": "2026-07-15T06:09:00.000Z",
       "uptime_ms": 8534000,
       "default_root": "/Users/demo/Work/atlas-studio",
@@ -77,6 +78,32 @@
     ],
     "summary": {"projects":4,"active_sessions":2,"pending_sessions":0,"open_connections":4,"recent_sessions":2,"activity_events":4,"managed_worktrees":0,"local_environments":1},
     "saved_profile": {"exists":true,"tunnel":"cloudflare","hostname":null,"mode":"agent","updated_at":"2026-07-15T06:08:50.000Z"}
+  },
+  "changes": {
+    "ok": true,
+    "root": "/Users/demo/Work/atlas-studio",
+    "is_git": true,
+    "branch": "codex/atlas-navigation...origin/codex/atlas-navigation",
+    "can_write": true,
+    "staged": [
+      {"path":"src/components/CommandPalette.tsx","status":"modified","staged":true,"previous_path":null}
+    ],
+    "unstaged": [
+      {"path":"src/routes/workspaces.tsx","status":"modified","staged":false,"previous_path":null},
+      {"path":"src/components/WorkspaceSwitcher.tsx","status":"added","staged":false,"previous_path":null},
+      {"path":"tests/workspaces.test.ts","status":"modified","staged":false,"previous_path":null}
+    ],
+    "summary": {"staged":1,"unstaged":3,"files":4},
+    "selected": {
+      "path": "src/routes/workspaces.tsx",
+      "staged": false,
+      "diff": "diff --git a/src/routes/workspaces.tsx b/src/routes/workspaces.tsx\nindex 9213f90..ef23a87 100644\n--- a/src/routes/workspaces.tsx\n+++ b/src/routes/workspaces.tsx\n@@ -18,7 +18,12 @@ export function WorkspaceRoute() {\n-  const projects = useProjects();\n+  const { projects, activeProject } = useProjects();\n+  const recent = projects.filter((project) => project.lastOpenedAt);\n \n   return (\n-    <WorkspaceGrid projects={projects} />\n+    <WorkspaceGrid\n+      activeProject={activeProject}\n+      projects={recent}\n+    />\n   );\n }",
+      "additions": 7,
+      "deletions": 2,
+      "truncated": false
+    },
+    "message": null,
+    "action": null
   },
   "profile": {
     "ok": true,

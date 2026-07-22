@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
@@ -227,6 +227,16 @@ await fs.writeFile(path.join(root, '.codex', 'skills', 'http-smoke-skill', 'SKIL
   '# HTTP Smoke Skill',
   ''
 ].join('\n'), 'utf8');
+for (const args of [
+  ['init'],
+  ['add', '.'],
+  ['-c', 'user.name=CodexFlow Smoke', '-c', 'user.email=smoke@codexflow.local', 'commit', '-m', 'fixture']
+]) {
+  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${result.stderr || result.stdout}`);
+}
+await fs.appendFile(path.join(root, 'routing.txt'), 'desktop-change-review\n', 'utf8');
+await fs.writeFile(path.join(root, 'untracked-review.txt'), 'new review file\n', 'utf8');
 const port = await getFreePort();
 const genericPort = await getFreePort();
 const token = 'codexflow-http-smoke-token';
@@ -420,6 +430,37 @@ try {
   const disabledEnvironmentActionJson = await disabledEnvironmentAction.json();
   if (disabledEnvironmentAction.status !== 403 || disabledEnvironmentActionJson.error?.code !== 'environments_disabled') {
     throw new Error(`handoff mode did not reject local environment execution: ${disabledEnvironmentAction.status} ${JSON.stringify(disabledEnvironmentActionJson)}`);
+  }
+  const changesBefore = await fetch(`${baseUrl}/admin/changes?codexflow_token=${encodeURIComponent(token)}`);
+  const changesBeforeJson = await changesBefore.json();
+  if (
+    changesBefore.status !== 200 ||
+    changesBeforeJson.ok !== true ||
+    changesBeforeJson.is_git !== true ||
+    changesBeforeJson.can_write !== false ||
+    !changesBeforeJson.unstaged?.some?.((file) => file.path === 'routing.txt' && file.status === 'modified') ||
+    !changesBeforeJson.unstaged?.some?.((file) => file.path === 'untracked-review.txt' && file.status === 'untracked')
+  ) {
+    throw new Error(`admin changes did not expose project-scoped Git state: ${changesBefore.status} ${JSON.stringify(changesBeforeJson)}`);
+  }
+  const selectedUntracked = await fetch(`${baseUrl}/admin/changes?codexflow_token=${encodeURIComponent(token)}&path=untracked-review.txt&staged=false`);
+  const selectedUntrackedJson = await selectedUntracked.json();
+  if (
+    selectedUntracked.status !== 200 ||
+    selectedUntrackedJson.selected?.path !== 'untracked-review.txt' ||
+    !selectedUntrackedJson.selected?.diff?.includes('+new review file') ||
+    selectedUntrackedJson.selected?.additions !== 1
+  ) {
+    throw new Error(`admin changes did not render an untracked preview: ${selectedUntracked.status} ${JSON.stringify(selectedUntrackedJson)}`);
+  }
+  const disabledChangesAction = await fetch(`${baseUrl}/admin/changes?codexflow_token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'stage', paths: ['routing.txt'] })
+  });
+  const disabledChangesActionJson = await disabledChangesAction.json();
+  if (disabledChangesAction.status !== 403 || disabledChangesActionJson.error?.code !== 'changes_read_only') {
+    throw new Error(`handoff mode did not reject native Git mutation: ${disabledChangesAction.status} ${JSON.stringify(disabledChangesActionJson)}`);
   }
   const overviewText = JSON.stringify(overviewBeforeJson);
   for (const leaked of [token, runtimeQuerySecret, runtimeAccessSecret, runtimeLocalAuthSecret, runtimeCloudflareSecret]) {

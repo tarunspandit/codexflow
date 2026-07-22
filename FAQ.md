@@ -51,10 +51,11 @@ On macOS 14 or newer, `codexflow` installs and opens a bundled native app. Press
 codexflow app
 ```
 
-It shows discovered projects, active and recently closed chat routes, content-free
-tool activity, connection health, next-launch settings, and the policy active for
-the current process. It can also choose a workspace and start, stop, or restart the
-existing CodexFlow broker. It does not contain a model composer, run the Codex CLI,
+It shows discovered projects, shared environments, managed worktrees, staged and
+unstaged file changes with selectable diffs, active and recently closed chat routes,
+content-free tool activity, connection health, next-launch settings, and active
+policy. It can also choose a workspace, perform explicit file-level Git review
+actions, and start, stop, or restart the existing CodexFlow broker. It does not contain a model composer, run the Codex CLI,
 or silently move an existing ChatGPT conversation to a different project. Project
 selection remains owned by that conversation through the CodexFlow picker or an
 exact project-name reply.

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { randomUUID } from "node:crypto";
 import { timingSafeEqual } from "node:crypto";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express, { type NextFunction, type Request, type Response } from "express";
@@ -36,6 +37,8 @@ import {
   runLocalEnvironmentCommand
 } from "./localEnvironmentOps.js";
 import { persistentTerminals } from "./terminalOps.js";
+import { gitDiff, gitDiffStatus, gitStatus } from "./gitOps.js";
+import { runGitWorkflow } from "./gitWorkflow.js";
 
 const TUNNELS = ["cloudflare", "ngrok", "cloudflare-named", "tailscale", "none"] as const;
 const MODES = ["agent", "handoff", "pro"] as const;
@@ -98,6 +101,24 @@ const AdminChatCommand = z.object({
   title: z.string().trim().max(80).optional(),
   value: z.boolean().optional()
 }).strict();
+
+const AdminChangesQuery = z.object({
+  path: z.string().trim().max(4096).optional(),
+  staged: z.enum(["true", "false", "1", "0"]).optional()
+});
+
+const AdminChangesCommand = z.object({
+  action: z.enum(["stage", "unstage", "discard"]),
+  paths: z.array(z.string().trim().min(1).max(4096)).min(1).max(200),
+  includeStaged: z.boolean().optional()
+}).strict();
+
+interface DesktopChangedFile {
+  path: string;
+  status: string;
+  staged: boolean;
+  previousPath?: string;
+}
 
 interface ProfileFormValues {
   port: string;
@@ -389,6 +410,147 @@ async function applicationOverview(
       mode: profile.mode ?? null,
       updated_at: profile.updatedAt ?? null
     }
+  });
+}
+
+function changedFilesFromStatus(output: string, staged: boolean): DesktopChangedFile[] {
+  if (!output.trim() || output.trim() === "(no output)" || /not a git repository/i.test(output)) return [];
+  return output.split("\n").flatMap((line) => {
+    const normalized = line.replace(/\r$/, "");
+    if (!normalized) return [];
+    if (normalized.startsWith("?? ")) {
+      return [{ path: normalized.slice(3), status: "untracked", staged: false }];
+    }
+    const parts = normalized.split("\t");
+    if (parts.length < 2) return [];
+    const code = parts[0]?.trim() || "M";
+    const renamed = code.startsWith("R") || code.startsWith("C");
+    const file = renamed ? parts[2] : parts[1];
+    if (!file) return [];
+    const status = code.startsWith("A")
+      ? "added"
+      : code.startsWith("D")
+        ? "deleted"
+        : code.startsWith("R")
+          ? "renamed"
+          : code.startsWith("C")
+            ? "copied"
+            : code.startsWith("T")
+              ? "type changed"
+              : "modified";
+    return [{ path: file, status, staged, ...(renamed && parts[1] ? { previousPath: parts[1] } : {}) }];
+  });
+}
+
+function desktopDiffStats(diff: string): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+") && !line.startsWith("+++")) additions += 1;
+    if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
+  }
+  return { additions, deletions };
+}
+
+function desktopGitUnavailable(output: string): boolean {
+  const value = output.trim().toLowerCase();
+  return value.startsWith("fatal:") || value.startsWith("git unavailable or failed:") || value.includes("not a git repository");
+}
+
+async function untrackedFileDiff(
+  config: CodexFlowConfig,
+  guard: PathGuard,
+  workspace: Workspace,
+  filePath: string
+): Promise<{ diff: string; truncated: boolean }> {
+  const resolved = guard.resolve(workspace, filePath);
+  await guard.assertTextFile(resolved.absPath, config.maxReadBytes);
+  const raw = await fs.readFile(resolved.absPath, "utf8");
+  const maxBytes = Math.min(config.maxReadBytes, config.maxOutputBytes);
+  let text = raw;
+  let truncated = false;
+  while (Buffer.byteLength(text, "utf8") > maxBytes && text.length > 0) {
+    text = text.slice(0, Math.max(0, Math.floor(text.length * 0.8)));
+    truncated = true;
+  }
+  const lines = text.replace(/\n$/, "").split("\n");
+  const safePath = resolved.relPath.replace(/[\r\n]/g, "");
+  const body = lines.map((line) => `+${line}`).join("\n");
+  return {
+    diff: redactSensitiveText([
+      `diff --git a/${safePath} b/${safePath}`,
+      "new file mode 100644",
+      "--- /dev/null",
+      `+++ b/${safePath}`,
+      `@@ -0,0 +1,${lines.length} @@`,
+      body,
+      ...(truncated ? ["+… preview truncated by local review limit …"] : [])
+    ].join("\n")),
+    truncated
+  };
+}
+
+async function desktopChangesResponse(
+  config: CodexFlowConfig,
+  guard: PathGuard,
+  workspace: Workspace,
+  selectedPath?: string,
+  selectedStaged = false
+): Promise<Record<string, unknown>> {
+  const status = gitStatus(config, workspace);
+  if (desktopGitUnavailable(status)) {
+    return {
+      ok: true,
+      root: workspace.root,
+      is_git: false,
+      branch: "",
+      can_write: false,
+      staged: [],
+      unstaged: [],
+      summary: { staged: 0, unstaged: 0, files: 0 },
+      selected: null
+    };
+  }
+  const stagedFiles = changedFilesFromStatus(gitDiffStatus(config, guard, workspace, undefined, true), true);
+  const unstagedFiles = changedFilesFromStatus(gitDiffStatus(config, guard, workspace, undefined, false), false);
+  let diff = "";
+  let truncated = false;
+  if (selectedPath) {
+    const selected = selectedStaged ? stagedFiles : unstagedFiles;
+    const file = selected.find((item) => item.path === selectedPath);
+    if (!file) throw new Error(`The selected ${selectedStaged ? "staged" : "unstaged"} change no longer exists.`);
+    if (!selectedStaged && file.status === "untracked") {
+      ({ diff, truncated } = await untrackedFileDiff(config, guard, workspace, selectedPath));
+    } else {
+      diff = gitDiff(config, guard, workspace, selectedPath, selectedStaged);
+      if (diff === "(no output)") diff = "";
+    }
+  }
+  const stats = desktopDiffStats(diff);
+  const branchLine = status.split("\n")[0]?.replace(/^##\s*/, "") ?? "";
+  return redactStructured({
+    ok: true,
+    root: workspace.root,
+    is_git: true,
+    branch: branchLine,
+    can_write: config.writeMode === "workspace",
+    staged: stagedFiles,
+    unstaged: unstagedFiles,
+    summary: {
+      staged: stagedFiles.length,
+      unstaged: unstagedFiles.length,
+      files: new Set([...stagedFiles, ...unstagedFiles].map((item) => item.path)).size
+    },
+    selected: selectedPath
+      ? {
+          path: selectedPath,
+          staged: selectedStaged,
+          diff,
+          additions: stats.additions,
+          deletions: stats.deletions,
+          truncated
+        }
+      : null
   });
 }
 
@@ -760,6 +922,53 @@ async function main(): Promise<void> {
     jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/profile.");
   });
 
+  app.get("/admin/changes", async (req, res) => {
+    const parsed = AdminChangesQuery.safeParse(req.query);
+    if (!parsed.success) {
+      jsonError(res, 400, "invalid_changes_query", "Invalid changes query.", parsed.error.flatten());
+      return;
+    }
+    try {
+      const workspace = workspaces.defaultWorkspace();
+      const staged = parsed.data.staged === "true" || parsed.data.staged === "1";
+      res.setHeader("Cache-Control", "no-store");
+      res.json(await desktopChangesResponse(config, guard, workspace, parsed.data.path, staged));
+    } catch (error) {
+      jsonError(res, 400, "changes_unavailable", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.post("/admin/changes", adminRateLimit, adminBodyLimit, express.json({ limit: "32kb" }), async (req, res) => {
+    if (config.writeMode !== "workspace") {
+      jsonError(res, 403, "changes_read_only", "Changing the Git index or working tree requires workspace write mode.");
+      return;
+    }
+    const parsed = AdminChangesCommand.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      jsonError(res, 400, "invalid_changes_command", "Invalid changes command.", parsed.error.flatten());
+      return;
+    }
+    try {
+      const workspace = workspaces.defaultWorkspace();
+      const result = runGitWorkflow(config, guard, workspace, {
+        action: parsed.data.action,
+        paths: parsed.data.paths,
+        includeStaged: parsed.data.includeStaged
+      });
+      res.json({
+        ...(await desktopChangesResponse(config, guard, workspace)),
+        message: `${parsed.data.paths.length} file${parsed.data.paths.length === 1 ? "" : "s"} ${parsed.data.action === "stage" ? "staged" : parsed.data.action === "unstage" ? "unstaged" : "discarded"}.`,
+        action: result.action
+      });
+    } catch (error) {
+      jsonError(res, 400, "changes_action_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.all("/admin/changes", (_req, res) => {
+    jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/changes.");
+  });
+
   app.get("/admin/environments", (_req, res) => {
     try {
       const workspace = workspaces.defaultWorkspace();
@@ -1030,7 +1239,7 @@ async function main(): Promise<void> {
       });
       return;
     }
-    if (req.path === "/admin/profile" || req.path === "/admin/environments" || req.path === "/admin/worktrees" || req.path === "/admin/chats") {
+    if (req.path === "/admin/profile" || req.path === "/admin/changes" || req.path === "/admin/environments" || req.path === "/admin/worktrees" || req.path === "/admin/chats") {
       jsonError(
         res,
         status,

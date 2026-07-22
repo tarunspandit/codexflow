@@ -708,6 +708,373 @@ private struct WorktreeCard: View {
     }
 }
 
+struct ChangesView: View {
+    @EnvironmentObject private var model: AppModel
+    @State private var selectedID: String?
+    @State private var discardCandidate: ChangedFileOverview?
+
+    private var response: ChangesResponse? { model.changes }
+    private var selectedFile: ChangedFileOverview? {
+        guard let selectedID else { return nil }
+        return (response?.staged ?? []).first { $0.id == selectedID }
+            ?? (response?.unstaged ?? []).first { $0.id == selectedID }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            changesHeader
+            FlowDivider()
+            if !model.hasLiveRuntime {
+                OfflineInlineCard(
+                    title: "Start a workspace to review changes.",
+                    detail: "The Changes workspace reads Git state from the authenticated local broker."
+                )
+                .padding(25)
+                Spacer()
+            } else if let response {
+                if response.isGit {
+                    HStack(spacing: 0) {
+                        changesSidebar(response)
+                            .frame(width: 300)
+                        Rectangle()
+                            .fill(FlowColor.line)
+                            .frame(width: 1)
+                        diffPane(response)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                } else {
+                    OfflineInlineCard(
+                        title: "This project is not a Git repository.",
+                        detail: "Initialize Git in the selected project to use staged review, diffs, and deliberate file actions."
+                    )
+                    .padding(25)
+                    Spacer()
+                }
+            } else {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Reading project changes…")
+                        .font(FlowType.body(11))
+                        .foregroundStyle(FlowColor.inkMuted)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task(id: model.selectedRuntimeID) { await loadChanges() }
+        .confirmationDialog(
+            "Discard this file’s changes?",
+            isPresented: Binding(
+                get: { discardCandidate != nil },
+                set: { if !$0 { discardCandidate = nil } }
+            ),
+            presenting: discardCandidate
+        ) { file in
+            Button("Discard changes", role: .destructive) {
+                discardCandidate = nil
+                Task { await mutate(action: "discard", file: file, includeStaged: file.staged) }
+            }
+            Button("Cancel", role: .cancel) { discardCandidate = nil }
+        } message: { file in
+            Text(file.staged
+                ? "This restores \(file.path) in both the index and working tree to HEAD. It cannot be undone by CodexFlow."
+                : "This restores \(file.path) in the working tree. It cannot be undone by CodexFlow.")
+        }
+    }
+
+    private var changesHeader: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 9) {
+                    Text("Changes")
+                        .font(FlowType.title(18))
+                        .foregroundStyle(FlowColor.ink)
+                    if let response {
+                        StatusPill(label: "\(response.summary.files) files", color: response.summary.files == 0 ? FlowColor.success : FlowColor.signal)
+                    }
+                }
+                Text(response?.branch.isEmpty == false ? response!.branch : "Review the selected project before committing.")
+                    .font(FlowType.mono(10))
+                    .foregroundStyle(FlowColor.inkMuted)
+                    .lineLimit(1)
+            }
+            Spacer()
+            if let file = selectedFile {
+                if file.staged {
+                    Button("Unstage") { Task { await mutate(action: "unstage", file: file) } }
+                        .buttonStyle(FlowButtonStyle(kind: .secondary))
+                        .disabled(response?.canWrite != true || model.changesBusy)
+                } else {
+                    Button("Stage") { Task { await mutate(action: "stage", file: file) } }
+                        .buttonStyle(FlowButtonStyle(kind: .primary))
+                        .disabled(response?.canWrite != true || model.changesBusy)
+                }
+                Button("Discard") { discardCandidate = file }
+                    .buttonStyle(FlowButtonStyle(kind: .danger))
+                    .disabled(response?.canWrite != true || model.changesBusy)
+            }
+            Button {
+                Task { await reloadSelection() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(FlowButtonStyle(kind: .secondary))
+            .disabled(model.changesBusy)
+            .help("Refresh changes")
+        }
+        .padding(.horizontal, 22)
+        .frame(minHeight: 72)
+        .background(FlowColor.paper)
+    }
+
+    private func changesSidebar(_ response: ChangesResponse) -> some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ChangeGroup(
+                        title: "STAGED",
+                        files: response.staged,
+                        selectedID: selectedID,
+                        disabled: model.changesBusy,
+                        select: select
+                    )
+                    ChangeGroup(
+                        title: "CHANGES",
+                        files: response.unstaged,
+                        selectedID: selectedID,
+                        disabled: model.changesBusy,
+                        select: select
+                    )
+                    if response.summary.files == 0 {
+                        EmptyState(
+                            symbol: "checkmark.circle",
+                            title: "Working tree clean",
+                            detail: "There are no staged, modified, or untracked files in this project."
+                        )
+                        .padding(.top, 55)
+                    }
+                }
+                .padding(12)
+            }
+            if response.canWrite && response.summary.files > 0 {
+                FlowDivider()
+                HStack(spacing: 8) {
+                    if !response.unstaged.isEmpty {
+                        Button("Stage all") {
+                            Task { await mutate(action: "stage", files: response.unstaged) }
+                        }
+                        .buttonStyle(FlowButtonStyle(kind: .primary))
+                        .disabled(model.changesBusy)
+                    }
+                    if !response.staged.isEmpty {
+                        Button("Unstage all") {
+                            Task { await mutate(action: "unstage", files: response.staged) }
+                        }
+                        .buttonStyle(FlowButtonStyle(kind: .secondary))
+                        .disabled(model.changesBusy)
+                    }
+                    Spacer()
+                }
+                .padding(12)
+            }
+        }
+        .background(FlowColor.paperMuted.opacity(0.4))
+    }
+
+    @ViewBuilder
+    private func diffPane(_ response: ChangesResponse) -> some View {
+        if let selected = response.selected, selectedID == "\(selected.staged ? "staged" : "unstaged"):\(selected.path)" {
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "doc.text")
+                        .foregroundStyle(FlowColor.signal)
+                    Text(selected.path)
+                        .font(FlowType.mono(11))
+                        .foregroundStyle(FlowColor.ink)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                    Text("+\(selected.additions)")
+                        .font(FlowType.mono(10))
+                        .foregroundStyle(FlowColor.success)
+                    Text("−\(selected.deletions)")
+                        .font(FlowType.mono(10))
+                        .foregroundStyle(FlowColor.danger)
+                    if selected.truncated {
+                        StatusPill(label: "Preview limited", color: FlowColor.warning)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .frame(minHeight: 47)
+                .background(FlowColor.paper)
+                FlowDivider()
+                if selected.diff.isEmpty {
+                    EmptyState(symbol: "doc", title: "No textual diff", detail: "The file may be binary, deleted, or unchanged in this Git lane.")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    DiffReader(diff: selected.diff)
+                }
+            }
+        } else if model.changesBusy {
+            ProgressView("Loading diff…")
+                .font(FlowType.body(11))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            EmptyState(symbol: "plus.forwardslash.minus", title: "Select a changed file", detail: "Review staged and unstaged changes without leaving the project context.")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func loadChanges() async {
+        await model.refreshChanges()
+        await selectFirstIfNeeded()
+    }
+
+    private func reloadSelection() async {
+        if let file = selectedFile {
+            await model.refreshChanges(path: file.path, staged: file.staged)
+        } else {
+            await loadChanges()
+        }
+    }
+
+    private func select(_ file: ChangedFileOverview) {
+        selectedID = file.id
+        Task { await model.refreshChanges(path: file.path, staged: file.staged) }
+    }
+
+    private func selectFirstIfNeeded() async {
+        guard selectedFile == nil,
+              let file = (model.changes?.unstaged.first ?? model.changes?.staged.first) else { return }
+        selectedID = file.id
+        await model.refreshChanges(path: file.path, staged: file.staged)
+    }
+
+    private func mutate(action: String, file: ChangedFileOverview, includeStaged: Bool? = nil) async {
+        await mutate(action: action, files: [file], includeStaged: includeStaged)
+    }
+
+    private func mutate(action: String, files: [ChangedFileOverview], includeStaged: Bool? = nil) async {
+        await model.mutateChanges(action: action, paths: Array(Set(files.map(\.path))).sorted(), includeStaged: includeStaged)
+        selectedID = nil
+        await selectFirstIfNeeded()
+    }
+}
+
+private struct ChangeGroup: View {
+    let title: String
+    let files: [ChangedFileOverview]
+    let selectedID: String?
+    let disabled: Bool
+    let select: (ChangedFileOverview) -> Void
+
+    var body: some View {
+        if !files.isEmpty {
+            Text("\(title)  \(files.count)")
+                .font(FlowType.label(8))
+                .tracking(1.25)
+                .foregroundStyle(FlowColor.inkMuted)
+                .padding(.horizontal, 8)
+                .padding(.top, 9)
+                .padding(.bottom, 5)
+            ForEach(files) { file in
+                Button { select(file) } label: {
+                    HStack(spacing: 10) {
+                        Text(file.status.codexFlowGitBadge)
+                            .font(FlowType.mono(10))
+                            .foregroundStyle(file.status.codexFlowGitColor)
+                            .frame(width: 17)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(URL(fileURLWithPath: file.path).lastPathComponent)
+                                .font(FlowType.label(11))
+                                .foregroundStyle(FlowColor.ink)
+                                .lineLimit(1)
+                            let parent = (file.path as NSString).deletingLastPathComponent
+                            if !parent.isEmpty {
+                                Text(parent)
+                                    .font(FlowType.mono(9))
+                                    .foregroundStyle(FlowColor.inkMuted)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                        }
+                        Spacer(minLength: 3)
+                    }
+                    .padding(.horizontal, 9)
+                    .frame(maxWidth: .infinity, minHeight: 45, alignment: .leading)
+                    .background(selectedID == file.id ? FlowColor.signalWash : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(disabled)
+            }
+        }
+    }
+}
+
+private struct DiffReader: View {
+    let diff: String
+
+    var body: some View {
+        GeometryReader { proxy in
+            ScrollView([.horizontal, .vertical]) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(diff.split(separator: "\n", omittingEmptySubsequences: false).enumerated()), id: \.offset) { _, raw in
+                        let line = String(raw)
+                        Text(line.isEmpty ? " " : line)
+                            .font(FlowType.mono(11))
+                            .foregroundStyle(line.codexFlowDiffForeground)
+                            .padding(.horizontal, 13)
+                            .frame(maxWidth: .infinity, minHeight: 19, alignment: .leading)
+                            .background(line.codexFlowDiffBackground)
+                    }
+                }
+                .frame(minWidth: proxy.size.width, alignment: .leading)
+                .textSelection(.enabled)
+                .padding(.vertical, 8)
+            }
+        }
+        .background(Color(hex: 0xFBF9F5))
+    }
+}
+
+private extension String {
+    var codexFlowGitBadge: String {
+        switch self {
+        case "added", "untracked": "A"
+        case "deleted": "D"
+        case "renamed": "R"
+        case "copied": "C"
+        default: "M"
+        }
+    }
+
+    var codexFlowGitColor: Color {
+        switch self {
+        case "added", "untracked": FlowColor.success
+        case "deleted": FlowColor.danger
+        case "renamed", "copied": FlowColor.signal
+        default: FlowColor.warning
+        }
+    }
+
+    var codexFlowDiffForeground: Color {
+        if hasPrefix("+") && !hasPrefix("+++") { return Color(hex: 0x1F6A4A) }
+        if hasPrefix("-") && !hasPrefix("---") { return Color(hex: 0x9E3E3A) }
+        if hasPrefix("@@") { return FlowColor.signal }
+        if hasPrefix("diff ") || hasPrefix("index ") || hasPrefix("+++") || hasPrefix("---") { return FlowColor.inkMuted }
+        return FlowColor.ink
+    }
+
+    var codexFlowDiffBackground: Color {
+        if hasPrefix("+") && !hasPrefix("+++") { return FlowColor.success.opacity(0.09) }
+        if hasPrefix("-") && !hasPrefix("---") { return FlowColor.danger.opacity(0.08) }
+        if hasPrefix("@@") { return FlowColor.signalWash.opacity(0.72) }
+        return Color.clear
+    }
+}
+
 struct ChatsView: View {
     @EnvironmentObject private var model: AppModel
     @State private var scope = "all"

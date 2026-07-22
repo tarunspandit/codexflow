@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.34.0 (2026-07-22)
+
+- Added a first-class native Changes workspace with separate staged and unstaged lanes, changed-file navigation, branch context, selectable color-coded diffs, addition/deletion counts, and explicit file-level stage, unstage, and discard actions.
+- Added an authenticated, project-scoped desktop review API that renders bounded previews for untracked text files, reports non-Git projects honestly, honors workspace write policy, and never accepts implicit whole-workspace discard.
+- Extended guarded Git discard to remove only explicitly selected untracked files, with regression coverage alongside tracked-file restore behavior.
+- Replaced the restorable SwiftUI window group with one durable primary management window, preventing duplicate control windows without limiting concurrent ChatGPT routes, projects, worktrees, or terminals.
+
 ## 0.33.0 (2026-07-22)
 
 - Added `prepare_scheduled_task`, which turns concrete local-project work into a durable ChatGPT Scheduled prompt that reacquires a fresh private route, selects the stable project ID, restores the selected local environment, and optionally creates a clean managed worktree for every run.

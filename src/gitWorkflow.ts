@@ -130,12 +130,39 @@ export function runGitWorkflow(
     result = runGit(config, workspace, paths.length ? ["restore", "--staged", "--", ...paths] : ["restore", "--staged", "--", "."]);
   } else if (action === "discard") {
     if (!paths.length) throw new CodexFlowError("discard requires at least one explicit path. CodexFlow never discards the entire workspace implicitly.");
-    result = runGit(config, workspace, [
-      "restore",
-      ...(options.includeStaged ? ["--staged", "--worktree"] : ["--worktree"]),
-      "--",
-      ...paths
-    ]);
+    const tracked: string[] = [];
+    const untracked: string[] = [];
+    for (const file of paths) {
+      const trackedCheck = run("git", ["ls-files", "--error-unmatch", "--", file], workspace.root, config.maxOutputBytes);
+      if (trackedCheck.status === 0) {
+        tracked.push(file);
+        continue;
+      }
+      const untrackedCheck = run("git", ["ls-files", "--others", "--exclude-standard", "--", file], workspace.root, config.maxOutputBytes);
+      if (untrackedCheck.status === 0 && untrackedCheck.stdout.split("\n").includes(file)) {
+        untracked.push(file);
+        continue;
+      }
+      throw new CodexFlowError(`Cannot discard ${file} because it is not a tracked or untracked Git change.`);
+    }
+    if (tracked.length) {
+      result = runGit(config, workspace, [
+        "restore",
+        ...(options.includeStaged ? ["--staged", "--worktree"] : ["--worktree"]),
+        "--",
+        ...tracked
+      ]);
+    }
+    for (const file of untracked) {
+      const resolved = guard.resolve(workspace, file, { forWrite: true });
+      fs.rmSync(resolved.absPath, { force: true });
+    }
+    if (untracked.length) {
+      result = {
+        stdout: [result.stdout, `Removed ${untracked.length} untracked file${untracked.length === 1 ? "" : "s"}.`].filter(Boolean).join("\n"),
+        stderr: result.stderr
+      };
+    }
   } else if (action === "create_branch") {
     branch = assertBranchName(config, workspace, options.branch);
     result = runGit(config, workspace, ["switch", "-c", branch]);

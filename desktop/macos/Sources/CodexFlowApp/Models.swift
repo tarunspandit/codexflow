@@ -5,6 +5,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case projects
     case environments
     case worktrees
+    case changes
     case chats
     case connection
     case policy
@@ -17,6 +18,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .projects: "Projects"
         case .environments: "Environments"
         case .worktrees: "Worktrees"
+        case .changes: "Changes"
         case .chats: "Chats"
         case .connection: "Connection"
         case .policy: "Policy"
@@ -29,6 +31,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .projects: "square.stack.3d.up"
         case .environments: "shippingbox.and.arrow.backward"
         case .worktrees: "arrow.triangle.branch"
+        case .changes: "plus.forwardslash.minus"
         case .chats: "bubble.left.and.bubble.right"
         case .connection: "point.3.connected.trianglepath.dotted"
         case .policy: "slider.horizontal.3"
@@ -279,6 +282,50 @@ struct OverviewSummary: Decodable {
     let localEnvironments: Int?
 }
 
+struct ChangedFileOverview: Decodable, Identifiable, Hashable {
+    let path: String
+    let status: String
+    let staged: Bool
+    let previousPath: String?
+
+    var id: String { "\(staged ? "staged" : "unstaged"):\(path)" }
+}
+
+struct SelectedChangeOverview: Decodable, Hashable {
+    let path: String
+    let staged: Bool
+    let diff: String
+    let additions: Int
+    let deletions: Int
+    let truncated: Bool
+}
+
+struct ChangesSummary: Decodable, Hashable {
+    let staged: Int
+    let unstaged: Int
+    let files: Int
+}
+
+struct ChangesResponse: Decodable {
+    let ok: Bool
+    let root: String
+    let isGit: Bool
+    let branch: String
+    let canWrite: Bool
+    let staged: [ChangedFileOverview]
+    let unstaged: [ChangedFileOverview]
+    let summary: ChangesSummary
+    let selected: SelectedChangeOverview?
+    let message: String?
+    let action: String?
+}
+
+struct ChangesCommand: Encodable {
+    let action: String
+    let paths: [String]
+    let includeStaged: Bool?
+}
+
 struct WorktreeCommand: Encodable {
     let action: String
     let worktreeId: String?
@@ -385,6 +432,8 @@ struct DesktopFixture: Decodable {
     let runtime: RuntimeRecordPayload
     let overview: Overview
     let profile: ProfileResponse?
+    let changes: ChangesResponse?
+    let initialSection: String?
 }
 
 struct APIErrorEnvelope: Decodable {

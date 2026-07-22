@@ -201,6 +201,14 @@ if (git(workflowFixture.repository, ['branch', '--show-current']) !== 'codexflow
 await fs.appendFile(path.join(workflowFixture.project, 'feature.txt'), 'discard me\n', 'utf8');
 runGitWorkflow(workflowConfig, guard, workflowWorkspace, { action: 'discard', paths: ['feature.txt'] });
 if ((await fs.readFile(path.join(workflowFixture.project, 'feature.txt'), 'utf8')).includes('discard me')) throw new Error('discard action failed');
+await fs.writeFile(path.join(workflowFixture.project, 'untracked.txt'), 'discard untracked\n', 'utf8');
+runGitWorkflow(workflowConfig, guard, workflowWorkspace, { action: 'discard', paths: ['untracked.txt'] });
+try {
+  await fs.stat(path.join(workflowFixture.project, 'untracked.txt'));
+  throw new Error('discard did not remove the explicit untracked file');
+} catch (error) {
+  if (error?.code !== 'ENOENT') throw error;
+}
 
 const bareRemote = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-bare-remote-'));
 git(bareRemote, ['init', '--bare']);

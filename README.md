@@ -102,6 +102,7 @@ conversation. The native app makes the broker legible and controllable:
 - **Projects** shows the folders CodexFlow discovered automatically.
 - **Environments** shows the project’s shared Codex environment definitions and runs setup, cleanup, or named actions.
 - **Worktrees** creates, reveals, audits, and safely removes isolated checkouts.
+- **Changes** separates staged and unstaged files, renders bounded color-coded diffs, and performs explicit file-level stage, unstage, or discard actions.
 - **Chats** shows independent project routing for real tool-using conversations, with local search, rename, pin, archive, and restore controls; background MCP discovery and component-fetch connections are deliberately hidden.
 - **Connection** provides the private Server URL without displaying its credential.
 - **Policy** shows the effective boundary and edits protected next-launch defaults.

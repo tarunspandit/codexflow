@@ -18,6 +18,8 @@ final class AppModel: ObservableObject {
     @Published var showingRuntimePicker = false
     @Published private(set) var worktreeBusy = false
     @Published private(set) var environmentBusyAction: String?
+    @Published private(set) var changes: ChangesResponse?
+    @Published private(set) var changesBusy = false
 
     private let fileManager = FileManager.default
     private let session: URLSession
@@ -91,6 +93,10 @@ final class AppModel: ObservableObject {
             selectedRoot = fixture.runtime.root
             overview = fixture.overview
             profile = fixture.profile
+            changes = fixture.changes
+            if let initialSection = fixture.initialSection, let fixtureSection = AppSection(rawValue: initialSection) {
+                section = fixtureSection
+            }
             state = .ready
             return
         }
@@ -134,6 +140,7 @@ final class AppModel: ObservableObject {
         guard let runtime = selectedRuntime, runtime.isAlive else {
             overview = nil
             profile = nil
+            changes = nil
             if state != .starting && state != .stopping { state = .offline }
             return
         }
@@ -489,6 +496,37 @@ final class AppModel: ObservableObject {
             let command = ChatLifecycleCommand(action: action, chatId: id, title: title, value: value)
             let payload = try JSONEncoder().encode(command)
             let response: ChatLifecycleResponse = try await request(runtime: runtime, path: "/admin/chats", method: "POST", body: payload)
+            notice = response.message
+            await refresh(forceProjectRefresh: false)
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func refreshChanges(path: String? = nil, staged: Bool = false) async {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, !changesBusy else { return }
+        changesBusy = true
+        defer { changesBusy = false }
+        do {
+            var query: [URLQueryItem] = []
+            if let path, !path.isEmpty {
+                query.append(URLQueryItem(name: "path", value: path))
+                query.append(URLQueryItem(name: "staged", value: staged ? "true" : "false"))
+            }
+            changes = try await request(runtime: runtime, path: "/admin/changes", query: query)
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func mutateChanges(action: String, paths: [String], includeStaged: Bool? = nil) async {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, !changesBusy, !paths.isEmpty else { return }
+        changesBusy = true
+        defer { changesBusy = false }
+        do {
+            let payload = try JSONEncoder().encode(ChangesCommand(action: action, paths: paths, includeStaged: includeStaged))
+            let response: ChangesResponse = try await request(runtime: runtime, path: "/admin/changes", method: "POST", body: payload)
+            changes = response
             notice = response.message
             await refresh(forceProjectRefresh: false)
         } catch {
