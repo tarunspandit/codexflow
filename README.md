@@ -104,6 +104,7 @@ conversation. The native app makes the broker legible and controllable:
 - **Worktrees** creates, reveals, audits, and safely removes isolated checkouts.
 - **Changes** separates staged and unstaged files, renders bounded color-coded diffs, and performs explicit file-level stage, unstage, or discard actions.
 - **Chats** shows independent project routing for real tool-using conversations, with local search, rename, pin, archive, and restore controls; background MCP discovery and component-fetch connections are deliberately hidden.
+- **Hosts** discovers concrete aliases from `~/.ssh/config`, requires a bounded local OpenSSH verification, and revokes approval automatically if the alias resolves to a different destination.
 - **Connection** provides the private Server URL without displaying its credential.
 - **Policy** shows the effective boundary and edits protected next-launch defaults.
 
@@ -111,6 +112,12 @@ The app can choose a workspace, start, stop, and restart its broker, and switch
 among multiple local runtimes. It calls the existing CodexFlow broker and never
 uses the Codex CLI as an execution backend. The authenticated browser page is a
 small recovery fallback only; it no longer duplicates the application.
+
+Remote-host approval is an explicit foundation, not a claim of remote execution
+parity yet. CodexFlow ignores wildcard-only SSH entries, never returns or stores
+private-key paths, requires an already trusted host key, and never installs or
+invokes Codex on the remote host. Remote project selection and tool routing are
+still tracked as unfinished in `CODEX_DESKTOP_PARITY.md`.
 
 Operational session telemetry stays in process memory, is bounded, and expires
 shortly after a chat closes. It contains only a non-actionable display

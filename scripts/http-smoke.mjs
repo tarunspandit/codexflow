@@ -217,6 +217,16 @@ await fs.writeFile(path.join(root, '.codex', 'environments', 'http.toml'), [
   ''
 ].join('\n'), 'utf8');
 const profileHome = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-http-profile-home-'));
+const sshConfig = path.join(profileHome, 'ssh-config');
+const fakeSsh = path.join(profileHome, 'ssh');
+await fs.writeFile(sshConfig, 'Host http-remote\n  HostName remote.example\n  User smoke\n', 'utf8');
+await fs.writeFile(fakeSsh, `#!/bin/sh
+if [ "$1" = "-G" ]; then
+  printf 'hostname remote.example\\nuser smoke\\nport 22\\n'
+  exit 0
+fi
+printf 'codexflow_remote=1\\nplatform=Linux\\nhome=/home/smoke\\nnode=1\\ngit=1\\n'
+`, { mode: 0o700 });
 await fs.mkdir(path.join(root, '.codex', 'skills', 'http-smoke-skill'), { recursive: true });
 await fs.writeFile(path.join(root, '.codex', 'skills', 'http-smoke-skill', 'SKILL.md'), [
   '---',
@@ -271,7 +281,9 @@ const child = spawn('node', ['dist/http.js'], {
     CODEXFLOW_TOOL_MODE: 'full',
     CODEXFLOW_TOOL_CARDS: '0',
     CODEXFLOW_WIDGET_DOMAIN: 'https://widgets.codexflow.test',
-    CODEXFLOW_HOME: profileHome
+    CODEXFLOW_HOME: profileHome,
+    CODEXFLOW_SSH_CONFIG: sshConfig,
+    CODEXFLOW_SSH_BIN: fakeSsh
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
@@ -421,6 +433,29 @@ try {
   const environmentsBeforeJson = await environmentsBefore.json();
   if (environmentsBefore.status !== 200 || environmentsBeforeJson.environments?.[0]?.name !== 'HTTP environment') {
     throw new Error(`admin environments did not expose the shared Codex config: ${environmentsBefore.status} ${JSON.stringify(environmentsBeforeJson)}`);
+  }
+  const remotesBefore = await fetch(`${baseUrl}/admin/remotes?codexflow_token=${encodeURIComponent(token)}`);
+  const remotesBeforeJson = await remotesBefore.json();
+  if (remotesBefore.status !== 200 || remotesBeforeJson.hosts?.[0]?.alias !== 'http-remote' || remotesBeforeJson.approved !== 0) {
+    throw new Error(`admin remotes did not expose concrete SSH aliases: ${remotesBefore.status} ${JSON.stringify(remotesBeforeJson)}`);
+  }
+  const verifiedRemote = await fetch(`${baseUrl}/admin/remotes?codexflow_token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'verify', alias: 'http-remote' })
+  });
+  const verifiedRemoteJson = await verifiedRemote.json();
+  if (verifiedRemote.status !== 200 || verifiedRemoteJson.approved !== 1 || verifiedRemoteJson.hosts?.[0]?.hasNode !== true) {
+    throw new Error(`admin remotes did not verify the selected SSH alias: ${verifiedRemote.status} ${JSON.stringify(verifiedRemoteJson)}`);
+  }
+  const unknownRemote = await fetch(`${baseUrl}/admin/remotes?codexflow_token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'verify', alias: 'not-configured' })
+  });
+  const unknownRemoteJson = await unknownRemote.json();
+  if (unknownRemote.status !== 400 || unknownRemoteJson.error?.code !== 'remote_action_failed') {
+    throw new Error(`admin remotes accepted an unknown SSH alias: ${unknownRemote.status} ${JSON.stringify(unknownRemoteJson)}`);
   }
   const disabledEnvironmentAction = await fetch(`${baseUrl}/admin/environments?codexflow_token=${encodeURIComponent(token)}`, {
     method: 'POST',

@@ -82,7 +82,7 @@
             </div>
           </div>
         </div>
-        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.34.0</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
+        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.35.0</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
       </section>
 
       <section class="system section-pad" id="system" aria-labelledby="system-title">
@@ -145,13 +145,13 @@
         <div class="section-shell">
           <div class="section-heading companion-heading reveal">
             <div><p class="eyebrow dark-label">原生桌面应用</p><h2 id="companion-title">你的电脑。<br />一个清晰界面。</h2></div>
-            <p>CodexFlow 会在 Mac 上打开原生应用。启动或停止 broker、运行共享项目环境、创建隔离 worktrees、检查 staged/unstaged diff、整理聊天路由和编辑策略，都无需管理浏览器标签。</p>
+            <p>CodexFlow 会在 Mac 上打开原生应用。统一管理 broker、项目、环境、worktrees、diff、聊天路由，以及在本机明确批准的 SSH hosts，无需管理浏览器标签。</p>
           </div>
           <div class="companion-frame reveal" aria-label="CodexFlow 原生桌面应用预览">
             <aside class="companion-rail">
               <div class="companion-lockup"><img src="./assets/brand/flow7-tech-dark.webp" alt="" width="1024" height="1024" /><span><strong>CodexFlow</strong><small>原生桌面应用</small></span></div>
               <div class="companion-ready"><i aria-hidden="true"></i><span>正在此电脑上运行</span></div>
-              <ol><li class="is-active"><span>01</span>当前</li><li><span>02</span>项目</li><li><span>03</span>环境</li><li><span>04</span>Worktrees</li><li><span>05</span>改动</li><li><span>06</span>聊天</li><li><span>07</span>连接</li><li><span>08</span>策略</li></ol>
+              <ol><li class="is-active"><span>01</span>当前</li><li><span>02</span>项目</li><li><span>03</span>环境</li><li><span>04</span>Worktrees</li><li><span>05</span>改动</li><li><span>06</span>聊天</li><li><span>07</span>Hosts</li><li><span>08</span>连接</li><li><span>09</span>策略</li></ol>
               <small>ENDORSED BY FLOW7</small>
             </aside>
             <div class="companion-stage">
@@ -186,6 +186,7 @@
             <article class="reveal"><span>06</span><div><p class="micro-label">审查</p><h3>Diff 应该留在你的电脑。</h3></div><p>在原生应用中分开 staged 与 unstaged 文件，呈现受限的彩色 diff，并让 stage、unstage、discard 始终是明确操作。</p><small>原生</small></article>
             <article class="reveal"><span>07</span><div><p class="micro-label">适配</p><h3>项目环境也会随行。</h3></div><p>使用与 Codex 相同的项目环境格式提供 setup、cleanup、actions、skills、plugins 和 MCP 清单，但不运行 Codex。</p><small>可互操作</small></article>
             <article class="reveal"><span>08</span><div><p class="micro-label">定时</p><h3>重复任务始终回到正确项目。</h3></div><p>为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。</p><small>CHATGPT 原生</small></article>
+            <article class="reveal"><span>09</span><div><p class="micro-label">信任</p><h3>远程访问从 host 开始。</h3></div><p>发现命名 OpenSSH hosts，要求本机验证，并在 alias 指向变化时撤销批准。远程项目执行仍在开发中。</p><small>安全基础</small></article>
           </div>
         </div>
       </section>
@@ -199,6 +200,7 @@
             <li><span>03</span><div><strong>Secret 感知输出</strong><p>凭据和常见 secret 模式会被拦截或隐藏。</p></div></li>
             <li><span>04</span><div><strong>受保护写入与终端</strong><p>安全默认值一直生效，直到你明确扩大权限。</p></div></li>
             <li><span>05</span><div><strong>冲突感知 Worktrees</strong><p>交接前会验证两个 checkout，避免覆盖独立改动。</p></div></li>
+            <li><span>06</span><div><strong>明确 SSH host 信任</strong><p>忽略 wildcard hosts；保存批准前必须已有 host-key 信任并在本机完成验证。</p></div></li>
           </ol>
         </div>
       </section>

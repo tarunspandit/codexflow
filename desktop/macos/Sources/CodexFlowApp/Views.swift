@@ -1226,6 +1226,160 @@ private struct SessionDetailCard: View {
     }
 }
 
+struct HostsView: View {
+    @EnvironmentObject private var model: AppModel
+
+    private var hosts: [RemoteHostOverview] { model.remotes?.hosts ?? [] }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 21) {
+                HStack(alignment: .bottom) {
+                    SectionHeading(
+                        eyebrow: "Execution, where the code lives",
+                        title: "Hosts",
+                        detail: "Approve trusted SSH machines before remote project routing is enabled. Hosts are discovered from your SSH config and stay unapproved until this Mac verifies them."
+                    )
+                    Spacer()
+                    Button {
+                        Task { await model.refreshRemotes() }
+                    } label: {
+                        Label("Rescan", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(FlowButtonStyle(kind: .secondary))
+                    .disabled(!model.hasLiveRuntime || model.remoteBusyAlias != nil)
+                }
+
+                HStack(spacing: 11) {
+                    Image(systemName: "lock.shield").foregroundStyle(FlowColor.success)
+                    Text("CodexFlow uses OpenSSH trust exactly as configured on this computer. It never installs or invokes Codex on the remote machine.")
+                        .font(FlowType.body(11)).foregroundStyle(FlowColor.inkMuted)
+                    Spacer()
+                    Text("LOCAL APPROVAL REQUIRED").font(FlowType.label(8)).tracking(1.1).foregroundStyle(FlowColor.success)
+                }
+                .padding(.horizontal, 15)
+                .frame(minHeight: 47)
+                .background(FlowColor.success.opacity(0.07))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(FlowColor.success.opacity(0.18), lineWidth: 1))
+
+                if !model.hasLiveRuntime {
+                    OfflineInlineCard(title: "Start the local broker to discover hosts.", detail: "SSH discovery and approval happen on the computer running CodexFlow, never through the public endpoint alone.")
+                } else if model.remotes == nil {
+                    PaperCard { EmptyState(symbol: "server.rack", title: "Host discovery is loading", detail: "Rescan after the broker is ready. Only concrete Host aliases are eligible.") }
+                } else if hosts.isEmpty {
+                    PaperCard {
+                        EmptyState(
+                            symbol: "network.slash",
+                            title: "No concrete SSH hosts found",
+                            detail: "Add a named Host block to ~/.ssh/config and confirm normal SSH access first. Wildcard-only entries are intentionally ignored."
+                        )
+                    }
+                } else {
+                    HStack(spacing: 11) {
+                        HostMetric(value: model.remotes?.approved ?? 0, label: "APPROVED", tint: FlowColor.success)
+                        HostMetric(value: model.remotes?.discovered ?? 0, label: "DISCOVERED", tint: FlowColor.signal)
+                        PaperCard(padding: 15) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("SSH CONFIG").font(FlowType.label(8)).tracking(1).foregroundStyle(FlowColor.inkMuted)
+                                Text(model.remotes?.configPath ?? "~/.ssh/config")
+                                    .font(FlowType.mono(10)).foregroundStyle(FlowColor.ink).lineLimit(1).truncationMode(.middle)
+                            }
+                        }
+                    }
+                    LazyVStack(spacing: 11) {
+                        ForEach(hosts) { host in RemoteHostCard(host: host) }
+                    }
+                }
+            }
+            .padding(.horizontal, 25)
+            .padding(.top, 25)
+            .padding(.bottom, 42)
+            .frame(maxWidth: 1160, alignment: .leading)
+        }
+        .task(id: model.selectedRuntimeID) { await model.refreshRemotes() }
+    }
+}
+
+private struct HostMetric: View {
+    let value: Int
+    let label: String
+    let tint: Color
+
+    var body: some View {
+        PaperCard(padding: 15) {
+            HStack(spacing: 11) {
+                Text("\(value)").font(FlowType.display(27)).foregroundStyle(FlowColor.ink)
+                Text(label).font(FlowType.label(8)).tracking(1).foregroundStyle(tint)
+            }
+        }
+        .frame(width: 160)
+    }
+}
+
+private struct RemoteHostCard: View {
+    @EnvironmentObject private var model: AppModel
+    let host: RemoteHostOverview
+
+    private var busy: Bool { model.remoteBusyAlias != nil }
+    private var statusColor: Color {
+        switch host.status {
+        case "approved": FlowColor.success
+        case "config_changed": FlowColor.warning
+        case "unresolved": FlowColor.danger
+        default: FlowColor.signal
+        }
+    }
+
+    var body: some View {
+        PaperCard(padding: 17) {
+            HStack(spacing: 15) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12).fill(statusColor.opacity(0.1))
+                    Image(systemName: host.approved ? "server.rack" : "network")
+                        .font(.system(size: 19, weight: .medium)).foregroundStyle(statusColor)
+                }
+                .frame(width: 48, height: 48)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 8) {
+                        Text(host.alias).font(FlowType.title(14)).foregroundStyle(FlowColor.ink)
+                        HStack(spacing: 5) {
+                            StateDot(color: statusColor)
+                            Text(host.status.replacingOccurrences(of: "_", with: " ").uppercased())
+                        }
+                        .font(FlowType.label(8)).tracking(0.8).foregroundStyle(statusColor)
+                        .padding(.horizontal, 7).frame(minHeight: 21).background(statusColor.opacity(0.09)).clipShape(Capsule())
+                    }
+                    Text(host.hostname.isEmpty ? "OpenSSH could not resolve this alias" : "\(host.user)@\(host.hostname):\(String(host.port))")
+                        .font(FlowType.mono(10)).foregroundStyle(FlowColor.inkMuted).lineLimit(1)
+                }
+
+                Spacer()
+
+                if host.approved {
+                    InfoPair(label: "PLATFORM", value: host.platform ?? "Remote")
+                    InfoPair(label: "NODE", value: host.hasNode == true ? "Ready" : "Missing")
+                    InfoPair(label: "GIT", value: host.hasGit == true ? "Ready" : "Missing")
+                    Button("Disconnect") {
+                        Task { await model.mutateRemote(alias: host.alias, action: "disconnect") }
+                    }
+                    .buttonStyle(FlowButtonStyle(kind: .danger))
+                    .disabled(busy)
+                } else {
+                    Text(host.status == "config_changed" ? "SSH routing changed. Verify again before use." : "Uses your existing SSH key and known-host trust.")
+                        .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted).frame(maxWidth: 210, alignment: .trailing)
+                    Button(model.remoteBusyAlias == host.alias ? "Verifying…" : "Verify host") {
+                        Task { await model.mutateRemote(alias: host.alias, action: "verify") }
+                    }
+                    .buttonStyle(FlowButtonStyle(kind: .primary))
+                    .disabled(busy || host.status == "unresolved")
+                }
+            }
+        }
+    }
+}
+
 struct ConnectionView: View {
     @EnvironmentObject private var model: AppModel
 

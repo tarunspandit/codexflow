@@ -45,6 +45,7 @@ struct RootView: View {
         case .worktrees: WorktreesView()
         case .changes: ChangesView()
         case .chats: ChatsView()
+        case .hosts: HostsView()
         case .connection: ConnectionView()
         case .policy: PolicyView()
         }
@@ -68,8 +69,9 @@ private struct NavigationRail: View {
                 .padding(.horizontal, 21)
                 .padding(.bottom, 9)
 
-            VStack(spacing: 4) {
-                ForEach(AppSection.allCases) { section in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 4) {
+                    ForEach(AppSection.allCases) { section in
                     Button {
                         model.section = section
                     } label: {
@@ -105,11 +107,12 @@ private struct NavigationRail: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(section.title)
+                    }
                 }
+                .padding(.horizontal, 8)
             }
-            .padding(.horizontal, 8)
-
-            Spacer(minLength: 21)
+            .frame(maxHeight: .infinity)
+            .padding(.bottom, 14)
 
             VStack(alignment: .leading, spacing: 13) {
                 HStack(spacing: 9) {

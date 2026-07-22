@@ -20,6 +20,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var environmentBusyAction: String?
     @Published private(set) var changes: ChangesResponse?
     @Published private(set) var changesBusy = false
+    @Published private(set) var remotes: RemoteConnectionsResponse?
+    @Published private(set) var remoteBusyAlias: String?
 
     private let fileManager = FileManager.default
     private let session: URLSession
@@ -94,6 +96,7 @@ final class AppModel: ObservableObject {
             overview = fixture.overview
             profile = fixture.profile
             changes = fixture.changes
+            remotes = fixture.remotes
             if let initialSection = fixture.initialSection, let fixtureSection = AppSection(rawValue: initialSection) {
                 section = fixtureSection
             }
@@ -141,6 +144,7 @@ final class AppModel: ObservableObject {
             overview = nil
             profile = nil
             changes = nil
+            remotes = nil
             if state != .starting && state != .stopping { state = .offline }
             return
         }
@@ -151,10 +155,12 @@ final class AppModel: ObservableObject {
             async let nextProfile: ProfileResponse = request(runtime: runtime, path: "/admin/profile")
             overview = try await nextOverview
             profile = try await nextProfile
+            remotes = try? await request(runtime: runtime, path: "/admin/remotes")
             state = .ready
         } catch {
             overview = nil
             profile = nil
+            remotes = nil
             if state != .starting && state != .stopping {
                 state = .degraded(error.localizedDescription)
             }
@@ -529,6 +535,29 @@ final class AppModel: ObservableObject {
             changes = response
             notice = response.message
             await refresh(forceProjectRefresh: false)
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func refreshRemotes() async {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, remoteBusyAlias == nil else { return }
+        do {
+            remotes = try await request(runtime: runtime, path: "/admin/remotes")
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func mutateRemote(alias: String, action: String) async {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, remoteBusyAlias == nil else { return }
+        remoteBusyAlias = alias
+        defer { remoteBusyAlias = nil }
+        do {
+            let payload = try JSONEncoder().encode(RemoteConnectionCommand(action: action, alias: alias))
+            let response: RemoteConnectionsResponse = try await request(runtime: runtime, path: "/admin/remotes", method: "POST", body: payload)
+            remotes = response
+            notice = response.message
         } catch {
             notice = error.localizedDescription
         }
