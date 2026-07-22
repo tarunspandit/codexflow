@@ -58,7 +58,18 @@ const token = 'native-browser-smoke-token';
 const brokerBase = `http://127.0.0.1:${brokerPort}`;
 const authHeaders = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
 const manualAnnotationWaitMs = Math.max(0, Math.min(180_000, Number(process.env.CODEXFLOW_NATIVE_ANNOTATION_WAIT_MS ?? 0) || 0));
+const manualDiagnosticsWaitMs = Math.max(0, Math.min(180_000, Number(process.env.CODEXFLOW_NATIVE_DIAGNOSTICS_WAIT_MS ?? 0) || 0));
 const pageServer = http.createServer((request, response) => {
+  if (request.url?.startsWith('/fixture.js')) {
+    response.writeHead(200, { 'content-type': 'application/javascript; charset=utf-8' });
+    response.end("console.info('fixture source loaded')");
+    return;
+  }
+  if (request.url?.startsWith('/api')) {
+    response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+    response.end('{"ok":true}');
+    return;
+  }
   if (request.url === '/download') {
     response.writeHead(200, { 'content-type': 'application/octet-stream', 'content-disposition': 'attachment; filename="blocked.bin"' });
     response.end('blocked');
@@ -66,6 +77,8 @@ const pageServer = http.createServer((request, response) => {
   }
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
   response.end(`<!doctype html><meta charset="utf-8"><title>Browser parity fixture</title>
+    <script src="/fixture.js?token=never-expose-this"></script>
+    <script>console.warn('fixture warning'); fetch('/api?token=never-expose-this')</script>
     <main><h1 id="state">Ready</h1>
     <button id="run" onclick="document.querySelector('#state').textContent='Ran once'; this.textContent='Ran once'">Run example</button>
     <input id="note" aria-label="Project note" value="">
@@ -134,6 +147,20 @@ try {
   const password = observed.structuredContent.elements.find((element) => element.type === 'password');
   assert.ok(button && note && password, 'native DOM snapshot must expose stable semantic targets');
   assert.equal(password.text, '', 'native DOM snapshots must redact password values');
+
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  const diagnostics = await client.callTool({
+    name: 'browser_use', arguments: { ...common, action: 'diagnostics', browser_session_id: browserSessionId }
+  });
+  assert.notEqual(diagnostics.isError, true, diagnostics.content?.find((item) => item.type === 'text')?.text ?? 'native diagnostics failed');
+  assert.ok(diagnostics.structuredContent.console.some((entry) => /fixture warning/.test(entry.message)), 'native console capture must include page warnings');
+  assert.ok(diagnostics.structuredContent.network.some((entry) => entry.url.endsWith('/api')), 'native resource timing must include fetches');
+  assert.ok(diagnostics.structuredContent.sources.some((entry) => entry.kind === 'script' && entry.url.endsWith('/fixture.js')), 'native source inventory must include scripts');
+  assert.doesNotMatch(JSON.stringify(diagnostics.structuredContent), /never-expose-this|\?token=/, 'diagnostics must strip queries and secrets');
+  if (manualDiagnosticsWaitMs > 0) {
+    console.log(`MANUAL_DIAGNOSTICS_READY ${browserSessionId}`);
+    await new Promise((resolve) => setTimeout(resolve, manualDiagnosticsWaitMs));
+  }
 
   let commentId;
   if (manualAnnotationWaitMs > 0) {
@@ -217,7 +244,7 @@ try {
   const closed = await client.callTool({ name: 'browser_use', arguments: { ...common, action: 'close', browser_session_id: browserSessionId } });
   assert.equal(closed.structuredContent.status, 'closed');
 
-  console.log('✓ real native WebKit open, screenshot, semantic DOM, route-private comments, confirmation, action, input, redaction, and close pass');
+  console.log('✓ real native WebKit open, screenshot, semantic DOM, route-private comments and diagnostics, confirmation, action, input, redaction, and close pass');
 } catch (error) {
   failure = error;
   throw error;

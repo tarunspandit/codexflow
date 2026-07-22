@@ -27,6 +27,9 @@ interface BrowserComment {
   id: string; routeId: string; sessionId: string; url: string; selector: string; target: string; note: string;
   route_display: string; created_at: string;
 }
+interface BrowserConsoleEntry { at: string; level: string; message: string; source?: string; line?: number }
+interface BrowserNetworkEntry { url: string; kind: string; status?: number; duration_ms: number; transfer_bytes?: number }
+interface BrowserSourceEntry { url: string; kind: string }
 interface BrowserCommand {
   id: string; routeId: string; createdAt: number; leaseUntil: number; payload: Record<string, unknown>;
   resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void; timer: NodeJS.Timeout;
@@ -38,6 +41,7 @@ const SNAPSHOT_TTL_MS = 90_000;
 const COMMAND_TTL_MS = 30_000;
 const MAX_ACTIVITY = 100;
 const MAX_COMMENTS_PER_SESSION = 50;
+const MAX_DIAGNOSTIC_ENTRIES = 100;
 
 function statePath(): string { return path.join(codexFlowHome(), "browser-use.json"); }
 function opaque(prefix: string): string { return `${prefix}_${randomBytes(8).toString("hex")}`; }
@@ -68,6 +72,62 @@ function parseTarget(raw: string): { url: string; origin: string } {
 
 function cleanHref(raw: string): string | undefined {
   try { return parseTarget(raw).url.slice(0, 1000); } catch { return undefined; }
+}
+
+function cleanDiagnosticUrl(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || !raw || raw.length > 4096) return undefined;
+  try {
+    const parsed = new URL(raw);
+    if (!["http:", "https:"].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) return undefined;
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.href.slice(0, 1000);
+  } catch { return undefined; }
+}
+
+function cleanDiagnostics(value: Record<string, unknown>): {
+  captured_at: string; console: BrowserConsoleEntry[]; network: BrowserNetworkEntry[]; sources: BrowserSourceEntry[];
+} {
+  const consoleEntries = Array.isArray(value.console) ? value.console : [];
+  const networkEntries = Array.isArray(value.network) ? value.network : [];
+  const sourceEntries = Array.isArray(value.sources) ? value.sources : [];
+  const cleanConsole = consoleEntries.flatMap((raw): BrowserConsoleEntry[] => {
+    if (!raw || typeof raw !== "object") return [];
+    const item = raw as Record<string, unknown>;
+    const rawMessage = typeof item.message === "string" ? item.message.slice(0, 1000) : "";
+    if (!rawMessage) return [];
+    const source = cleanDiagnosticUrl(item.source);
+    const line = Number.isInteger(item.line) && Number(item.line) >= 0 && Number(item.line) <= 10_000_000 ? Number(item.line) : undefined;
+    return [{
+      at: typeof item.at === "string" && !Number.isNaN(Date.parse(item.at)) ? item.at : nowIso(),
+      level: ["debug", "info", "log", "warn", "error"].includes(String(item.level)) ? String(item.level) : "log",
+      message: hasSecretValue(rawMessage) || /(?:token|secret|password|credential|api[_-]?key)\s*[:=]\s*\S{4,}/i.test(rawMessage)
+        ? "[redacted potentially sensitive console message]" : redactSensitiveText(rawMessage),
+      ...(source ? { source } : {}), ...(line !== undefined ? { line } : {})
+    }];
+  }).slice(-MAX_DIAGNOSTIC_ENTRIES);
+  const cleanNetwork = networkEntries.flatMap((raw): BrowserNetworkEntry[] => {
+    if (!raw || typeof raw !== "object") return [];
+    const item = raw as Record<string, unknown>;
+    const url = cleanDiagnosticUrl(item.url);
+    if (!url) return [];
+    const status = Number.isInteger(item.status) && Number(item.status) >= 0 && Number(item.status) <= 599 ? Number(item.status) : undefined;
+    const duration = Number.isFinite(Number(item.duration_ms)) ? Math.max(0, Math.min(600_000, Math.round(Number(item.duration_ms)))) : 0;
+    const transfer = Number.isFinite(Number(item.transfer_bytes)) ? Math.max(0, Math.min(100_000_000, Math.round(Number(item.transfer_bytes)))) : undefined;
+    return [{
+      url, kind: String(item.kind ?? "resource").replace(/[^a-z0-9_.-]/gi, "").slice(0, 40) || "resource",
+      ...(status !== undefined ? { status } : {}), duration_ms: duration,
+      ...(transfer !== undefined ? { transfer_bytes: transfer } : {})
+    }];
+  }).slice(-MAX_DIAGNOSTIC_ENTRIES);
+  const cleanSources = sourceEntries.flatMap((raw): BrowserSourceEntry[] => {
+    if (!raw || typeof raw !== "object") return [];
+    const item = raw as Record<string, unknown>;
+    const url = cleanDiagnosticUrl(item.url);
+    if (!url) return [];
+    return [{ url, kind: ["document", "script", "stylesheet"].includes(String(item.kind)) ? String(item.kind) : "resource" }];
+  }).slice(0, MAX_DIAGNOSTIC_ENTRIES);
+  return { captured_at: nowIso(), console: cleanConsole, network: cleanNetwork, sources: cleanSources };
 }
 
 function readStore(): BrowserStore {
@@ -329,6 +389,16 @@ export class BrowserUseManager {
       title: session.title, elements, comments: this.routeComments(routeId, session.id),
       screenshot_base64: String(result.screenshot_base64 ?? "")
     };
+  }
+
+  async diagnostics(routeId: string, sessionId: string): Promise<Record<string, unknown>> {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.routeId !== routeId) throw new CodexFlowError("That browser session is missing or belongs to another chat.");
+    if (!this.allowed(routeId, session.origin)) throw new CodexFlowError("Browser access was revoked. Request this origin again.");
+    const result = await this.dispatch(routeId, { action: "diagnostics", session_id: session.id, allowed_origins: this.allowedOrigins(routeId) });
+    const diagnostics = cleanDiagnostics(result);
+    this.record(routeId, session.origin, "diagnostics", "ok");
+    return { status: "captured", session_id: session.id, origin: session.origin, ...diagnostics };
   }
 
   async act(routeId: string, options: {

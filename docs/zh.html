@@ -82,7 +82,7 @@
             </div>
           </div>
         </div>
-        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.44.0</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
+        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.45.0</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
       </section>
 
       <section class="system section-pad" id="system" aria-labelledby="system-title">
@@ -189,7 +189,7 @@
             <article class="reveal"><span>09</span><div><p class="micro-label">定时</p><h3>重复任务始终回到正确项目。</h3></div><p>为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。</p><small>CHATGPT 原生</small></article>
             <article class="reveal"><span>10</span><div><p class="micro-label">远程</p><h3>同一个 picker，也能连接另一台机器。</h3></div><p>批准命名 OpenSSH host 后，即可在独立路由中使用持久终端、Codex 环境、项目 skills、仓库分析、受管 worktrees、受保护交接、文件编辑、Bash 与 Git review；远程端不会调用 Codex。</p><small>远程工作区已上线</small></article>
             <article class="reveal"><span>11</span><div><p class="micro-label">操作</p><h3>视觉操作仍然先征求同意。</h3></div><p>从聊天请求一个已签名的原生应用，在 Mac 上批准，查看最新窗口快照，并在本机确认每个敏感的元素级操作。</p><small>COMPUTER USE / 已授权</small></article>
-            <article class="reveal"><span>12</span><div><p class="micro-label">浏览</p><h3>和 Web chat 一起审查真实页面。</h3></div><p>批准一个网站 origin 后，可在可见的临时 WebKit tab 中检查与操作语义 DOM，并选择准确元素留下仅该 route 可见的评论。跨 origin 跳转、下载、凭据与敏感操作会被拒绝或要求本机确认。</p><small>WEBKIT / ORIGIN 范围</small></article>
+            <article class="reveal"><span>12</span><div><p class="micro-label">浏览</p><h3>和 Web chat 一起审查与调试真实页面。</h3></div><p>批准一个网站 origin 后，可检查语义 DOM、受限 console/resource/source diagnostics，并选择准确元素留下仅该 route 可见的评论。跨 origin 跳转、下载、凭据、payload body 与敏感操作会被拒绝或要求本机确认。</p><small>WEBKIT / ROUTE 隔离</small></article>
           </div>
         </div>
       </section>
@@ -204,7 +204,7 @@
             <li><span>04</span><div><strong>受保护写入与终端</strong><p>安全默认值一直生效，直到你明确扩大权限。</p></div></li>
             <li><span>05</span><div><strong>冲突感知 Worktrees</strong><p>交接前会验证两个 checkout，避免覆盖独立改动。</p></div></li>
             <li><span>06</span><div><strong>受限 SSH 项目路由</strong><p>只接受具体 alias 与既有 host-key trust；每次调用都会重新检查目标、项目 root、blocked paths、symlink 与策略。</p></div></li>
-            <li><span>07</span><div><strong>临时浏览器隔离</strong><p>每个 tab 使用非持久 WebKit profile；重要 DOM 操作绑定最新快照，准确元素评论只保存在内存中并仅对所属聊天 route 可见。</p></div></li>
+            <li><span>07</span><div><strong>临时浏览器隔离</strong><p>每个 tab 使用非持久 WebKit profile；重要操作绑定最新快照，准确元素评论与移除 query 的 console/resource/source diagnostics 保持受限且仅对所属 route 可见。</p></div></li>
           </ol>
         </div>
       </section>

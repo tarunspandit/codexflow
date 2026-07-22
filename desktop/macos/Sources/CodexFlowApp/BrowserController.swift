@@ -9,6 +9,37 @@ struct BrowserAnnotationTarget: Equatable {
     let target: String
 }
 
+struct BrowserConsoleDiagnostic: Identifiable, Equatable {
+    let at: String
+    let level: String
+    let message: String
+    let source: String?
+    let line: Int?
+    var id: String { "\(at):\(level):\(message):\(line ?? 0)" }
+}
+
+struct BrowserNetworkDiagnostic: Identifiable, Equatable {
+    let url: String
+    let kind: String
+    let status: Int?
+    let durationMS: Int
+    let transferBytes: Int?
+    var id: String { "\(kind):\(url):\(durationMS):\(status ?? 0)" }
+}
+
+struct BrowserSourceDiagnostic: Identifiable, Equatable {
+    let url: String
+    let kind: String
+    var id: String { "\(kind):\(url)" }
+}
+
+struct BrowserDiagnosticSnapshot: Equatable {
+    let capturedAt: String
+    let console: [BrowserConsoleDiagnostic]
+    let network: [BrowserNetworkDiagnostic]
+    let sources: [BrowserSourceDiagnostic]
+}
+
 private final class WeakBrowserMessageHandler: NSObject, WKScriptMessageHandler {
     weak var delegate: WKScriptMessageHandler?
     init(delegate: WKScriptMessageHandler) { self.delegate = delegate }
@@ -23,6 +54,9 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
     @Published private(set) var revision = 0
     @Published private(set) var annotationMode = false
     @Published private(set) var annotationTarget: BrowserAnnotationTarget?
+    @Published private(set) var diagnosticsBySession: [String: BrowserDiagnosticSnapshot] = [:]
+    @Published private(set) var diagnosticsBusy = false
+    @Published private(set) var diagnosticsError: String?
 
     private struct Session {
         let id: String
@@ -77,6 +111,25 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
         return sessions[sessionID]?.webView
     }
 
+    var selectedDiagnostics: BrowserDiagnosticSnapshot? {
+        guard let selectedSessionID else { return nil }
+        return diagnosticsBySession[selectedSessionID]
+    }
+
+    func refreshSelectedDiagnostics() async {
+        guard let selectedSessionID, let webView = sessions[selectedSessionID]?.webView, !diagnosticsBusy else { return }
+        diagnosticsBusy = true
+        diagnosticsError = nil
+        defer { diagnosticsBusy = false }
+        do {
+            let result = try await collectDiagnostics(webView: webView)
+            diagnosticsBySession[selectedSessionID] = diagnosticSnapshot(from: result)
+            revision &+= 1
+        } catch {
+            diagnosticsError = error.localizedDescription
+        }
+    }
+
     func reconcile(sessionIDs: Set<String>) {
         let removed = Set(sessions.keys).subtracting(sessionIDs)
         guard !removed.isEmpty else { return }
@@ -86,6 +139,7 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
             session.webView.navigationDelegate = nil
             session.webView.uiDelegate = nil
             session.webView.configuration.userContentController.removeScriptMessageHandler(forName: "codexflowAnnotation")
+            diagnosticsBySession.removeValue(forKey: id)
         }
         if let selectedSessionID, removed.contains(selectedSessionID) {
             self.selectedSessionID = sessions.keys.sorted().first
@@ -132,6 +186,14 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
                 operation: operation, value: command.value, key: command.key
             )
             return ["operation": operation, "result": result]
+        case "diagnostics":
+            guard let session = sessions[command.sessionId] else { throw BrowserExecutionError.message("The ephemeral browser session is no longer open.") }
+            updateOrigins(command.allowedOrigins, sessionID: command.sessionId)
+            if session.webView.isLoading { try await waitForLoad(session.webView, sessionID: command.sessionId) }
+            let result = try await collectDiagnostics(webView: session.webView)
+            diagnosticsBySession[command.sessionId] = diagnosticSnapshot(from: result)
+            revision &+= 1
+            return result
         case "close":
             if let session = sessions.removeValue(forKey: command.sessionId) {
                 session.webView.stopLoading()
@@ -139,6 +201,7 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
                 session.webView.uiDelegate = nil
                 session.webView.configuration.userContentController.removeScriptMessageHandler(forName: "codexflowAnnotation")
             }
+            diagnosticsBySession.removeValue(forKey: command.sessionId)
             if selectedSessionID == command.sessionId {
                 selectedSessionID = sessions.keys.sorted().first
                 annotationMode = false
@@ -158,6 +221,9 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.mediaTypesRequiringUserActionForPlayback = .all
         configuration.applicationNameForUserAgent = "CodexFlow Ephemeral Browser"
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: Self.diagnosticsBootstrapScript, injectionTime: .atDocumentStart, forMainFrameOnly: true
+        ))
         configuration.userContentController.add(WeakBrowserMessageHandler(delegate: self), name: "codexflowAnnotation")
         let view = WKWebView(frame: CGRect(x: 0, y: 0, width: 1280, height: 760), configuration: configuration)
         view.navigationDelegate = self
@@ -257,6 +323,145 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
     private func pageIdentity(_ webView: WKWebView) -> [String: Any] {
         ["url": webView.url?.absoluteString ?? "about:blank", "title": webView.title ?? webView.url?.host ?? "Untitled"]
     }
+
+    private func collectDiagnostics(webView: WKWebView) async throws -> [String: Any] {
+        let script = """
+        (() => {
+          const cleanURL = (raw) => {
+            try {
+              const value = new URL(String(raw || ''), document.baseURI);
+              if (value.protocol !== 'http:' && value.protocol !== 'https:') return null;
+              return `${value.origin}${value.pathname}`.slice(0, 1000);
+            } catch { return null; }
+          };
+          const number = (value, max) => Number.isFinite(Number(value)) ? Math.max(0, Math.min(max, Math.round(Number(value)))) : 0;
+          const state = window.__codexflowDiagnostics;
+          const consoleEntries = Array.isArray(state?.console) ? state.console.slice(-100) : [];
+          const timing = [...performance.getEntriesByType('navigation').slice(-1), ...performance.getEntriesByType('resource').slice(-99)];
+          const network = timing.map((entry) => {
+            const url = cleanURL(entry.name); if (!url) return null;
+            const status = number(entry.responseStatus, 599);
+            return {
+              url, kind: String(entry.initiatorType || entry.entryType || 'resource').slice(0, 40),
+              status: status || undefined, duration_ms: number(entry.duration, 600000),
+              transfer_bytes: number(entry.transferSize, 100000000) || undefined
+            };
+          }).filter(Boolean);
+          const sources = [];
+          const seen = new Set();
+          const addSource = (raw, kind) => {
+            const url = cleanURL(raw); if (!url) return;
+            const key = `${kind}|${url}`; if (seen.has(key)) return;
+            seen.add(key); sources.push({url, kind});
+          };
+          addSource(location.href, 'document');
+          document.querySelectorAll('script[src]').forEach(node => addSource(node.src, 'script'));
+          document.querySelectorAll('link[rel~="stylesheet"][href]').forEach(node => addSource(node.href, 'stylesheet'));
+          return {captured_at:new Date().toISOString(), console:consoleEntries, network, sources:sources.slice(0,100)};
+        })()
+        """
+        let raw = try await evaluate(webView, script: script)
+        let result = raw as? [String: Any] ?? [:]
+        let snapshot = diagnosticSnapshot(from: result)
+        return [
+            "captured_at": snapshot.capturedAt,
+            "console": snapshot.console.map { entry in
+                var value: [String: Any] = ["at": entry.at, "level": entry.level, "message": entry.message]
+                if let source = entry.source { value["source"] = source }
+                if let line = entry.line { value["line"] = line }
+                return value
+            },
+            "network": snapshot.network.map { entry in
+                var value: [String: Any] = ["url": entry.url, "kind": entry.kind, "duration_ms": entry.durationMS]
+                if let status = entry.status { value["status"] = status }
+                if let transferBytes = entry.transferBytes { value["transfer_bytes"] = transferBytes }
+                return value
+            },
+            "sources": snapshot.sources.map { ["url": $0.url, "kind": $0.kind] }
+        ]
+    }
+
+    private func diagnosticSnapshot(from result: [String: Any]) -> BrowserDiagnosticSnapshot {
+        let console = (result["console"] as? [[String: Any]] ?? []).suffix(100).compactMap { item -> BrowserConsoleDiagnostic? in
+            guard let rawMessage = item["message"] as? String, !rawMessage.isEmpty else { return nil }
+            return BrowserConsoleDiagnostic(
+                at: (item["at"] as? String) ?? ISO8601DateFormatter().string(from: Date()),
+                level: ["debug", "info", "log", "warn", "error"].contains(item["level"] as? String ?? "") ? (item["level"] as? String ?? "log") : "log",
+                message: Self.sanitizeDiagnosticText(rawMessage), source: Self.safeDiagnosticURL(item["source"] as? String),
+                line: (item["line"] as? NSNumber)?.intValue
+            )
+        }
+        let network = (result["network"] as? [[String: Any]] ?? []).suffix(100).compactMap { item -> BrowserNetworkDiagnostic? in
+            guard let url = Self.safeDiagnosticURL(item["url"] as? String) else { return nil }
+            let status = (item["status"] as? NSNumber)?.intValue
+            return BrowserNetworkDiagnostic(
+                url: url, kind: String((item["kind"] as? String ?? "resource").prefix(40)),
+                status: status.map { max(0, min(599, $0)) },
+                durationMS: max(0, min(600_000, (item["duration_ms"] as? NSNumber)?.intValue ?? 0)),
+                transferBytes: (item["transfer_bytes"] as? NSNumber).map { max(0, min(100_000_000, $0.intValue)) }
+            )
+        }
+        let sources = (result["sources"] as? [[String: Any]] ?? []).prefix(100).compactMap { item -> BrowserSourceDiagnostic? in
+            guard let url = Self.safeDiagnosticURL(item["url"] as? String) else { return nil }
+            let rawKind = item["kind"] as? String ?? "resource"
+            return BrowserSourceDiagnostic(url: url, kind: ["document", "script", "stylesheet"].contains(rawKind) ? rawKind : "resource")
+        }
+        return BrowserDiagnosticSnapshot(
+            capturedAt: (result["captured_at"] as? String) ?? ISO8601DateFormatter().string(from: Date()),
+            console: console, network: network, sources: sources
+        )
+    }
+
+    private static func safeDiagnosticURL(_ raw: String?) -> String? {
+        guard let raw, var components = URLComponents(string: raw), let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme), components.host != nil else { return nil }
+        components.user = nil; components.password = nil; components.query = nil; components.fragment = nil
+        return components.url?.absoluteString.prefix(1000).description
+    }
+
+    private static func sanitizeDiagnosticText(_ raw: String) -> String {
+        var value = String(raw.prefix(1000))
+        let patterns = [
+            #"(?i)(?:token|secret|password|credential|api[_-]?key)\s*[:=]\s*[^\s,;]+"#,
+            #"(?i)\b(?:sk|ghp|github_pat|xox[baprs])[-_][A-Za-z0-9_-]{16,}\b"#
+        ]
+        for pattern in patterns {
+            value = value.replacingOccurrences(of: pattern, with: "[redacted]", options: .regularExpression)
+        }
+        return value
+    }
+
+    private static let diagnosticsBootstrapScript = """
+    (() => {
+      if (window.__codexflowDiagnostics) return;
+      const state = {console:[]};
+      window.__codexflowDiagnostics = state;
+      const format = (value) => {
+        try {
+          if (typeof value === 'string') return value.slice(0, 500);
+          if (value === null || value === undefined || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value).slice(0, 500);
+          if (value instanceof Error) return `${value.name}: ${value.message}`.slice(0, 500);
+          return Object.prototype.toString.call(value).slice(0, 120);
+        } catch { return '[unavailable value]'; }
+      };
+      const capture = (level, values, source, line) => {
+        state.console.push({
+          at:new Date().toISOString(), level, message:Array.from(values || []).map(format).join(' ').slice(0,1000),
+          source:source ? String(source).slice(0,1000) : undefined,
+          line:Number.isFinite(Number(line)) ? Number(line) : undefined
+        });
+        if (state.console.length > 100) state.console.splice(0, state.console.length - 100);
+      };
+      ['debug','info','log','warn','error'].forEach((level) => {
+        try {
+          const original = console[level];
+          console[level] = function(...values) { capture(level, values); return Reflect.apply(original, this, values); };
+        } catch {}
+      });
+      addEventListener('error', event => capture('error', [event.message || 'Window error'], event.filename, event.lineno));
+      addEventListener('unhandledrejection', event => capture('error', ['Unhandled promise rejection', event.reason]));
+    })();
+    """
 
     private func observe(webView: WKWebView, nativeSnapshot: String) async throws -> [[String: Any]] {
         let snapshotLiteral = try Self.jsonLiteral(nativeSnapshot)
@@ -422,6 +627,7 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
         guard let key = sessions.first(where: { $0.value.webView === webView })?.key, var session = sessions[key] else { return }
         session.lastError = nil
         sessions[key] = session
+        diagnosticsBySession.removeValue(forKey: key)
         if key == selectedSessionID { annotationTarget = nil }
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

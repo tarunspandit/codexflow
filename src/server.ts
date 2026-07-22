@@ -1495,10 +1495,10 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     {
       title: "Browser",
       description:
-        "Use CodexFlow's dedicated ephemeral WebKit browser after the user approves each website origin in the native Browser view. Observe before every DOM-targeted action. Read route-private visual comments that the user leaves on exact page elements. Sensitive actions require a separate native confirmation. Chrome, Safari, downloads, extensions, account/security settings, browser permissions, credentials, and arbitrary coordinates are outside this tool.",
+        "Use CodexFlow's dedicated ephemeral WebKit browser after the user approves each website origin in the native Browser view. Observe before every DOM-targeted action. Read route-private visual comments and bounded console, network, and source diagnostics from that tab. Sensitive actions require a separate native confirmation. Chrome, Safari, downloads, extensions, account/security settings, browser permissions, credentials, response bodies, and arbitrary coordinates are outside this tool.",
       inputSchema: {
         route_id: ROUTE_ID_INPUT,
-        action: z.enum(["status", "request_host", "open", "observe", "comments", "act", "close"]),
+        action: z.enum(["status", "request_host", "open", "observe", "comments", "diagnostics", "act", "close"]),
         url: z.string().trim().min(1).max(4096).optional().describe("Complete HTTP(S) URL for request_host or open. Origins must be approved before opening."),
         reason: z.string().trim().min(1).max(500).optional().describe("Narrow user-facing reason shown with a host access request."),
         browser_session_id: z.string().regex(/^but_[a-f0-9]{16}$/).optional().describe("Ephemeral browser session returned by open."),
@@ -1572,6 +1572,22 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
           ],
           structuredContent: redactStructured(structured)
         };
+      }
+      if (args.action === "diagnostics") {
+        const result = await browserUse.diagnostics(routeId, String(args.browser_session_id ?? ""));
+        const consoleEntries = Array.isArray(result.console) ? result.console as Array<Record<string, unknown>> : [];
+        const networkEntries = Array.isArray(result.network) ? result.network as Array<Record<string, unknown>> : [];
+        const sourceEntries = Array.isArray(result.sources) ? result.sources as Array<Record<string, unknown>> : [];
+        const consoleRows = consoleEntries.map((entry) => `- [${String(entry.level).toUpperCase()}] ${entry.message}${entry.source ? ` · ${entry.source}${entry.line ? `:${entry.line}` : ""}` : ""}`);
+        const networkRows = networkEntries.map((entry) => `- ${entry.kind} · ${entry.status ?? "—"} · ${entry.duration_ms}ms · ${entry.url}`);
+        const sourceRows = sourceEntries.map((entry) => `- ${entry.kind} · ${entry.url}`);
+        return textResult([
+          "# Browser diagnostics", "",
+          "## Console", consoleRows.join("\n") || "No console entries captured.", "",
+          "## Network", networkRows.join("\n") || "No resource timing entries captured.", "",
+          "## Sources", sourceRows.join("\n") || "No document, script, or stylesheet sources captured.", "",
+          "Diagnostics are memory-only, route-private, query-free, and bounded. Response bodies, cookies, storage, headers, credentials, and source contents are not exposed."
+        ].join("\n"), result);
       }
       if (args.action === "close") {
         const result = await browserUse.close(routeId, String(args.browser_session_id ?? ""));
