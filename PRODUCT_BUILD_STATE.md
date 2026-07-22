@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-The 0.35.0 source, native-app, and public-site release is complete. It adds a first-class native Hosts workspace, concrete OpenSSH alias discovery, bounded local verification/revocation, owner-only approval fingerprints, and automatic invalidation when resolved SSH routing changes. Literal Codex desktop parity is not claimed; remote project/tool routing, Computer Use, inline comments, and per-hunk operations remain tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and live ChatGPT scheduled/two-chat acceptance remain account-authenticated release checks.
+The 0.36.0 source, native-app, and public-site release is complete. Approved OpenSSH hosts can now own saved canonical project folders that appear beside local projects in the normal ChatGPT picker. Private chat routes execute bounded file, search, edit, patch, Bash, Git, and change-review operations through an asynchronous CodexFlow-owned SSH helper without invoking Codex. Literal Codex desktop parity is not claimed; remote persistent terminals, environments, worktrees/handoff, repository analysis, workspace-skill discovery, Computer Use, inline comments, and per-hunk operations remain tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and live ChatGPT scheduled/two-chat acceptance remain account-authenticated release checks.
 
 ## Product truth
 
@@ -29,7 +29,7 @@ The 0.35.0 source, native-app, and public-site release is complete. It adds a fi
 - Codex metadata is an optional, read-only project/history source. CodexFlow never starts, resumes, or performs work through the Codex CLI.
 - Saved launch profiles persist under `~/.codexflow`; live transport sessions and activity are process-local and content-free.
 - The native application controls and observes the local broker. It does not introduce a second chat client, model backend, or execution authority.
-- SSH host approval is a local trust lifecycle only. CodexFlow does not yet route project tools to remote filesystems or shells and never installs or invokes Codex remotely.
+- SSH project routing requires a concrete locally approved alias and saved canonical folder. Every call revalidates destination and project fingerprints, root containment, symlinks, blocked paths, limits, secrets, and write/Bash policy; CodexFlow never installs or invokes Codex remotely.
 
 ## Interface residue
 
@@ -58,6 +58,7 @@ The 0.35.0 source, native-app, and public-site release is complete. It adds a fi
 | FUNC-006 | Native policy settings save through the authenticated profile API and clearly require a broker restart. | Required | Verified | Native policy editor | Tool-card policy saved, remained inactive, then became effective after native restart. |
 | FUNC-007 | Native Git review separates staged/unstaged files, renders bounded diffs, and keeps destructive actions explicit. | Required | Verified | `ChangesView`, `/admin/changes`, guarded Git workflow | HTTP, Git workflow, universal-app build, and visual fixture checks cover tracked/untracked review and policy enforcement. |
 | FUNC-008 | SSH hosts are discovered from concrete OpenSSH aliases and require explicit local approval that becomes invalid when routing changes. | Required | Verified | `remoteConnections`, `/admin/remotes`, `HostsView` | Included configs, wildcard rejection, unknown aliases, failed host-key trust, rerouting, revocation, mode-0600 persistence, authenticated API, native build, and visual states pass. |
+| FUNC-009 | Approved SSH hosts can expose saved project folders through the normal per-chat picker and route bounded coding tools without blocking other chats or invoking Codex. | Required | Verified | `remoteWorkspace`, remote route records, picker context, native Hosts project controls | Direct containment/trust/concurrency smoke plus end-to-end HTTP/MCP list/select/read/search/write/edit/Bash/Git routing pass. |
 | DATA-001 | Launch configuration and runtime records are local, restrictive, and contain no additional persisted chat content. | Required | Verified | Private desktop/runtime/profile files | Temporary-home audit confirmed mode `0600`, non-secret config, and no chat content. |
 | DATA-002 | Session/activity telemetry remains memory-only, bounded, expiring, and content-free; transport probes are not presented as user chats. | Required | Verified | `src/runtimeMonitor.ts` | Monitor and HTTP assertions distinguish routed chats, project-selection sessions, and raw connections. |
 | AUTH-001 | Native API calls authenticate with the private runtime token; public requests remain fail-closed. | Required | Verified | Native bearer client, `src/http.ts` | Live unauthorized request returned 401; native/authorized request returned 200. |
@@ -91,13 +92,14 @@ The 0.35.0 source, native-app, and public-site release is complete. It adds a fi
 
 ## Verification evidence
 
-- Root TypeScript build, the complete smoke suite, and stress suite pass for 0.35.0.
+- Root TypeScript build, the complete smoke suite, and stress suite pass for 0.36.0.
 - The dedicated project picker renders and selects a real project in an isolated browser harness without console errors; `list_projects` uses its cache-versioned resource while `select_project` is usable without an output template.
 - Runtime and HTTP regression tests confirm that multiple MCP transports sharing one private route aggregate into one GUI chat, simultaneous routes remain isolated, route-level calls/errors are accumulated correctly, and unbound discovery/picker transports stay hidden from chat telemetry.
 - The native app builds for `x86_64 arm64`, passes strict signature/plist/resource checks, launches in fixture mode, and refreshes a deliberately corrupted same-version installation.
 - A real private temporary broker was authenticated, stopped, started, policy-edited, restarted, and checked through the signed GUI; unauthorized HTTP remained 401 and the native log contained no credential.
-- npm dry-run packaging contains the complete signed 0.35.0 app and required resources in a 4.8 MB tarball; both root and website production audits report zero vulnerabilities after moving the transitive Hono Node adapter to its patched 2.x line.
-- The public website passes lint, build, and English/Chinese rendered-output tests locally. GitHub Pages and the Flow7-hosted product site both publicly serve 0.35.0.
+- npm dry-run packaging contains the complete signed 0.36.0 app, remote helper, and required resources in a 2.1 MB tarball; both root and website production audits report zero vulnerabilities.
+- The public website passes lint, build, and English/Chinese rendered-output tests locally. GitHub Pages and the Flow7-hosted product site both publicly serve 0.36.0 and the shipped remote-project copy.
+- Direct SSH-helper regression proves host/project trust invalidation, blocked-path rejection, bounded reads/writes, search/edit behavior, and genuinely concurrent remote operations. The HTTP/MCP regression proves the saved remote project appears in the ordinary picker, persists its private route, and performs file, Bash, and Git work at the intended root.
 - The Flow7 adoption checklist and Full Product Completion Contract were re-read after implementation; every local gate passes.
 - The existing public URLs remain `https://tarunspandit.github.io/codexflow/` and `https://codexflow.tarunspandit.chatgpt.site/`; both were verified after the 0.30.4 source release.
 - Pull request 14 was squash-merged to `main` at commit `9e95eb0`; the corresponding GitHub Pages deployment completed successfully.
@@ -105,6 +107,7 @@ The 0.35.0 source, native-app, and public-site release is complete. It adds a fi
 - Pull request 18 was squash-merged to `main` at commit `33a3148`; release `v0.33.0`, GitHub Pages, and Sites version 9 are live.
 - Pull request 20 was squash-merged to `main` at commit `3292e40`; release `v0.34.0`, GitHub Pages, and Sites version 10 are live.
 - Pull request 22 was squash-merged to `main` at commit `57cab07`; release `v0.35.0`, GitHub Pages, and Sites version 11 are live.
+- Pull request 24 was squash-merged to `main` at commit `b1b8a31`; release `v0.36.0`, GitHub Pages, and Sites version 12 are live. Sites version 12 uses source commit `7102556` and deployment `appgdep_6a60d24d719881919d2db4aeaf4f4dd7` completed successfully.
 - The permanent `https://codexflow.flow7.org` tunnel is reachable and correctly returns `401` for unauthenticated root and MCP requests.
 - The stale `CodexFlow Local` ChatGPT connector was uninstalled, leaving `CodexFlow` as the current connector.
 
@@ -119,4 +122,4 @@ The 0.35.0 source, native-app, and public-site release is complete. It adds a fi
 
 ## Completion record
 
-Every required ledger row remains verified. The full 0.35.0 local release matrix passes, including build, complete smoke, stress, native bundle/signature and Hosts visual checks, package dry-run, website lint/build/render tests, zero-vulnerability production audits, SSH trust-lifecycle regressions, scheduled-project prompt durability, environment/worktree interoperability, explicit tracked/untracked Git review, and concurrent-route regression coverage. Source, release, GitHub Pages, the Flow7-hosted site, and the permanent tunnel are live; npm publication and the account-authenticated ChatGPT acceptance passes remain external checks.
+Every required ledger row remains verified. The full 0.36.0 local release matrix passes, including build, complete smoke, stress, native bundle/signature and Hosts project-management visual checks, package dry-run, website lint/build/render tests, zero-vulnerability production audits, SSH trust and asynchronous remote-routing regressions, scheduled-project prompt durability, environment/worktree interoperability, explicit tracked/untracked Git review, and concurrent-route regression coverage. Source, release, GitHub Pages, the Flow7-hosted site, and the permanent tunnel are live; npm publication and the account-authenticated ChatGPT acceptance passes remain external checks.
