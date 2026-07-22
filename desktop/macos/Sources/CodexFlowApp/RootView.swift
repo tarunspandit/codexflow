@@ -44,7 +44,7 @@ struct RootView: View {
         case .environments: EnvironmentsView()
         case .worktrees: WorktreesView()
         case .changes: ChangesView()
-        case .chats: ChatsView()
+        case .chats: TasksView()
         case .hosts: HostsView()
         case .computer: ComputerView()
         case .browser: BrowserView()

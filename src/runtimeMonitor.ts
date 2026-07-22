@@ -4,6 +4,29 @@ import path from "node:path";
 
 export type RuntimeToolStatus = "ok" | "error";
 export type RuntimeSessionState = "initializing" | "active" | "closed";
+export type RuntimeTaskStatus = "planning" | "working" | "waiting" | "review" | "complete" | "cancelled";
+export type RuntimeTaskStepStatus = "pending" | "in_progress" | "completed" | "blocked";
+
+export interface RuntimeTaskStep {
+  title: string;
+  status: RuntimeTaskStepStatus;
+}
+
+export interface RuntimeTaskProgress {
+  title: string;
+  status: RuntimeTaskStatus;
+  detail?: string;
+  steps: RuntimeTaskStep[];
+  updatedAt: string;
+}
+
+export interface RuntimeTaskSnapshot {
+  title: string;
+  status: RuntimeTaskStatus;
+  detail: string | null;
+  steps: RuntimeTaskStep[];
+  updated_at: string;
+}
 
 export interface RuntimeProjectRef {
   id: string;
@@ -43,6 +66,7 @@ export interface RuntimeSessionSnapshot {
   title: string | null;
   pinned: boolean;
   archived: boolean;
+  task: RuntimeTaskSnapshot | null;
 }
 
 export interface RuntimeMonitorSnapshot {
@@ -70,6 +94,7 @@ interface RuntimeSessionRecord {
   title?: string;
   pinned: boolean;
   archived: boolean;
+  task?: RuntimeTaskProgress;
 }
 
 interface RuntimeConnectionRecord {
@@ -100,6 +125,7 @@ interface RuntimeSessionMetadata {
   title?: string;
   pinned?: boolean;
   archived?: boolean;
+  task?: RuntimeTaskProgress;
   updatedAt: string;
 }
 
@@ -117,6 +143,29 @@ function publicProject(project: RuntimeProjectRef | undefined): RuntimeProjectRe
 
 function routeSessionKey(routeId: string): string {
   return `route:${routeId}`;
+}
+
+const TASK_STATUSES = new Set<RuntimeTaskStatus>(["planning", "working", "waiting", "review", "complete", "cancelled"]);
+const TASK_STEP_STATUSES = new Set<RuntimeTaskStepStatus>(["pending", "in_progress", "completed", "blocked"]);
+
+function sanitizeTask(value: unknown): RuntimeTaskProgress | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const candidate = value as Partial<RuntimeTaskProgress>;
+  const title = typeof candidate.title === "string" ? candidate.title.trim().slice(0, 120) : "";
+  if (!title || !TASK_STATUSES.has(candidate.status as RuntimeTaskStatus) || !Array.isArray(candidate.steps)) return undefined;
+  const steps = candidate.steps.slice(0, 12).flatMap((step) => {
+    if (!step || typeof step !== "object") return [];
+    const title = typeof step.title === "string" ? step.title.trim().slice(0, 120) : "";
+    if (!title || !TASK_STEP_STATUSES.has(step.status as RuntimeTaskStepStatus)) return [];
+    return [{ title, status: step.status as RuntimeTaskStepStatus }];
+  });
+  return {
+    title,
+    status: candidate.status as RuntimeTaskStatus,
+    ...(typeof candidate.detail === "string" && candidate.detail.trim() ? { detail: candidate.detail.trim().slice(0, 280) } : {}),
+    steps,
+    updatedAt: typeof candidate.updatedAt === "string" ? candidate.updatedAt : new Date(0).toISOString()
+  };
 }
 
 export class RuntimeMonitor {
@@ -241,7 +290,14 @@ export class RuntimeMonitor {
         last_tool_status: session.lastToolStatus ?? null,
         title: session.title ?? null,
         pinned: session.pinned,
-        archived: session.archived
+        archived: session.archived,
+        task: session.task ? {
+          title: session.task.title,
+          status: session.task.status,
+          detail: session.task.detail ?? null,
+          steps: session.task.steps.map((step) => ({ ...step })),
+          updated_at: session.task.updatedAt
+        } : null
       }));
     return {
       sessions,
@@ -281,11 +337,30 @@ export class RuntimeMonitor {
       ...(session.title ? { title: session.title } : {}),
       ...(session.pinned ? { pinned: true } : {}),
       ...(session.archived ? { archived: true } : {}),
+      ...(session.task ? { task: session.task } : {}),
       updatedAt: new Date().toISOString()
     });
     this.saveMetadata();
     this.emit();
     return this.snapshot().sessions.find((candidate) => candidate.id === chatId)!;
+  }
+
+  updateRouteTask(routeId: string, task: RuntimeTaskProgress | null): RuntimeSessionSnapshot {
+    const session = this.sessions.get(routeSessionKey(routeId));
+    if (!session) throw new Error("The routed chat is not available in the runtime monitor yet.");
+    session.task = task ? sanitizeTask(task) : undefined;
+    const metadata: RuntimeSessionMetadata = {
+      ...(session.title ? { title: session.title } : {}),
+      ...(session.pinned ? { pinned: true } : {}),
+      ...(session.archived ? { archived: true } : {}),
+      ...(session.task ? { task: session.task } : {}),
+      updatedAt: new Date().toISOString()
+    };
+    if (session.title || session.pinned || session.archived || session.task) this.metadata.set(session.displayId, metadata);
+    else this.metadata.delete(session.displayId);
+    this.saveMetadata();
+    this.emit();
+    return this.snapshot().sessions.find((candidate) => candidate.id === session.displayId)!;
   }
 
   private attachSession(
@@ -312,7 +387,8 @@ export class RuntimeMonitor {
         connectionIds: new Set(),
         title: metadata?.title,
         pinned: Boolean(metadata?.pinned),
-        archived: Boolean(metadata?.archived)
+        archived: Boolean(metadata?.archived),
+        task: metadata?.task
       };
       this.sessions.set(key, session);
     }
@@ -408,10 +484,12 @@ export class RuntimeMonitor {
       const parsed = JSON.parse(fs.readFileSync(this.metadataPath, "utf8")) as { sessions?: Record<string, RuntimeSessionMetadata> };
       for (const [id, value] of Object.entries(parsed.sessions ?? {})) {
         if (!/^chat-[0-9a-f]{8}$/.test(id) || !value || typeof value !== "object") continue;
+        const task = sanitizeTask(value.task);
         this.metadata.set(id, {
           ...(typeof value.title === "string" && value.title.trim() ? { title: value.title.trim().slice(0, 80) } : {}),
           ...(value.pinned === true ? { pinned: true } : {}),
           ...(value.archived === true ? { archived: true } : {}),
+          ...(task ? { task } : {}),
           updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date(0).toISOString()
         });
       }

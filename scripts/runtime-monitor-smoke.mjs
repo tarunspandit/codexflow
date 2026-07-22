@@ -94,11 +94,23 @@ const lifecycleHandle = lifecycle.beginSession();
 lifecycleHandle.bindTransport('99999999-9999-4999-8999-999999999999');
 lifecycleHandle.selectProject(projectA, routeA);
 const lifecycleId = lifecycle.snapshot().sessions[0].id;
+lifecycle.updateRouteTask(routeA, {
+  title: 'Ship task progress',
+  status: 'working',
+  detail: 'Running focused verification.',
+  steps: [
+    { title: 'Implement', status: 'completed' },
+    { title: 'Verify', status: 'in_progress' }
+  ],
+  updatedAt: '2026-07-23T00:00:00.000Z'
+});
 lifecycle.updateSession(lifecycleId, { title: 'Release audit', pinned: true, archived: true });
 const labeled = lifecycle.snapshot().sessions[0];
 assert.equal(labeled.title, 'Release audit');
 assert.equal(labeled.pinned, true);
 assert.equal(labeled.archived, true);
+assert.equal(labeled.task?.title, 'Ship task progress');
+assert.equal(labeled.task?.steps[1]?.status, 'in_progress');
 lifecycleHandle.close();
 assert.equal(lifecycle.snapshot(Date.now() + 100).sessions.length, 1, 'pinned or archived chats should survive normal closed-session pruning');
 
@@ -110,6 +122,10 @@ const restoredSession = restored.snapshot().sessions[0];
 assert.equal(restoredSession.title, 'Release audit');
 assert.equal(restoredSession.pinned, true);
 assert.equal(restoredSession.archived, true);
+assert.equal(restoredSession.task?.status, 'working');
+assert.equal(restoredSession.task?.detail, 'Running focused verification.');
+restored.updateRouteTask(routeA, null);
+assert.equal(restored.snapshot().sessions[0].task, null, 'task progress should clear without changing chat lifecycle metadata');
 const metadataMode = (await fs.stat(metadataPath)).mode & 0o777;
 assert.equal(metadataMode, 0o600, 'chat metadata should be private to the local user');
 

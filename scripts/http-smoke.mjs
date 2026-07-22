@@ -626,7 +626,7 @@ try {
 
   const queryTools = await listTools(`${baseUrl}/mcp?codexflow_token=${encodeURIComponent(token)}`);
   const queryToolNames = toolNames(queryTools);
-  for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inventory', 'list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'tree', 'search', 'load_skill', 'git_status', 'git_diff', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
+  for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inventory', 'list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'tree', 'search', 'load_skill', 'git_status', 'git_diff', 'task_progress', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
     if (!queryToolNames.includes(expected)) {
       throw new Error(`URL-token MCP tools/list missing ${expected}; got ${queryToolNames.join(', ')}`);
     }
@@ -815,6 +815,27 @@ try {
     if (!crossed.isError || !JSON.stringify(crossed.content).includes('does not belong to this private chat route')) {
       throw new Error(`route A accepted route B's workspace id: ${JSON.stringify(crossed)}`);
     }
+    const progress = await callTool(bindingClients[4], 'task_progress', {
+      route_id: routeA,
+      title: 'Prepare alternate release',
+      status: 'working',
+      detail: 'Running focused verification.',
+      steps: [
+        { title: 'Inspect', status: 'completed' },
+        { title: 'Verify', status: 'in_progress' }
+      ]
+    });
+    if (progress.isError || progress.structuredContent?.task?.steps?.[1]?.status !== 'in_progress') {
+      throw new Error(`task_progress did not return the bounded task snapshot: ${JSON.stringify(progress)}`);
+    }
+    const fakeSecret = 'ghp_abcdefghijklmnopqrstuvwxyz';
+    const rejectedProgress = await bindingClients[4].callTool({
+      name: 'task_progress',
+      arguments: { route_id: routeA, title: `Do not persist ${fakeSecret}`, status: 'waiting' }
+    });
+    if (!rejectedProgress.isError || !JSON.stringify(rejectedProgress.content).includes('appear to contain a credential')) {
+      throw new Error(`task_progress did not refuse secret-looking persisted text: ${JSON.stringify(rejectedProgress)}`);
+    }
 
     const routeProfileId = createHash('sha256').update(await fs.realpath(root)).digest('hex').slice(0, 24);
     const routeFile = JSON.parse(await fs.readFile(path.join(profileHome, 'routes', `${routeProfileId}.json`), 'utf8'));
@@ -837,16 +858,18 @@ try {
       newRouteSessions.length !== 2 ||
       !routedRoots.has(alternateRoot) ||
       !routedRoots.has(primaryRoot) ||
-      alternateRouteSession?.tool_calls !== 4 ||
-      alternateRouteSession?.errors !== 1 ||
+      alternateRouteSession?.tool_calls !== 6 ||
+      alternateRouteSession?.errors !== 2 ||
       primaryRouteSession?.tool_calls !== 3 ||
       !liveOverview.activity?.some?.((event) => event.tool === 'read') ||
+      alternateRouteSession?.task?.title !== 'Prepare alternate release' ||
+      alternateRouteSession?.task?.steps?.[1]?.status !== 'in_progress' ||
       !liveOverview.sessions?.every?.((session) => /^chat-[0-9a-f]{8}$/.test(session.id))
     ) {
       throw new Error(`live companion telemetry did not aggregate independent route chats: ${JSON.stringify(liveOverview)}`);
     }
     const liveOverviewText = JSON.stringify(liveOverview);
-    for (const forbidden of [token, 'alternate-chat-binding', 'default-chat-binding', ...bindingTransports.map((transport) => transport.sessionId)]) {
+    for (const forbidden of [token, fakeSecret, 'alternate-chat-binding', 'default-chat-binding', ...bindingTransports.map((transport) => transport.sessionId)]) {
       if (forbidden && liveOverviewText.includes(forbidden)) {
         throw new Error(`live companion telemetry retained forbidden content: ${forbidden}`);
       }
@@ -868,7 +891,7 @@ try {
     }
     const lifecycleOverview = await (await fetch(`${baseUrl}/api/overview?codexflow_token=${encodeURIComponent(token)}`)).json();
     const updatedChat = lifecycleOverview.sessions?.find?.((session) => session.id === alternateRouteSession.id);
-    if (updatedChat?.title !== 'Alternate release work' || updatedChat?.pinned !== true || updatedChat?.archived !== true) {
+    if (updatedChat?.title !== 'Alternate release work' || updatedChat?.pinned !== true || updatedChat?.archived !== true || updatedChat?.task?.status !== 'working') {
       throw new Error(`chat lifecycle state was not reflected in overview: ${JSON.stringify(updatedChat)}`);
     }
   } finally {
