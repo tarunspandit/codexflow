@@ -130,8 +130,7 @@ private struct HeroStatusCard: View {
     private var heroDetail: String {
         if let overview = model.overview {
             let publicState = overview.broker.publicEndpoint == nil ? "local-only" : "publicly reachable through \(overview.broker.tunnel ?? "a tunnel")"
-            let pending = overview.summary.pendingSessions > 0 ? " \(overview.summary.pendingSessions) chat\(overview.summary.pendingSessions == 1 ? " is" : "s are") choosing a project." : ""
-            return "Broker \(overview.broker.version) is \(publicState). It is routing \(overview.summary.activeSessions) active chat\(overview.summary.activeSessions == 1 ? "" : "s") across \(overview.summary.projects) discovered project\(overview.summary.projects == 1 ? "" : "s").\(pending)"
+            return "Broker \(overview.broker.version) is \(publicState). It is routing \(overview.summary.activeSessions) active chat\(overview.summary.activeSessions == 1 ? "" : "s") across \(overview.summary.projects) discovered project\(overview.summary.projects == 1 ? "" : "s")."
         }
         return model.state.detail
     }
@@ -202,7 +201,7 @@ private struct MetricStrip: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 13) {
             MetricCard(value: "\(overview.summary.projects)", label: "Projects", detail: "discovered locally", symbol: "square.stack.3d.up")
-            MetricCard(value: "\(overview.summary.activeSessions)", label: "Active chats", detail: overview.summary.pendingSessions > 0 ? "\(overview.summary.pendingSessions) choosing a project" : "isolated routes", symbol: "bubble.left.and.bubble.right")
+            MetricCard(value: "\(overview.summary.activeSessions)", label: "Active chats", detail: "private project routes", symbol: "bubble.left.and.bubble.right")
             MetricCard(value: "\(overview.summary.activityEvents)", label: "Recent actions", detail: "content-free events", symbol: "waveform.path.ecg")
             MetricCard(value: Format.duration(ms: overview.broker.uptimeMs), label: "Uptime", detail: "broker available", symbol: "clock")
         }
@@ -219,10 +218,10 @@ private struct ModelCompatibilityStrip: View {
                 .background(FlowColor.signalWash)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text("Use Extra High or another non-Pro model")
+                Text("Use Extra High, then search for CodexFlow")
                     .font(FlowType.label(11))
                     .foregroundStyle(FlowColor.ink)
-                Text("ChatGPT’s Pro model variants do not expose Apps. A Pro subscription is still supported; if CodexFlow is absent from a reply, switch the model—not the broker.")
+                Text("ChatGPT’s first app row is a ranked subset. In every new chat, choose + → More and search CodexFlow. Multiple chats can use the same broker at once; Pro model variants do not expose Apps.")
                     .font(FlowType.body(10))
                     .foregroundStyle(FlowColor.inkMuted)
             }
@@ -271,10 +270,10 @@ private struct RecentChatsCard: View {
 
     var body: some View {
         PaperCard {
-            CardHeading(title: "Recent chats", detail: "Independent MCP sessions", symbol: "bubble.left.and.bubble.right")
+            CardHeading(title: "Recent chats", detail: "Durable project routes", symbol: "bubble.left.and.bubble.right")
             FlowDivider().padding(.vertical, 14)
             if sessions.isEmpty {
-                EmptyState(symbol: "bubble.left", title: "No chats yet", detail: "Activate the CodexFlow plugin in a chat and choose a project. It will appear here without storing its content.")
+                EmptyState(symbol: "bubble.left", title: "No chats yet", detail: "Search for CodexFlow in a supported ChatGPT chat and choose a project. It will appear here without storing its content.")
                     .frame(minHeight: 210)
             } else {
                 VStack(spacing: 0) {
@@ -448,7 +447,7 @@ struct ChatsView: View {
                 if !model.hasLiveRuntime {
                     OfflineInlineCard(title: "No live broker to observe.", detail: "Start CodexFlow, then activate the plugin in one or more web chats. Each conversation gets its own isolated project route.")
                 } else if sessions.isEmpty {
-                    PaperCard { EmptyState(symbol: "bubble.left.and.bubble.right", title: scope == "all" ? "No chats routed yet" : "No \(scope) chats", detail: "A chat appears after it uses a CodexFlow tool. Background connection probes are intentionally hidden, and conversation text is never stored.") }
+                    PaperCard { EmptyState(symbol: "bubble.left.and.bubble.right", title: scope == "all" ? "No chats routed yet" : "No \(scope) chats", detail: "A chat appears after it selects a project. Discovery and picker connections stay hidden, and conversation text is never stored.") }
                 } else {
                     LazyVStack(spacing: 11) {
                         ForEach(sessions) { session in SessionDetailCard(session: session) }
@@ -579,7 +578,7 @@ private struct SetupSteps: View {
             VStack(spacing: 16) {
                 StepRow(number: "01", title: "Copy", detail: "Copy the private Server URL from CodexFlow.")
                 StepRow(number: "02", title: "Create", detail: "In ChatGPT Settings → Plugins, create CodexFlow with Server URL and no separate authentication.")
-                StepRow(number: "03", title: "Choose", detail: "Activate it in a new chat and select the local project for that conversation.")
+                StepRow(number: "03", title: "Search", detail: "In each new chat, choose + → More, search CodexFlow, then select that conversation’s project.")
             }
         }
     }

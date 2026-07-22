@@ -14,6 +14,7 @@ export interface RuntimeToolEvent {
   status: RuntimeToolStatus;
   durationMs: number;
   at?: number;
+  routeId?: string;
 }
 
 export interface RuntimeActivitySnapshot {
@@ -49,7 +50,7 @@ export interface RuntimeMonitorSnapshot {
 }
 
 interface RuntimeSessionRecord {
-  internalId: string;
+  key: string;
   displayId: string;
   state: RuntimeSessionState;
   createdAt: number;
@@ -60,12 +61,24 @@ interface RuntimeSessionRecord {
   errors: number;
   lastTool?: string;
   lastToolStatus?: RuntimeToolStatus;
+  connectionIds: Set<string>;
+}
+
+interface RuntimeConnectionRecord {
+  internalId: string;
+  state: RuntimeSessionState;
+  createdAt: number;
+  lastSeenAt: number;
+  closedAt?: number;
+  pendingProject?: RuntimeProjectRef;
+  sessionKeys: Set<string>;
+  legacySessionKey?: string;
 }
 
 export interface RuntimeSessionHandle {
   bindTransport(sessionId: string): void;
   touch(): void;
-  selectProject(project: RuntimeProjectRef): void;
+  selectProject(project: RuntimeProjectRef, routeId?: string): void;
   recordTool(event: RuntimeToolEvent): void;
   close(): void;
 }
@@ -87,8 +100,13 @@ function publicProject(project: RuntimeProjectRef | undefined): RuntimeProjectRe
   return project ? { ...project } : null;
 }
 
+function routeSessionKey(routeId: string): string {
+  return `route:${routeId}`;
+}
+
 export class RuntimeMonitor {
   private readonly sessions = new Map<string, RuntimeSessionRecord>();
+  private readonly connections = new Map<string, RuntimeConnectionRecord>();
   private readonly activity: RuntimeActivitySnapshot[] = [];
   private readonly listeners = new Set<() => void>();
 
@@ -100,47 +118,55 @@ export class RuntimeMonitor {
 
   beginSession(now = Date.now()): RuntimeSessionHandle {
     this.prune(now);
-    this.enforceSessionLimit();
+    this.enforceConnectionLimit(now);
     const internalId = randomUUID();
-    const record: RuntimeSessionRecord = {
+    const connection: RuntimeConnectionRecord = {
       internalId,
-      displayId: displayId(internalId),
       state: "initializing",
       createdAt: now,
       lastSeenAt: now,
-      toolCalls: 0,
-      errors: 0
+      sessionKeys: new Set()
     };
-    this.sessions.set(internalId, record);
+    this.connections.set(internalId, connection);
     this.emit();
 
-    const current = (): RuntimeSessionRecord | undefined => this.sessions.get(internalId);
+    const current = (): RuntimeConnectionRecord | undefined => this.connections.get(internalId);
     return {
       bindTransport: (_sessionId) => {
-        const session = current();
-        if (!session || session.state === "closed") return;
-        session.state = "active";
-        session.lastSeenAt = Date.now();
+        const record = current();
+        if (!record || record.state === "closed") return;
+        record.state = "active";
+        record.lastSeenAt = Date.now();
         this.emit();
       },
       touch: () => {
-        const session = current();
-        if (!session || session.state === "closed") return;
-        session.lastSeenAt = Date.now();
+        const record = current();
+        if (!record || record.state === "closed") return;
+        const touchedAt = Date.now();
+        record.lastSeenAt = touchedAt;
+        for (const key of record.sessionKeys) {
+          const session = this.sessions.get(key);
+          if (session && session.state !== "closed") session.lastSeenAt = touchedAt;
+        }
       },
-      selectProject: (project) => {
-        const session = current();
-        if (!session || session.state === "closed") return;
-        const changed = session.project?.id !== project.id;
-        session.project = { ...project };
-        session.lastSeenAt = Date.now();
-        if (changed) this.emit();
+      selectProject: (project, routeId) => {
+        const record = current();
+        if (!record || record.state === "closed") return;
+        record.pendingProject = { ...project };
+        record.lastSeenAt = Date.now();
+        if (routeId) this.attachSession(record, routeSessionKey(routeId), routeId, project, record.lastSeenAt);
+        else if (record.legacySessionKey) this.attachSession(record, record.legacySessionKey, record.legacySessionKey, project, record.lastSeenAt);
+        this.emit();
       },
       recordTool: (event) => {
-        const session = current();
-        if (!session || session.state === "closed") return;
+        const record = current();
+        if (!record || record.state === "closed") return;
         const at = event.at ?? Date.now();
-        session.lastSeenAt = at;
+        record.lastSeenAt = at;
+        const routeId = typeof event.routeId === "string" && event.routeId ? event.routeId : undefined;
+        if (!routeId && !record.legacySessionKey) record.legacySessionKey = `transport:${record.internalId}`;
+        const key = routeId ? routeSessionKey(routeId) : record.legacySessionKey!;
+        const session = this.attachSession(record, key, routeId ?? key, record.pendingProject, at);
         session.toolCalls += 1;
         if (event.status === "error") session.errors += 1;
         session.lastTool = event.name;
@@ -158,12 +184,13 @@ export class RuntimeMonitor {
         this.emit();
       },
       close: () => {
-        const session = current();
-        if (!session || session.state === "closed") return;
-        const now = Date.now();
-        session.state = "closed";
-        session.closedAt = now;
-        session.lastSeenAt = now;
+        const record = current();
+        if (!record || record.state === "closed") return;
+        const closedAt = Date.now();
+        record.state = "closed";
+        record.closedAt = closedAt;
+        record.lastSeenAt = closedAt;
+        this.detachConnection(record, closedAt);
         this.emit();
       }
     };
@@ -171,12 +198,11 @@ export class RuntimeMonitor {
 
   snapshot(now = Date.now()): RuntimeMonitorSnapshot {
     this.prune(now);
-    const records = [...this.sessions.values()];
-    // ChatGPT may open short-lived MCP transports for discovery, metadata, and
-    // component fetching. Those are connections, not user chats. Only expose a
-    // session as a chat after it has called a tool or selected a project.
-    const sessions = records
-      .filter((session) => session.toolCalls > 0 || Boolean(session.project))
+    // A ChatGPT conversation becomes a CodexFlow chat only after it is bound to
+    // a project. Discovery probes and repeated picker attempts are operational
+    // connections, not user chats, and therefore stay out of this list.
+    const sessions = [...this.sessions.values()]
+      .filter((session) => Boolean(session.project))
       .sort((a, b) => {
         const aActive = a.state === "active" || a.state === "initializing" ? 1 : 0;
         const bActive = b.state === "active" || b.state === "initializing" ? 1 : 0;
@@ -200,9 +226,9 @@ export class RuntimeMonitor {
         ...event,
         project: event.project ? { ...event.project } : null
       })),
-      active_sessions: sessions.filter((session) => session.state !== "closed" && Boolean(session.project)).length,
-      pending_sessions: sessions.filter((session) => session.state !== "closed" && !session.project).length,
-      open_connections: records.filter((session) => session.state !== "closed").length,
+      active_sessions: sessions.filter((session) => session.state !== "closed").length,
+      pending_sessions: 0,
+      open_connections: [...this.connections.values()].filter((connection) => connection.state !== "closed").length,
       recent_sessions: sessions.length
     };
   }
@@ -215,15 +241,79 @@ export class RuntimeMonitor {
     return () => this.listeners.delete(listener);
   }
 
-  private prune(now: number): void {
-    for (const [id, session] of this.sessions) {
-      if (session.state === "closed" && session.closedAt && now - session.closedAt > this.closedRetentionMs) {
-        this.sessions.delete(id);
+  private attachSession(
+    connection: RuntimeConnectionRecord,
+    key: string,
+    displaySeed: string,
+    project: RuntimeProjectRef | undefined,
+    at: number
+  ): RuntimeSessionRecord {
+    let session = this.sessions.get(key);
+    if (!session) {
+      this.enforceSessionLimit(at);
+      session = {
+        key,
+        displayId: displayId(displaySeed),
+        state: connection.state === "closed" ? "closed" : "active",
+        createdAt: at,
+        lastSeenAt: at,
+        project: project ? { ...project } : undefined,
+        toolCalls: 0,
+        errors: 0,
+        connectionIds: new Set()
+      };
+      this.sessions.set(key, session);
+    }
+    if (project) session.project = { ...project };
+    if (connection.state !== "closed") {
+      session.connectionIds.add(connection.internalId);
+      session.state = "active";
+      session.closedAt = undefined;
+    }
+    session.lastSeenAt = at;
+    connection.sessionKeys.add(key);
+    return session;
+  }
+
+  private detachConnection(connection: RuntimeConnectionRecord, at: number): void {
+    for (const key of connection.sessionKeys) {
+      const session = this.sessions.get(key);
+      if (!session) continue;
+      session.connectionIds.delete(connection.internalId);
+      if (session.connectionIds.size === 0) {
+        session.state = "closed";
+        session.closedAt = at;
+        session.lastSeenAt = at;
       }
     }
   }
 
-  private enforceSessionLimit(): void {
+  private deleteConnection(id: string, at: number): void {
+    const connection = this.connections.get(id);
+    if (!connection) return;
+    this.connections.delete(id);
+    this.detachConnection(connection, at);
+  }
+
+  private deleteSession(key: string): void {
+    this.sessions.delete(key);
+    for (const connection of this.connections.values()) connection.sessionKeys.delete(key);
+  }
+
+  private prune(now: number): void {
+    for (const [key, session] of this.sessions) {
+      if (session.state === "closed" && session.closedAt && now - session.closedAt > this.closedRetentionMs) {
+        this.deleteSession(key);
+      }
+    }
+    for (const [id, connection] of this.connections) {
+      if (connection.state === "closed" && connection.closedAt && now - connection.closedAt > this.closedRetentionMs) {
+        this.connections.delete(id);
+      }
+    }
+  }
+
+  private enforceSessionLimit(now: number): void {
     const limit = Math.max(1, Math.floor(this.sessionLimit));
     while (this.sessions.size >= limit) {
       const oldest = [...this.sessions.entries()].sort((a, b) => {
@@ -232,7 +322,21 @@ export class RuntimeMonitor {
         return aClosed - bClosed || a[1].lastSeenAt - b[1].lastSeenAt;
       })[0];
       if (!oldest) return;
-      this.sessions.delete(oldest[0]);
+      this.deleteSession(oldest[0]);
+    }
+    this.prune(now);
+  }
+
+  private enforceConnectionLimit(now: number): void {
+    const limit = Math.max(1, Math.floor(this.sessionLimit));
+    while (this.connections.size >= limit) {
+      const oldest = [...this.connections.entries()].sort((a, b) => {
+        const aClosed = a[1].state === "closed" ? 0 : 1;
+        const bClosed = b[1].state === "closed" ? 0 : 1;
+        return aClosed - bClosed || a[1].lastSeenAt - b[1].lastSeenAt;
+      })[0];
+      if (!oldest) return;
+      this.deleteConnection(oldest[0], now);
     }
   }
 

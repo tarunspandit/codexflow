@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.30.4 (2026-07-18)
+
+- Reworked native chat telemetry around durable private routes instead of raw MCP transports, so one ChatGPT conversation remains one GUI chat even when ChatGPT opens a fresh connection for every tool call.
+- Hid unbound discovery, metadata, and project-picker attempts from the Chats view while retaining their raw connection count for operational diagnostics.
+- Added regression coverage for multiple transports sharing one route, multiple simultaneous conversation routes, route-level call/error aggregation, connection close behavior, and transport/route identifier redaction.
+- Clarified the new-chat workflow in the native app and docs: ChatGPT's initial app row is ranked rather than exhaustive, so use `+` → More and search for CodexFlow on a supported non-Pro model.
+- Refreshed the public site's Next, vinext, Cloudflare, Wrangler, and transitive image/URI dependencies to clear newly disclosed high-severity advisories without changing the rendered product surface.
+
 ## 0.30.3 (2026-07-15)
 
 - Replaced transport-local project selection with opaque private `route_id` capabilities that remain stable across ChatGPT's separate model and widget MCP transports.

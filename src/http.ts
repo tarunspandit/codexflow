@@ -736,8 +736,14 @@ async function main(): Promise<void> {
         const server = createCodexFlowServer(config, {
           onWorkspaceChanged: (workspace) => monitorSession.selectProject(runtimeProject(workspace)),
           onToolCall: (event) => {
-            if (event.workspace) monitorSession.selectProject(runtimeProject(event.workspace));
-            monitorSession.recordTool(event);
+            if (event.workspace) monitorSession.selectProject(runtimeProject(event.workspace), event.routeId);
+            monitorSession.recordTool({
+              name: event.name,
+              status: event.status,
+              durationMs: event.durationMs,
+              at: event.at,
+              routeId: event.routeId
+            });
           }
         });
         try {

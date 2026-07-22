@@ -38,6 +38,10 @@ codexflow 需要 Node.js 20+，以及能使用 Apps / Developer Mode 的 ChatGPT
 > 模型变体不会开放 Apps，但 Pro 订阅仍可通过受支持模型使用 Apps。如果
 > 回复中没有 CodexFlow，请切换模型，不要重启本地 broker。
 
+> **新聊天：**`+` 菜单最先显示的是排序后的推荐项，并不是完整插件列表。
+> 请选择 `+` → More，再搜索 `CodexFlow`。同一个插件可以同时用于多个聊天；
+> 每个聊天都会通过共享 broker 获得独立的私有项目路由。
+
 先安装 CLI：
 
 ```bash
