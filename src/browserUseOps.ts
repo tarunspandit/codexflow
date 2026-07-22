@@ -23,6 +23,10 @@ interface BrowserSnapshot {
 interface BrowserSession {
   id: string; routeId: string; origin: string; currentUrl: string; title: string; createdAt: number; updatedAt: number;
 }
+interface BrowserComment {
+  id: string; routeId: string; sessionId: string; url: string; selector: string; target: string; note: string;
+  route_display: string; created_at: string;
+}
 interface BrowserCommand {
   id: string; routeId: string; createdAt: number; leaseUntil: number; payload: Record<string, unknown>;
   resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void; timer: NodeJS.Timeout;
@@ -33,6 +37,7 @@ const ACTION_TTL_MS = 3 * 60_000;
 const SNAPSHOT_TTL_MS = 90_000;
 const COMMAND_TTL_MS = 30_000;
 const MAX_ACTIVITY = 100;
+const MAX_COMMENTS_PER_SESSION = 50;
 
 function statePath(): string { return path.join(codexFlowHome(), "browser-use.json"); }
 function opaque(prefix: string): string { return `${prefix}_${randomBytes(8).toString("hex")}`; }
@@ -111,6 +116,7 @@ export class BrowserUseManager {
   private actionRequests = new Map<string, PrivateActionRequest>();
   private onceAllowed = new Map<string, number>();
   private sessions = new Map<string, BrowserSession>();
+  private comments = new Map<string, BrowserComment>();
   private snapshots = new Map<string, BrowserSnapshot>();
   private commands = new Map<string, BrowserCommand>();
   private activity: Array<{ at: string; route_display: string; origin: string; operation: string; outcome: string }> = [];
@@ -160,6 +166,7 @@ export class BrowserUseManager {
       host_requests: [...this.hostRequests.values()].map(({ routeId: _routeId, ...request }) => request),
       action_requests: [...this.actionRequests.values()].filter((request) => !request.approved).map(({ routeId: _routeId, fingerprint: _fingerprint, approved: _approved, ...request }) => request),
       sessions: [...this.sessions.values()].map(({ routeId: _routeId, createdAt: _created, updatedAt: _updated, ...session }) => session),
+      comments: [...this.comments.values()].map(({ routeId: _routeId, ...comment }) => comment),
       recent_activity: [...this.activity].reverse(),
       commands
     };
@@ -168,7 +175,9 @@ export class BrowserUseManager {
   routeStatus(routeId: string): Record<string, unknown> {
     const sessions = [...this.sessions.values()].filter((session) => session.routeId === routeId)
       .map(({ routeId: _route, createdAt: _created, updatedAt: _updated, ...session }) => session);
-    return { profile: "ephemeral", engine: "WebKit", allowed_origins: this.allowedOrigins(routeId), sessions };
+    const comments = [...this.comments.values()].filter((comment) => comment.routeId === routeId)
+      .map(({ routeId: _route, ...comment }) => comment);
+    return { profile: "ephemeral", engine: "WebKit", allowed_origins: this.allowedOrigins(routeId), sessions, comments };
   }
 
   requestHost(routeId: string, rawUrl: string, reason: string): Record<string, unknown> {
@@ -211,6 +220,55 @@ export class BrowserUseManager {
     writeStore({ version: 1, alwaysAllowed: next });
     for (const key of this.onceAllowed.keys()) if (key.endsWith(`\0${normalized}`)) this.onceAllowed.delete(key);
     for (const [id, session] of this.sessions) if (session.origin === normalized) this.sessions.delete(id);
+    for (const [id, comment] of this.comments) {
+      try { if (parseTarget(comment.url).origin === normalized) this.comments.delete(id); } catch { this.comments.delete(id); }
+    }
+  }
+
+  addComment(sessionId: string, selector: string, target: string, note: string): BrowserComment {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new CodexFlowError("That browser session is missing or closed.");
+    const cleanSelector = selector.trim();
+    const rawTarget = target.trim();
+    const cleanNote = note.trim();
+    if (!cleanSelector || cleanSelector.length > 1000 || /[\r\n\0]/.test(cleanSelector)) {
+      throw new CodexFlowError("The browser annotation target is invalid or too long.");
+    }
+    if (!rawTarget || rawTarget.length > 300) throw new CodexFlowError("The browser annotation needs a short visible target.");
+    if (!cleanNote || cleanNote.length > 1000) throw new CodexFlowError("Browser comments must contain 1 to 1000 characters.");
+    if (hasSecretValue(`${cleanSelector}\n${rawTarget}\n${cleanNote}`)) {
+      throw new CodexFlowError("The browser comment was not saved because it appears to contain a credential or secret.");
+    }
+    const cleanTarget = redactSensitiveText(rawTarget);
+    const existing = [...this.comments.values()].filter((comment) => comment.sessionId === sessionId);
+    if (existing.length >= MAX_COMMENTS_PER_SESSION) throw new CodexFlowError(`A browser session can hold at most ${MAX_COMMENTS_PER_SESSION} comments.`);
+    const comment: BrowserComment = {
+      id: opaque("bua"), routeId: session.routeId, sessionId, url: session.currentUrl,
+      selector: cleanSelector, target: cleanTarget, note: cleanNote,
+      route_display: routeDisplay(session.routeId), created_at: nowIso()
+    };
+    this.comments.set(comment.id, comment);
+    this.record(session.routeId, session.origin, "add_comment", "ok");
+    return comment;
+  }
+
+  removeComment(commentId: string): void {
+    const comment = this.comments.get(commentId);
+    if (!comment) throw new CodexFlowError("Browser comment not found.");
+    this.comments.delete(commentId);
+    let origin = "browser";
+    try { origin = parseTarget(comment.url).origin; } catch { /* bounded activity fallback */ }
+    this.record(comment.routeId, origin, "remove_comment", "ok");
+  }
+
+  routeComments(routeId: string, sessionId?: string): Array<Omit<BrowserComment, "routeId" | "route_display">> {
+    if (sessionId) {
+      const session = this.sessions.get(sessionId);
+      if (!session || session.routeId !== routeId) throw new CodexFlowError("That browser session is missing or belongs to another chat.");
+    }
+    return [...this.comments.values()].filter((comment) =>
+      comment.routeId === routeId && (!sessionId || comment.sessionId === sessionId)
+    ).map(({ routeId: _route, route_display: _display, ...comment }) => comment);
   }
 
   private dispatch(routeId: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -266,7 +324,11 @@ export class BrowserUseManager {
     const snapshotId = opaque("bus");
     this.snapshots.set(snapshotId, { routeId, sessionId, nativeId, createdAt: Date.now(), elements: new Map(elements.map((element) => [element.id, element])) });
     this.record(routeId, session.origin, "observe", "ok");
-    return { snapshot_id: snapshotId, session_id: session.id, origin: session.origin, url: session.currentUrl, title: session.title, elements, screenshot_base64: String(result.screenshot_base64 ?? "") };
+    return {
+      snapshot_id: snapshotId, session_id: session.id, origin: session.origin, url: session.currentUrl,
+      title: session.title, elements, comments: this.routeComments(routeId, session.id),
+      screenshot_base64: String(result.screenshot_base64 ?? "")
+    };
   }
 
   async act(routeId: string, options: {
@@ -336,6 +398,7 @@ export class BrowserUseManager {
     await this.dispatch(routeId, { action: "close", session_id: session.id });
     this.sessions.delete(session.id);
     for (const [id, snapshot] of this.snapshots) if (snapshot.sessionId === session.id) this.snapshots.delete(id);
+    for (const [id, comment] of this.comments) if (comment.sessionId === session.id) this.comments.delete(id);
     this.record(routeId, session.origin, "close", "ok");
     return { status: "closed", session_id: session.id };
   }

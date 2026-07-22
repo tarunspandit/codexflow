@@ -641,6 +641,22 @@ final class AppModel: ObservableObject {
         await sendBrowserCommand(BrowserCommand(action: "revoke", requestId: nil, decision: nil, approve: nil, origin: origin))
     }
 
+    func saveBrowserComment(_ target: BrowserAnnotationTarget, note: String) async -> Bool {
+        let saved = await sendBrowserAnnotationCommand(BrowserAnnotationCommand(
+            action: "add_comment", sessionId: target.sessionID, selector: target.selector,
+            target: target.target, note: note, commentId: nil
+        ))
+        if saved { browserController.clearAnnotationTarget(keepMode: false) }
+        return saved
+    }
+
+    func removeBrowserComment(_ commentID: String) async {
+        _ = await sendBrowserAnnotationCommand(BrowserAnnotationCommand(
+            action: "remove_comment", sessionId: nil, selector: nil,
+            target: nil, note: nil, commentId: commentID
+        ))
+    }
+
     func selectBrowserSession(_ sessionID: String) {
         browserController.select(sessionID)
     }
@@ -656,6 +672,22 @@ final class AppModel: ObservableObject {
             notice = response.message
         } catch {
             notice = error.localizedDescription
+        }
+    }
+
+    private func sendBrowserAnnotationCommand(_ command: BrowserAnnotationCommand) async -> Bool {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, !browserBusy else { return false }
+        browserBusy = true
+        defer { browserBusy = false }
+        do {
+            let response: BrowserOverview = try await request(runtime: runtime, path: "/admin/browser", method: "POST", body: try JSONEncoder().encode(command))
+            browser = response
+            browserController.reconcile(sessionIDs: Set(response.sessions.map(\.id)))
+            notice = command.action == "add_comment" ? "Browser comment shared with this web chat." : "Browser comment removed."
+            return true
+        } catch {
+            notice = error.localizedDescription
+            return false
         }
     }
 

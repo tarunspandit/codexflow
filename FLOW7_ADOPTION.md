@@ -147,12 +147,15 @@ fixture and live-broker lifecycle smoke tests, root build/smoke/stress suites,
 package inspection, dependency audit, browser desktop/mobile visual checks,
 website lint/build/render checks, and a check of the deployed public source.
 
-The 0.43.0 native Active/Done agent surface has passed signed universal build,
-launch, accessibility-tree, production-size visual, route-isolation, restart,
-secret-refusal, and credential-leakage checks. GitHub release/Pages, Sites
-version 20, the installed app/command, and the permanent Flow7 tunnel are live;
-their exact release and deployment identifiers are recorded in
-`PRODUCT_BUILD_STATE.md`.
+The 0.44.0 browser annotation surface extends the same technical, spatial
+language into human visual review: the rendered page stays dominant, the
+selected target becomes one cool-blue precision signal, and the comment field
+sits beside the page rather than becoming another dashboard. It has passed the
+complete local release matrix, including Swift typecheck, fixture accessibility
+and production-size visual QA, signed universal build, route-isolation and
+secret-refusal regressions, and real native WebKit selection, save, readback,
+and continued-action acceptance. Public deployment remains recorded in
+`PRODUCT_BUILD_STATE.md` until it is independently verified.
 
 The final platform-hosted golden path still requires a configured ChatGPT Work
 account: spawn two children, give each its allocated route, verify independent

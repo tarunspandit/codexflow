@@ -225,6 +225,8 @@ Website work uses the separate `browser_use` boundary. A routed chat requests on
 
 The chat receives a fresh screenshot and bounded semantic DOM targets rather than cookies or arbitrary coordinates. Clicks, text entry, and consequential keys require a local confirmation sealed to one route, tab, snapshot, element, operation, and value. Cross-origin navigation, popup windows, downloads, browser permission prompts, authentication/account-security/payment pages, password values, embedded URL credentials, and secret-looking input fail closed.
 
+For visual review, turn on **Annotate page**, select the exact rendered element, and write the intended result. Comments are memory-only, private to that chat route, returned through `browser_use comments` and fresh observations, and removed when the tab closes or its origin is revoked. Password fields and secret-looking target or note text are refused.
+
 ## Normal Commands
 
 ```bash

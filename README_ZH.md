@@ -166,6 +166,8 @@ ChatGPT Web 负责 schedule、模型、cadence 与运行历史。需要定时处
 
 网站操作使用独立的 `browser_use` 边界。聊天先请求一个准确的 HTTP(S) origin；原生 **Browser** 页面可以拒绝、为该 route 允许十分钟，或持久允许直到撤销。页面在可见的临时 WebKit tab 中打开，不使用 Safari、Chrome 或你的个人浏览器 profile。聊天只能获得最新截图与受限的语义 DOM 目标；click、文本和敏感按键都绑定 route、tab、snapshot、element、operation 与 value，并需要本机确认。跨 origin 跳转、popup、下载、浏览器权限、登录/账户安全/支付页面、密码值、URL 凭据与疑似 secret 输入都会 fail closed。
 
+需要视觉审查时，开启 **Annotate page**，选择准确的页面元素并写下预期结果。评论只保存在内存中，只对该聊天 route 可见，会通过 `browser_use comments` 和新的页面观察返回；关闭 tab 或撤销 origin 时自动删除。密码框以及疑似包含 secret 的目标或评论会被拒绝。
+
 ## 其他启动方式
 
 不想全局安装时，也可以用：

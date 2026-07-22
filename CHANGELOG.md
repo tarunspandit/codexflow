@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.44.0 (2026-07-23)
+
+- Added native annotation mode to the isolated WebKit browser so a user can select an exact rendered element and leave bounded visual feedback.
+- Added route-private, memory-only browser comments to fresh observations and the dedicated `browser_use comments` action.
+- Added strict comment limits, secret refusal, route isolation, native/API credential omission, and automatic comment cleanup when a tab closes or an origin is revoked.
+- Made saving a visual comment exit annotation mode immediately, preventing the selection overlay from intercepting later model-driven page actions.
+- Expanded the Codex desktop parity audit around current browser preview, comments, developer diagnostics, and platform ownership.
+
 ## 0.43.0 (2026-07-23)
 
 - Added the route-scoped `agent_progress` protocol for real ChatGPT Work subagents: a parent task can allocate up to sixteen independent child project routes, publish bounded roles and state, collect short results, and revoke every child route without CodexFlow starting or proxying a model.
