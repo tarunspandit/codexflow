@@ -34,6 +34,7 @@ test("renders the complete English launch page", async () => {
   assert.match(html, /One connection\./);
   assert.match(html, /Separate working memory\./);
   assert.match(html, /The native desktop app/);
+  assert.match(html, /Mac or Windows PC/);
   assert.match(html, /Everything in motion/);
   assert.match(html, /Supervise routed web tasks, nested Active\/Done agents, plans, blockers/);
   assert.match(html, /live task and subagent progress/i);
@@ -58,8 +59,9 @@ test("renders the complete English launch page", async () => {
   assert.match(html, /COMPUTER USE \/ CONSENTED/i);
   assert.match(html, /Review and debug the rendered page together/i);
   assert.match(html, /bounded console, resource, and source diagnostics/i);
-  assert.match(html, /WEBKIT \/ ROUTE PRIVATE/i);
-  assert.match(html, /CODEXFLOW \/ 0\.45\.0/);
+  assert.match(html, /WEBKIT \+ WEBVIEW2 \/ ROUTE PRIVATE/i);
+  assert.match(html, /Windows 10\/11/i);
+  assert.match(html, /CODEXFLOW \/ 0\.46\.0/);
   assert.match(html, /representative native-app preview/i);
   assert.match(html, /Bounded local progress/);
   assert.match(html, /public website cannot see your projects or chats/i);
@@ -94,7 +96,9 @@ test("renders the Chinese edition", async () => {
   assert.match(html, /视觉操作仍然先征求同意/);
   assert.match(html, /和 Web chat 一起审查与调试真实页面/);
   assert.match(html, /console\/resource\/source diagnostics/);
-  assert.match(html, /CODEXFLOW \/ 0\.45\.0/);
+  assert.match(html, /WEBKIT \+ WEBVIEW2 \/ ROUTE 隔离/i);
+  assert.match(html, /Windows 10\/11/i);
+  assert.match(html, /CODEXFLOW \/ 0\.46\.0/);
   assert.match(html, /一切运行，一目了然/);
   assert.match(html, /示意预览/);
   assert.match(html, /受限的本地进度/);

@@ -656,6 +656,10 @@ function writeDesktopConfig(root) {
 }
 
 function desktopAppVersion(appPath) {
+  if (process.platform === 'win32') {
+    const directory = fs.existsSync(appPath) && fs.statSync(appPath).isDirectory() ? appPath : path.dirname(appPath);
+    try { return fs.readFileSync(path.join(directory, 'version.txt'), 'utf8').trim(); } catch { return ''; }
+  }
   if (process.platform !== 'darwin') return '';
   const plist = path.join(appPath, 'Contents', 'Info.plist');
   if (!fs.existsSync(plist)) return '';
@@ -697,16 +701,64 @@ function desktopAppFingerprint(appPath) {
 
 function bundledDesktopAppPath() {
   const override = String(process.env.CODEXFLOW_DESKTOP_APP || '').trim();
-  return override ? path.resolve(expandHome(override)) : path.join(projectRoot, 'desktop', 'prebuilt', 'CodexFlow.app');
+  if (override) return path.resolve(expandHome(override));
+  return process.platform === 'win32'
+    ? path.join(projectRoot, 'desktop', 'prebuilt', 'windows')
+    : path.join(projectRoot, 'desktop', 'prebuilt', 'CodexFlow.app');
+}
+
+function downloadWindowsDesktopApp(destination) {
+  const version = packageVersion();
+  const base = String(process.env.CODEXFLOW_DESKTOP_DOWNLOAD_BASE || `https://github.com/tarunspandit/codexflow/releases/download/v${version}`).replace(/\/$/, '');
+  const architecture = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const asset = `CodexFlow-Windows-${architecture}.zip`;
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'codexflow-windows-'));
+  const archive = path.join(temporary, asset);
+  const checksum = `${archive}.sha256`;
+  const downloader = [
+    "const fs=require('node:fs'); const https=require('node:https');",
+    "const download=(url,file,redirects=0)=>new Promise((resolve,reject)=>{const request=https.get(url,{headers:{'User-Agent':'CodexFlow desktop installer'}},response=>{if(response.statusCode>=300&&response.statusCode<400&&response.headers.location&&redirects<5){response.resume();return download(new URL(response.headers.location,url),file,redirects+1).then(resolve,reject);}if(response.statusCode!==200){response.resume();return reject(new Error('HTTP '+response.statusCode));}const output=fs.createWriteStream(file,{mode:0o600});response.pipe(output);output.on('finish',()=>output.close(resolve));output.on('error',reject);});request.on('error',reject);});",
+    "Promise.all([download(process.argv[1],process.argv[2]),download(process.argv[3],process.argv[4])]).catch(error=>{console.error(error.message);process.exit(1);});"
+  ].join('');
+  try {
+    const fetched = spawnSync(process.execPath, ['-e', downloader, `${base}/${asset}`, archive, `${base}/${asset}.sha256`, checksum], { stdio: 'ignore', shell: false, timeout: 180_000 });
+    if (fetched.status !== 0) return { ok: false, reason: `Could not download the CodexFlow Windows app (${asset}).` };
+    const expected = fs.readFileSync(checksum, 'utf8').trim().split(/\s+/)[0]?.toLowerCase();
+    const actual = createHash('sha256').update(fs.readFileSync(archive)).digest('hex');
+    if (!expected || !/^[a-f0-9]{64}$/.test(expected) || expected !== actual) return { ok: false, reason: 'The CodexFlow Windows download failed its SHA-256 integrity check.' };
+    fs.rmSync(destination, { recursive: true, force: true });
+    fs.mkdirSync(destination, { recursive: true });
+    const expanded = spawnSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', 'Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force', archive, destination], { stdio: 'ignore', shell: false, timeout: 180_000 });
+    if (expanded.status !== 0 || !fs.existsSync(path.join(destination, 'CodexFlow.exe'))) return { ok: false, reason: 'The CodexFlow Windows app could not be installed.' };
+    return { ok: true, appPath: path.join(destination, 'CodexFlow.exe'), installed: true };
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
 }
 
 function installDesktopApp() {
   const source = bundledDesktopAppPath();
+  if (process.env.CODEXFLOW_DESKTOP_APP && fs.existsSync(source)) return { ok: true, appPath: source, installed: false };
+  if (process.platform === 'win32') {
+    const applications = process.env.CODEXFLOW_DESKTOP_INSTALL_DIR
+      ? path.resolve(expandHome(process.env.CODEXFLOW_DESKTOP_INSTALL_DIR))
+      : path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'CodexFlow');
+    const destination = applications;
+    const installedExecutable = path.join(destination, 'CodexFlow.exe');
+    if (desktopAppVersion(destination) === packageVersion() && fs.existsSync(installedExecutable)) return { ok: true, appPath: installedExecutable, installed: false };
+    if (!fs.existsSync(source)) return downloadWindowsDesktopApp(destination);
+    if (!fs.statSync(source).isDirectory()) return { ok: false, reason: `Native Windows app bundle is invalid at ${source}.` };
+    fs.rmSync(destination, { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.cpSync(source, destination, { recursive: true, force: true });
+    return fs.existsSync(installedExecutable)
+      ? { ok: true, appPath: installedExecutable, installed: true }
+      : { ok: false, reason: 'The bundled CodexFlow Windows app is incomplete.' };
+  }
   if (!fs.existsSync(source) || !fs.statSync(source).isDirectory()) {
     return { ok: false, reason: `Native app bundle is missing at ${source}. Reinstall CodexFlow or run npm run desktop:build.` };
   }
-  if (process.env.CODEXFLOW_DESKTOP_APP) return { ok: true, appPath: source, installed: false };
-  if (process.platform !== 'darwin') return { ok: false, reason: 'The native CodexFlow app is currently available on macOS.' };
+  if (process.platform !== 'darwin') return { ok: false, reason: 'The native CodexFlow app is available on macOS and Windows.' };
 
   const applications = process.env.CODEXFLOW_DESKTOP_INSTALL_DIR
     ? path.resolve(expandHome(process.env.CODEXFLOW_DESKTOP_INSTALL_DIR))
@@ -747,6 +799,15 @@ function launchDesktopApp(appPath, root) {
       return false;
     }
   }
+  if (process.platform === 'win32') {
+    try {
+      const child = spawn(appPath, ['--home', codexFlowHome()], { detached: true, stdio: 'ignore', windowsHide: false, shell: false });
+      child.unref();
+      return true;
+    } catch {
+      return false;
+    }
+  }
   if (process.platform !== 'darwin') return false;
   const opened = spawnSync('/usr/bin/open', [appPath], { stdio: 'ignore', shell: false });
   if (opened.status !== 0) return false;
@@ -760,8 +821,8 @@ function openDesktopApp(root) {
   if (process.env.CODEXFLOW_DISABLE_DESKTOP === '1') {
     return { ok: false, reason: 'Native desktop launch is disabled by CODEXFLOW_DISABLE_DESKTOP.' };
   }
-  if (process.platform !== 'darwin' && !process.env.CODEXFLOW_DESKTOP_LAUNCHER) {
-    return { ok: false, reason: 'The native CodexFlow app is currently available on macOS.' };
+  if (!['darwin', 'win32'].includes(process.platform) && !process.env.CODEXFLOW_DESKTOP_LAUNCHER) {
+    return { ok: false, reason: 'The native CodexFlow app is available on macOS and Windows.' };
   }
   const installed = installDesktopApp();
   if (!installed.ok) return installed;
@@ -777,7 +838,7 @@ function activateRuntime(root, details, runtimeOptions, args) {
   const result = openDesktopApp(root);
   if (result.ok) {
     statusLine('ok', `${result.installed ? 'Installed and opened' : 'Opened'} the CodexFlow desktop app`);
-  } else if (process.platform === 'darwin') {
+  } else if (process.platform === 'darwin' || process.platform === 'win32') {
     statusLine('warn', `The broker is ready, but the desktop app did not open: ${result.reason}`);
   }
 }
@@ -4188,7 +4249,7 @@ async function main() {
   const initialCodexDir = path.resolve(expandHome(args.codexDir ?? process.env.CODEXFLOW_CODEX_DIR ?? path.join(os.homedir(), '.codex')));
   const discoveredProjects = await discoverCodexProjectDirectories(initialCodexDir);
   const root = realDir(args.root ?? process.env.CODEXFLOW_ROOT ?? discoveredProjects[0] ?? process.cwd());
-  if (process.platform === 'darwin' || process.env.CODEXFLOW_DESKTOP_LAUNCHER) writeDesktopConfig(root);
+  if (process.platform === 'darwin' || process.platform === 'win32' || process.env.CODEXFLOW_DESKTOP_LAUNCHER) writeDesktopConfig(root);
   let profile = args.noProfile ? {} : loadWorkspaceProfile(root);
   const effectiveArgs = { ...profile, ...args };
   if (profile.profilePath && !args.noProfile) {

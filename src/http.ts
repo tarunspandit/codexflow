@@ -1069,7 +1069,7 @@ async function main(): Promise<void> {
     try {
       switch (parsed.data.action) {
         case "request_permissions":
-          res.json({ ...(await computerUse.requestSystemPermissions()), message: "macOS permission request opened. Review it on this computer." });
+          res.json({ ...(await computerUse.requestSystemPermissions()), message: "System permission request opened. Review it on this computer." });
           return;
         case "decide_access":
           computerUse.decideAccess(parsed.data.requestId, parsed.data.decision);
@@ -1094,7 +1094,9 @@ async function main(): Promise<void> {
   app.get("/admin/browser", (req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store");
-      res.json(redactStructured(browserUse.overview(req.query.take === "1" || req.query.take === "true")));
+      const take = req.query.take === "1" || req.query.take === "true";
+      const engine = typeof req.query.engine === "string" ? req.query.engine : undefined;
+      res.json(redactStructured(browserUse.overview(take, engine)));
     } catch (error) {
       jsonError(res, 400, "browser_unavailable", error instanceof Error ? error.message : String(error));
     }

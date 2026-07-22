@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <StartupObject>CodexFlow.Windows.Program</StartupObject>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CodexFlow</AssemblyName>
+    <RootNamespace>CodexFlow.Windows</RootNamespace>
+    <Version>0.46.0</Version>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
+    <Resource Include="..\..\macos\Resources\Fonts\Geologica-Regular.ttf" Link="Fonts\Geologica-Regular.ttf" />
+    <Resource Include="..\..\macos\Resources\Fonts\Geologica-Medium.ttf" Link="Fonts\Geologica-Medium.ttf" />
+    <Resource Include="..\..\macos\Resources\Fonts\Geologica-SemiBold.ttf" Link="Fonts\Geologica-SemiBold.ttf" />
+    <Resource Include="..\..\macos\Resources\Fonts\Geologica-Bold.ttf" Link="Fonts\Geologica-Bold.ttf" />
+  </ItemGroup>
+</Project>

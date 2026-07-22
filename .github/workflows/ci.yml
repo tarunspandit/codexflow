@@ -31,3 +31,67 @@ jobs:
 
       - name: Check Package Contents
         run: npm pack --dry-run
+
+  windows-desktop:
+    strategy:
+      matrix:
+        architecture: [x64, arm64]
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5.2.0
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup Node
+        if: matrix.architecture == 'x64'
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Verify Windows launcher contracts
+        if: matrix.architecture == 'x64'
+        shell: pwsh
+        run: |
+          npm ci
+          npm run build
+          node scripts/windows-desktop-smoke.mjs
+          node scripts/cli-smoke.mjs
+
+      - name: Build native Windows client
+        shell: pwsh
+        run: .\desktop\windows\build.ps1 -Architecture ${{ matrix.architecture }}
+
+      - name: Exercise native Windows binaries
+        if: matrix.architecture == 'x64'
+        shell: pwsh
+        run: |
+          $Stage = ".\desktop\windows\dist\win-x64\CodexFlow"
+          $Smoke = Join-Path $env:RUNNER_TEMP "codexflow-windows-smoke.json"
+          $Info = [System.Diagnostics.ProcessStartInfo]::new()
+          $Info.FileName = Join-Path $Stage "CodexFlow.exe"
+          $Info.UseShellExecute = $false
+          $Info.ArgumentList.Add("--smoke")
+          $Info.ArgumentList.Add("--smoke-output")
+          $Info.ArgumentList.Add($Smoke)
+          $Process = [System.Diagnostics.Process]::Start($Info)
+          $Process.WaitForExit()
+          if ($Process.ExitCode -ne 0) { throw "Windows desktop process failed with exit code $($Process.ExitCode)." }
+          $Result = Get-Content $Smoke -Raw | ConvertFrom-Json
+          if (-not $Result.ok -or $Result.platform -ne "win32") { throw "Windows desktop smoke failed." }
+          $Helper = '{"action":"status"}' | & (Join-Path $Stage "CodexFlowComputer.exe") | ConvertFrom-Json
+          if (-not $Helper.ok -or -not $Helper.available -or $Helper.platform -ne "win32") { throw "Windows Computer helper smoke failed." }
+
+      - name: Upload Windows release asset
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: CodexFlow-Windows-${{ matrix.architecture }}
+          path: |
+            desktop/windows/dist/win-${{ matrix.architecture }}/CodexFlow-Windows-${{ matrix.architecture }}.zip
+            desktop/windows/dist/win-${{ matrix.architecture }}/CodexFlow-Windows-${{ matrix.architecture }}.zip.sha256
+          if-no-files-found: error

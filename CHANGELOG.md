@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.46.0 (2026-07-23)
+
+- Added a first-class Flow7-native Windows management and approval client covering broker lifecycle, projects, local environments, managed worktrees, staged/unstaged and per-hunk Git review, task lifecycle, SSH hosts, connection, and next-launch policy.
+- Added real Windows Computer Use through a broker-invoked UI Automation helper. Access remains app-identity-bound and route-private; consequential actions require local approval; terminal, browser, ChatGPT/CodexFlow, system-settings, secure-field, and secret-input paths fail closed. Window images use `PrintWindow` so another app cannot be captured merely by overlapping the approved target.
+- Added an ephemeral WebView2 browser command runner with exact-origin navigation, fresh semantic DOM snapshots and screenshots, sealed action confirmations, exact-element comments, query-free bounded diagnostics, denied permissions/authentication/downloads/popups, and per-session browsing-data cleanup.
+- Made the browser engine handshake platform-aware (`WebKit` on macOS, `WebView2` on Windows) without changing route isolation or the public tool contract.
+- Added automatic verified Windows desktop retrieval to the one-command launcher, self-contained x64/arm64 packaging, SHA-256 release assets, Windows executable/helper smoke modes, and a Windows CI matrix.
+- Updated the English/Chinese product site, documentation, security model, Flow7 record, and parity ledger. The only remaining literal-parity acceptance item is a live authenticated ChatGPT Work parent/two-child run; unrestricted CDP and personal browser state remain deliberate exclusions.
+
 ## 0.45.0 (2026-07-23)
 
 - Added a native Page diagnostics workspace for the isolated WebKit browser with bounded console entries, resource timing, and document/script/stylesheet source URLs.

@@ -99,7 +99,12 @@ const PROHIBITED_BUNDLE_IDS = new Map<string, string>([
   ["com.google.Chrome", "Browser apps require the separate website-host permission boundary."],
   ["com.microsoft.edgemac", "Browser apps require the separate website-host permission boundary."],
   ["org.mozilla.firefox", "Browser apps require the separate website-host permission boundary."],
-  ["company.thebrowser.Browser", "Browser apps require the separate website-host permission boundary."]
+  ["company.thebrowser.Browser", "Browser apps require the separate website-host permission boundary."],
+  ["com.microsoft.terminal", "Terminal apps cannot be automated because that could bypass CodexFlow shell policy."],
+  ["com.windows.browser.msedge", "Browser apps require the separate website-host permission boundary."],
+  ["com.windows.browser.chrome", "Browser apps require the separate website-host permission boundary."],
+  ["com.windows.browser.firefox", "Browser apps require the separate website-host permission boundary."],
+  ["com.windows.browser.brave", "Browser apps require the separate website-host permission boundary."]
 ]);
 
 function statePath(): string { return path.join(codexFlowHome(), "computer-use.json"); }
@@ -133,19 +138,27 @@ function writeStore(store: ApprovalStore): void {
 
 function helperCandidates(): string[] {
   const moduleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const windowsInstallRoot = process.env.LOCALAPPDATA
+    ? path.join(process.env.LOCALAPPDATA, "CodexFlow")
+    : path.join(os.homedir(), "AppData", "Local", "CodexFlow");
   return [
     process.env.CODEXFLOW_COMPUTER_HELPER ?? "",
     path.join(process.env.CODEXFLOW_DESKTOP_INSTALL_DIR ?? path.join(os.homedir(), "Applications"), "CodexFlow.app", "Contents", "Helpers", "CodexFlowComputer"),
-    path.join(moduleRoot, "desktop", "prebuilt", "CodexFlow.app", "Contents", "Helpers", "CodexFlowComputer")
+    path.join(moduleRoot, "desktop", "prebuilt", "CodexFlow.app", "Contents", "Helpers", "CodexFlowComputer"),
+    path.join(process.env.CODEXFLOW_DESKTOP_INSTALL_DIR ?? windowsInstallRoot, "CodexFlowComputer.exe"),
+    path.join(moduleRoot, "desktop", "prebuilt", "windows", "CodexFlowComputer.exe")
   ].filter(Boolean);
 }
 
 function helperPath(): string {
-  if (process.platform !== "darwin" && !process.env.CODEXFLOW_COMPUTER_HELPER) {
-    throw new CodexFlowError("Computer Use currently requires the native CodexFlow app on macOS.");
+  if (!["darwin", "win32"].includes(process.platform) && !process.env.CODEXFLOW_COMPUTER_HELPER) {
+    throw new CodexFlowError("Computer Use requires the native CodexFlow app on macOS or Windows.");
   }
   const found = helperCandidates().find((candidate) => {
-    try { return fs.statSync(candidate).isFile() && (fs.statSync(candidate).mode & 0o111) !== 0; }
+    try {
+      const stat = fs.statSync(candidate);
+      return stat.isFile() && (process.platform === "win32" || (stat.mode & 0o111) !== 0);
+    }
     catch { return false; }
   });
   if (!found) throw new CodexFlowError("The CodexFlow Computer helper is unavailable. Reopen CodexFlow to refresh the installed native app.");
