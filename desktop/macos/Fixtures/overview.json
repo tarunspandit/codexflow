@@ -22,7 +22,7 @@
     "generated_at": "2026-07-15T08:31:14.000Z",
     "broker": {
       "state": "ready",
-      "version": "0.30.4",
+      "version": "0.31.0",
       "started_at": "2026-07-15T06:09:00.000Z",
       "uptime_ms": 8534000,
       "default_root": "/Users/demo/Work/atlas-studio",

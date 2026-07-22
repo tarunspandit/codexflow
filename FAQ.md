@@ -209,7 +209,7 @@ Use `CODEXFLOW_WRITE_MODE=off` when you want direct `write` and `edit` tools rem
 
 codexflow cannot attach to, read, or execute inside a specific Codex app conversation or terminal session.
 
-The MCP `bash` tool runs from the CodexFlow server process you started for the configured workspace. MCP session ids are HTTP transport state between ChatGPT and CodexFlow; they are not Codex conversation ids.
+The MCP `bash` and `terminal` tools run from the CodexFlow server process you started for the configured workspace. `bash` is an isolated command. `terminal` is a CodexFlow-owned persistent shell keyed to the chat's private route, so cwd/environment changes, background processes, transcript cursors, and interactive input can continue across MCP transports. Neither tool controls a Codex app terminal.
 
 What CodexFlow can do is require a matching local bash session label before it runs shell commands:
 
@@ -217,7 +217,7 @@ What CodexFlow can do is require a matching local bash session label before it r
 codexflow --bash-session main --require-bash-session
 ```
 
-Then `bash` calls must include `session_id: "main"`. This helps avoid accidental shell execution in the wrong CodexFlow terminal, but it is not remote control of an existing Codex app chat.
+Then `bash` and `terminal` calls must include `session_id: "main"`. This helps avoid accidental shell execution in the wrong CodexFlow broker, but it is not remote control of an existing Codex app chat.
 
 codexflow can list local Codex session ids and titles when you explicitly opt in:
 
@@ -233,7 +233,7 @@ If you do not want ChatGPT to trigger shell commands while you work in Codex, st
 codexflow --no-bash
 ```
 
-This removes the `bash` MCP tool from the advertised tool list. ChatGPT can still use non-bash CodexFlow tools such as workspace open, read, search, and show_changes. Direct `write`/`edit` are advertised only in workspace write mode.
+This removes both `bash` and `terminal` from the advertised tool list. ChatGPT can still use non-shell CodexFlow tools such as workspace open, read, search, and show_changes. Direct `write`/`edit` are advertised only in workspace write mode.
 
 If you only want ChatGPT to plan and leave execution to Codex or another local agent:
 

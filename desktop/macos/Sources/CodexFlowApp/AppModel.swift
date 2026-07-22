@@ -16,6 +16,7 @@ final class AppModel: ObservableObject {
     @Published var notice: String?
     @Published var showingPolicyEditor = false
     @Published var showingRuntimePicker = false
+    @Published private(set) var worktreeBusy = false
 
     private let fileManager = FileManager.default
     private let session: URLSession
@@ -400,6 +401,49 @@ final class AppModel: ObservableObject {
         } catch {
             notice = error.localizedDescription
             return false
+        }
+    }
+
+    func createManagedWorktree() async {
+        guard fixture == nil, let runtime = selectedRuntime, !worktreeBusy else { return }
+        worktreeBusy = true
+        defer { worktreeBusy = false }
+        do {
+            let command = WorktreeCommand(action: "create", worktreeId: nil, baseRef: nil, includeChanges: true)
+            let payload = try JSONEncoder().encode(command)
+            let response: WorktreeMutationResponse = try await request(runtime: runtime, path: "/admin/worktrees", method: "POST", body: payload)
+            notice = response.message
+            await refresh(forceProjectRefresh: false)
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func removeManagedWorktree(_ id: String) async {
+        guard fixture == nil, let runtime = selectedRuntime, !worktreeBusy else { return }
+        worktreeBusy = true
+        defer { worktreeBusy = false }
+        do {
+            let command = WorktreeCommand(action: "remove", worktreeId: id, baseRef: nil, includeChanges: nil)
+            let payload = try JSONEncoder().encode(command)
+            let response: WorktreeMutationResponse = try await request(runtime: runtime, path: "/admin/worktrees", method: "POST", body: payload)
+            notice = response.message
+            await refresh(forceProjectRefresh: false)
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func updateChat(_ id: String, action: String, title: String? = nil, value: Bool? = nil) async {
+        guard fixture == nil, let runtime = selectedRuntime else { return }
+        do {
+            let command = ChatLifecycleCommand(action: action, chatId: id, title: title, value: value)
+            let payload = try JSONEncoder().encode(command)
+            let response: ChatLifecycleResponse = try await request(runtime: runtime, path: "/admin/chats", method: "POST", body: payload)
+            notice = response.message
+            await refresh(forceProjectRefresh: false)
+        } catch {
+            notice = error.localizedDescription
         }
     }
 

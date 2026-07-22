@@ -15,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
       template: "%s · CodexFlow",
     },
     description:
-      "One command gives ChatGPT project-aware access to your local files, git, terminal, skills, and repository context through a secure MCP bridge.",
+      "One command gives ChatGPT managed worktrees, guarded Git workflows, persistent terminals, skills, and project-aware local context through a secure MCP bridge.",
     applicationName: "CodexFlow",
     keywords: ["ChatGPT", "MCP", "local coding agent", "developer tools", "CodexFlow"],
     authors: [{ name: "CodexFlow contributors" }],
@@ -32,14 +32,14 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: "CodexFlow",
       title: "CodexFlow — One command. Every project. Any chat.",
       description:
-        "Turn ChatGPT on the web into a project-aware coding agent for your local machine.",
+        "Parallel local coding from ChatGPT with managed worktrees, persistent terminals, and one private route per chat.",
       url: "/",
-      images: [{ url: "/og.png", width: 1200, height: 630, alt: "CodexFlow Luminous Orbit Tech identity with the line One command. Every project. Any chat." }],
+      images: [{ url: "/og.png", width: 1200, height: 630, alt: "CodexFlow Luminous Orbit Tech identity with the line Parallel work. One private route." }],
     },
     twitter: {
       card: "summary_large_image",
       title: "CodexFlow — One command. Every project. Any chat.",
-      description: "Local code. Web intelligence. One secure connection.",
+      description: "Parallel work. One private route.",
       images: ["/og.png"],
     },
     icons: {

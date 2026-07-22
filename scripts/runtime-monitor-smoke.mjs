@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { RuntimeMonitor } from '../dist/runtimeMonitor.js';
 
 const monitor = new RuntimeMonitor(2, 50);
@@ -83,5 +86,31 @@ bounded.beginSession().bindTransport('77777777-7777-4777-8777-777777777777');
 bounded.beginSession().bindTransport('88888888-8888-4888-8888-888888888888');
 assert.equal(bounded.snapshot().sessions.length, 0, 'connection probes should stay out of chat telemetry');
 assert.equal(bounded.snapshot().open_connections, 2, 'connection telemetry should remain count-bounded');
+
+const metadataRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-chat-lifecycle-'));
+const metadataPath = path.join(metadataRoot, 'chat-metadata.json');
+const lifecycle = new RuntimeMonitor(10, 50, 10, metadataPath);
+const lifecycleHandle = lifecycle.beginSession();
+lifecycleHandle.bindTransport('99999999-9999-4999-8999-999999999999');
+lifecycleHandle.selectProject(projectA, routeA);
+const lifecycleId = lifecycle.snapshot().sessions[0].id;
+lifecycle.updateSession(lifecycleId, { title: 'Release audit', pinned: true, archived: true });
+const labeled = lifecycle.snapshot().sessions[0];
+assert.equal(labeled.title, 'Release audit');
+assert.equal(labeled.pinned, true);
+assert.equal(labeled.archived, true);
+lifecycleHandle.close();
+assert.equal(lifecycle.snapshot(Date.now() + 100).sessions.length, 1, 'pinned or archived chats should survive normal closed-session pruning');
+
+const restored = new RuntimeMonitor(10, 50, 10, metadataPath);
+const restoredHandle = restored.beginSession();
+restoredHandle.bindTransport('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+restoredHandle.selectProject(projectA, routeA);
+const restoredSession = restored.snapshot().sessions[0];
+assert.equal(restoredSession.title, 'Release audit');
+assert.equal(restoredSession.pinned, true);
+assert.equal(restoredSession.archived, true);
+const metadataMode = (await fs.stat(metadataPath)).mode & 0o777;
+assert.equal(metadataMode, 0o600, 'chat metadata should be private to the local user');
 
 console.log('✓ runtime monitor smoke test passed');

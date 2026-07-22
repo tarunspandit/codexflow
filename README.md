@@ -72,7 +72,10 @@ CodexFlow starts one local MCP server for all discovered projects. Each ChatGPT 
 - search code
 - make scoped edits with `write`, `edit`, or guarded `apply_patch`
 - run safe verification commands through `bash`
+- keep per-chat shell state and interactive/background processes through `terminal`
 - review changed files with `show_changes`
+- create isolated managed worktrees and hand changes between local and parallel checkouts
+- stage, unstage, discard explicit paths, branch, commit, push, and open pull requests through approval-visible Git actions
 - write handoff plans under `.ai-bridge`
 - export a selected context bundle for model surfaces that cannot call tools
 
@@ -95,7 +98,8 @@ conversation. The native app makes the broker legible and controllable:
 
 - **Now** shows connection health, project count, active chats, and recent activity.
 - **Projects** shows the folders CodexFlow discovered automatically.
-- **Chats** shows independent project routing for real tool-using conversations; background MCP discovery and component-fetch connections are deliberately hidden.
+- **Worktrees** creates, reveals, audits, and safely removes isolated checkouts.
+- **Chats** shows independent project routing for real tool-using conversations, with local search, rename, pin, archive, and restore controls; background MCP discovery and component-fetch connections are deliberately hidden.
 - **Connection** provides the private Server URL without displaying its credential.
 - **Policy** shows the effective boundary and edits protected next-launch defaults.
 
@@ -104,10 +108,12 @@ among multiple local runtimes. It calls the existing CodexFlow broker and never
 uses the Codex CLI as an execution backend. The authenticated browser page is a
 small recovery fallback only; it no longer duplicates the application.
 
-Session telemetry stays in process memory, is bounded, and expires shortly after
-a chat closes. It contains only a non-actionable display fingerprint, selected
-project, tool name, outcome, and duration. It never stores prompts, tool
-arguments, file contents, command output, tokens, or usable MCP transport IDs.
+Operational session telemetry stays in process memory, is bounded, and expires
+shortly after a chat closes. It contains only a non-actionable display
+fingerprint, selected project, tool name, outcome, and duration. Explicit local
+rename/pin/archive choices are persisted in an owner-only metadata file so the
+native app can restore them. CodexFlow never stores prompts, tool arguments,
+file contents, command output, tokens, or usable MCP transport IDs.
 
 ## Repository Analysis
 
@@ -202,6 +208,9 @@ https://your-device.your-tailnet.ts.net/mcp?codexflow_token=keep-this-token-stab
 - Public tunnel mode requires a CodexFlow HTTP token.
 - Generic writes are hidden unless `CODEXFLOW_WRITE_MODE=workspace`.
 - Safe bash blocks broad shell patterns and secret/build/cache paths.
+- Persistent terminals are isolated by private chat route; interactive input requires full bash mode.
+- Managed handoff fingerprints both checkouts and refuses to overwrite a destination that changed independently.
+- Git commits reject staged files outside the selected project; discard always requires explicit paths.
 - `apply_patch` is workspace-scoped and rejects blocked paths, symlink patches, and secret-looking patch content.
 - `show_changes` keeps a review checkpoint so repeated unchanged reviews collapse.
 - Tool-card metadata is off unless `CODEXFLOW_TOOL_CARDS=1`.
@@ -278,7 +287,7 @@ codexflow --tool-mode full \
   --root /path/to/default-repo --allow-root /path/to/projects
 ```
 
-When CodexFlow is activated in a new ChatGPT conversation, `list_projects` opens a picker. It combines the default project, projects found below configured allowed roots, and recent project folders recorded in local Codex metadata. Choosing one creates an opaque private `route_id`, binds that route to the folder, and publishes the exact route into the chat's model context. Every later file, search, edit, git, and bash call carries the route, even when ChatGPT opens a new MCP transport for the call. Other conversations receive different route IDs through the same tunnel, and owner-only local route state restores those bindings after broker restarts.
+When CodexFlow is activated in a new ChatGPT conversation, `list_projects` opens a picker. It combines the default project, projects found below configured allowed roots, and recent project folders recorded in local Codex metadata. Choosing one creates an opaque private `route_id`, binds that route to the folder, and publishes the exact route into the chat's model context. Every later file, search, edit, Git, worktree, and terminal call carries the route, even when ChatGPT opens a new MCP transport for the call. Other conversations receive different route IDs through the same tunnel, and owner-only local route state restores those bindings after broker restarts.
 
 Project selection also advertises repository instructions, workspace/user/plugin skills, and configured MCP server names. The model can load applicable skills with `load_skill`. CodexFlow does not execute the Codex CLI or claim that these ChatGPT conversations are native Codex sessions.
 

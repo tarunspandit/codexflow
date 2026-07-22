@@ -3,6 +3,7 @@ import Foundation
 enum AppSection: String, CaseIterable, Identifiable {
     case now
     case projects
+    case worktrees
     case chats
     case connection
     case policy
@@ -13,6 +14,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .now: "Now"
         case .projects: "Projects"
+        case .worktrees: "Worktrees"
         case .chats: "Chats"
         case .connection: "Connection"
         case .policy: "Policy"
@@ -23,6 +25,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .now: "sparkles"
         case .projects: "square.stack.3d.up"
+        case .worktrees: "arrow.triangle.branch"
         case .chats: "bubble.left.and.bubble.right"
         case .connection: "point.3.connected.trianglepath.dotted"
         case .policy: "slider.horizontal.3"
@@ -149,6 +152,7 @@ struct Overview: Decodable {
     let generatedAt: String
     let broker: BrokerOverview
     let projects: [ProjectOverview]
+    let worktrees: [ManagedWorktreeOverview]?
     let sessions: [SessionOverview]
     let activity: [ActivityOverview]
     let summary: OverviewSummary
@@ -194,6 +198,21 @@ struct RuntimeProject: Decodable, Hashable {
     let root: String
 }
 
+struct ManagedWorktreeOverview: Decodable, Identifiable, Hashable {
+    let id: String
+    let localRoot: String
+    let repositoryRoot: String
+    let checkoutRoot: String
+    let projectRoot: String
+    let projectRelativePath: String
+    let baseRef: String
+    let createdAt: String
+    let updatedAt: String
+    let exists: Bool
+    let branch: String?
+    let dirty: Bool
+}
+
 struct SessionOverview: Decodable, Identifiable, Hashable {
     let id: String
     let state: String
@@ -205,6 +224,9 @@ struct SessionOverview: Decodable, Identifiable, Hashable {
     let errors: Int
     let lastTool: String?
     let lastToolStatus: String?
+    let title: String?
+    let pinned: Bool?
+    let archived: Bool?
 }
 
 struct ActivityOverview: Decodable, Identifiable, Hashable {
@@ -224,6 +246,33 @@ struct OverviewSummary: Decodable {
     let openConnections: Int
     let recentSessions: Int
     let activityEvents: Int
+    let managedWorktrees: Int?
+}
+
+struct WorktreeCommand: Encodable {
+    let action: String
+    let worktreeId: String?
+    let baseRef: String?
+    let includeChanges: Bool?
+}
+
+struct WorktreeMutationResponse: Decodable {
+    let ok: Bool
+    let message: String
+    let worktrees: [ManagedWorktreeOverview]
+}
+
+struct ChatLifecycleCommand: Encodable {
+    let action: String
+    let chatId: String
+    let title: String?
+    let value: Bool?
+}
+
+struct ChatLifecycleResponse: Decodable {
+    let ok: Bool
+    let message: String
+    let session: SessionOverview
 }
 
 struct SavedProfileOverview: Decodable {
