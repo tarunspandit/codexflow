@@ -18,12 +18,12 @@ The honest status is **strong local workflow parity, not literal Codex desktop p
 | Git workflow | Available | Status/diff, stage/unstage, explicit-path discard, branches, commits, pushes, and pull-request creation are project-scoped and approval-visible. |
 | Managed Git worktrees | Available | Create/remove, dirty-state transfer, guarded handoff, owner-only metadata, destination fingerprints, and `.worktreeinclude` hydration. |
 | Codex local environments | Available | Reads the same version-1 `.codex/environments/*.toml`, including OS-specific setup/cleanup and named actions; exposes the same source-tree/worktree variables. |
-| Native management app | Available on macOS | Broker lifecycle, projects, environments, worktrees, chats, connection, and policy are first-class SwiftUI views. |
+| Native management app | Available on macOS | Broker lifecycle, projects, environments, worktrees, changes, chats, connection, and policy are first-class SwiftUI views. |
 | Chat lifecycle | Available locally | Search, local rename, pin, archive, restore, and project-route resumption without storing prompts or tool contents. |
 | Scheduled/background agent tasks | Available through ChatGPT Scheduled | `prepare_scheduled_task` creates a durable local-project prompt for same-chat or standalone schedules. ChatGPT owns future model turns and run history; each run reacquires its CodexFlow route and can use a clean managed worktree. |
 | Remote/cloud/SSH environments | Not yet | The current execution target is the user’s local allowed roots; there is no Codex-style local/cloud target switch or remote environment catalog. |
 | Computer Use and browser control | Not yet | CodexFlow does not capture or operate arbitrary desktop applications, Chrome, or an embedded browser. |
-| Rich native diff/review workspace | Partial | Diff and Git actions exist, but the Mac app does not yet match Codex’s full visual diff inspection, inline comment, and per-hunk interaction experience. |
+| Rich native diff/review workspace | Partial | The Mac app now provides staged/unstaged file lanes, bounded color-coded diffs, stats, and explicit file-level stage, unstage, and discard. Inline comments and per-hunk actions are not yet available. |
 | Multi-agent orchestration | Partial | Parallel chats and worktrees are independent, but CodexFlow itself does not run a model task queue or spawn model agents. |
 | Cross-platform native desktop app | Partial | The broker is cross-platform; the first-class native GUI currently targets macOS 14 or newer. |
 
@@ -39,7 +39,7 @@ Literal parity still requires capabilities outside the current local MCP surface
 
 1. Remote execution targets with explicit local/cloud/SSH selection, provisioning, secrets, and lifecycle policy.
 2. Computer Use and browser-control permissions, capture, confirmation, and audit UX.
-3. A richer native coding workspace for diff review, inline comments, hunk operations, plans, and task progress.
+3. Inline review comments, per-hunk stage/revert, and richer native plan/task progress inside the coding workspace.
 4. Equivalent native clients beyond macOS.
 
 Those additions must preserve the product boundary: no Codex CLI execution, no quota proxying, and no hidden automation of the ChatGPT website.

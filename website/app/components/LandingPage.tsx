@@ -16,7 +16,7 @@ const content = {
     nav: [["System", "#system"], ["Flow", "#flow"], ["Desktop app", "#companion"], ["Surface", "#surface"], ["Boundaries", "#safety"]],
     eyebrow: "Local agent infrastructure / Flow7 Tech",
     hero: ["One command.", "Every project.", "Any chat."],
-    heroBody: "CodexFlow gives ChatGPT a serious local coding backend. Projects, shared environments, managed worktrees, guarded Git, persistent terminals, and scheduled project runs become available through one deliberate connection.",
+    heroBody: "CodexFlow gives ChatGPT a serious local coding backend. Projects, shared environments, managed worktrees, guarded Git, persistent terminals, native change review, and scheduled project runs become available through one deliberate connection.",
     copy: "Copy",
     copied: "Copied",
     seePath: "See the path",
@@ -48,9 +48,9 @@ const content = {
     metricLabels: ["broker", "chats", "projects"],
     companionKicker: "The native desktop app",
     companionTitle: <>Your machine.<br />One clear surface.</>,
-    companionBody: "CodexFlow opens as a native app on your Mac. Start and stop the broker, run shared project environments, create isolated worktrees, organize routed chats, and edit policy without managing browser tabs.",
+    companionBody: "CodexFlow opens as a native app on your Mac. Start and stop the broker, run shared project environments, create isolated worktrees, inspect staged and unstaged diffs, organize routed chats, and edit policy without managing browser tabs.",
     companionLive: "Live on this computer",
-    companionViews: ["Now", "Projects", "Environments", "Worktrees", "Chats", "Connection", "Policy"],
+    companionViews: ["Now", "Projects", "Environments", "Worktrees", "Changes", "Chats", "Connection", "Policy"],
     companionMetrics: [["Projects", "Discovered"], ["Environments", "Shared"], ["Chat routes", "Independent"], ["Terminal", "Route-persistent"]],
     companionSessions: [["Onboarding", "atlas-web", "read · completed"], ["Auth refactor", "signal-api", "test · completed"], ["Release audit", "codexflow", "git status · live"]],
     companionPrivacy: "Content-free telemetry",
@@ -65,6 +65,7 @@ const content = {
       ["Change", "Precise edits inside one root.", "Search, read, write, edit, and apply guarded patches without exposing another project or wandering through the machine.", "WORKSPACE SCOPED"],
       ["Parallelize", "One task, one managed checkout.", "Creates isolated worktrees, carries current changes in safely, and refuses to overwrite a destination that changed independently.", "GUARDED HANDOFF"],
       ["Verify", "Git and terminal state that continue.", "Stages and commits only the selected project, runs bounded verification, and keeps a private route terminal alive across tool transports.", "PERSISTENT"],
+      ["Review", "The diff belongs on your machine.", "Separates staged and unstaged files in the native app, renders bounded color-coded diffs, and keeps stage, unstage, and discard actions explicit.", "NATIVE"],
       ["Adapt", "Your project environment travels too.", "Uses the same checked-in Codex environment format for setup, cleanup, named actions, skills, plugins, and MCP inventory—without running Codex.", "INTEROPERABLE"],
       ["Schedule", "Recurring work keeps its project.", "Prepares durable ChatGPT Scheduled runs that reacquire a private route and use a clean managed worktree without adding another model backend.", "CHATGPT NATIVE"],
     ],
@@ -104,7 +105,7 @@ const content = {
     nav: [["系统", "#system"], ["流程", "#flow"], ["桌面应用", "#companion"], ["能力", "#surface"], ["边界", "#safety"]],
     eyebrow: "本地代理基础设施 / Flow7 Tech",
     hero: ["一个命令。", "所有项目。", "任意对话。"],
-    heroBody: "CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、共享本地环境、受管 worktrees、受保护 Git、持久终端和定时项目任务，都通过一条清晰可控的连接进入对话。",
+    heroBody: "CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、共享本地环境、受管 worktrees、受保护 Git、持久终端、原生改动审查和定时项目任务，都通过一条清晰可控的连接进入对话。",
     copy: "复制",
     copied: "已复制",
     seePath: "查看完整流程",
@@ -136,9 +137,9 @@ const content = {
     metricLabels: ["broker", "对话", "项目"],
     companionKicker: "原生桌面应用",
     companionTitle: <>你的电脑。<br />一个清晰界面。</>,
-    companionBody: "CodexFlow 会在 Mac 上打开原生应用。启动或停止 broker、运行共享项目环境、创建隔离 worktrees、整理聊天路由和编辑策略，都无需管理浏览器标签。",
+    companionBody: "CodexFlow 会在 Mac 上打开原生应用。启动或停止 broker、运行共享项目环境、创建隔离 worktrees、检查 staged/unstaged diff、整理聊天路由和编辑策略，都无需管理浏览器标签。",
     companionLive: "正在此电脑上运行",
-    companionViews: ["当前", "项目", "环境", "Worktrees", "聊天", "连接", "策略"],
+    companionViews: ["当前", "项目", "环境", "Worktrees", "改动", "聊天", "连接", "策略"],
     companionMetrics: [["项目", "自动发现"], ["环境", "项目共享"], ["聊天路由", "各自独立"], ["终端", "随路由持久"]],
     companionSessions: [["优化新手流程", "atlas-web", "read · 完成"], ["重构身份验证", "signal-api", "test · 完成"], ["发布审查", "codexflow", "git status · 运行中"]],
     companionPrivacy: "不包含内容的遥测",
@@ -153,6 +154,7 @@ const content = {
       ["修改", "在一个 root 中精确编辑。", "搜索、读取、写入、编辑并应用受保护补丁，不暴露其他项目，也不在机器中越界。", "工作区范围"],
       ["并行", "一个任务，一个受管 checkout。", "创建隔离 worktrees，安全带入当前改动；如果目标 checkout 被独立修改，则拒绝覆盖。", "受保护交接"],
       ["验证", "Git 与终端状态持续存在。", "只暂存并提交所选项目，运行受限验证，并让私有路由终端跨工具连接保持运行。", "持久"],
+      ["审查", "Diff 应该留在你的电脑。", "在原生应用中分开 staged 与 unstaged 文件，呈现受限的彩色 diff，并让 stage、unstage、discard 始终是明确操作。", "原生"],
       ["适配", "项目环境也会随行。", "使用与 Codex 相同的项目环境格式提供 setup、cleanup、actions、skills、plugins 和 MCP 清单，但不运行 Codex。", "可互操作"],
       ["定时", "重复任务始终回到正确项目。", "为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。", "CHATGPT 原生"],
     ],
@@ -213,7 +215,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
               <div className="instrument-readout"><p><span className="live-dot" aria-hidden="true" />{c.brokerReady}</p><dl>{c.readout.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>
             </div>
           </div>
-          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.33.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.34.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
         </section>
 
         <section className="system section-pad" id="system">

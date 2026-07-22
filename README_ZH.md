@@ -124,6 +124,7 @@ codexflow app
 - **项目**：CodexFlow 自动发现的文件夹。
 - **环境**：读取与 Codex 桌面应用相同的 `.codex/environments/*.toml`，执行 setup、cleanup 和命名 actions。
 - **Worktrees**：创建、检查、显示和安全删除隔离 checkout。
+- **改动**：分开展示 staged 与 unstaged 文件，呈现有颜色和统计的受限 diff，并对明确文件执行 stage、unstage 或 discard。
 - **聊天**：真正使用工具的当前与最近关闭对话各自路由到哪个项目；后台 discovery 与组件请求不会伪装成聊天。
 - **连接**：只在明确操作时复制私有 Server URL，并管理 broker 的启动、停止和重启。
 - **策略**：本次进程真正生效的写入、终端、工具、history、认证和 allowed-root 边界。

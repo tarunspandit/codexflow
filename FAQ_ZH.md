@@ -50,7 +50,7 @@ CodexFlow 会自动发现本机 Codex 使用过的项目，启动 broker 和 tun
 codexflow app
 ```
 
-它展示已发现项目、活跃与最近关闭的聊天路由、不包含内容的工具活动、连接健康、下次启动设置，以及当前进程真正生效的策略。它可以选择 workspace，启动、停止或重启本地 broker，并在明确操作时复制私有 Server URL。它没有模型输入框，不调用 Codex CLI，也不能偷偷把现有 ChatGPT 对话切换到另一个项目；项目选择仍由该对话里的 CodexFlow picker 或准确项目名称回复完成。
+它展示已发现项目、共享环境、受管 worktrees、分开的 staged/unstaged 文件与可选 diff、活跃与最近关闭的聊天路由、不包含内容的工具活动、连接健康、下次启动设置，以及当前进程真正生效的策略。它可以选择 workspace，对明确文件执行 Git 审查操作，启动、停止或重启本地 broker，并在明确操作时复制私有 Server URL。它没有模型输入框，不调用 Codex CLI，也不能偷偷把现有 ChatGPT 对话切换到另一个项目；项目选择仍由该对话里的 CodexFlow picker 或准确项目名称回复完成。
 
 旧的 token 保护浏览器页面只保留为紧急 fallback，用于打开桌面应用和查看少量诊断，不再复制桌面产品。
 

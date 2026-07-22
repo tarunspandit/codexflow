@@ -43,6 +43,7 @@ struct RootView: View {
         case .projects: ProjectsView()
         case .environments: EnvironmentsView()
         case .worktrees: WorktreesView()
+        case .changes: ChangesView()
         case .chats: ChatsView()
         case .connection: ConnectionView()
         case .policy: PolicyView()

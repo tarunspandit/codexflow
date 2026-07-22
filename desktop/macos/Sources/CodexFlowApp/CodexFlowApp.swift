@@ -5,7 +5,7 @@ struct CodexFlowDesktopApp: App {
     @StateObject private var model = AppModel()
 
     var body: some Scene {
-        WindowGroup {
+        Window("CodexFlow", id: "main") {
             RootView()
                 .environmentObject(model)
                 .frame(minWidth: 960, minHeight: 660)
@@ -20,9 +20,10 @@ struct CodexFlowDesktopApp: App {
                 Button("Projects") { model.section = .projects }.keyboardShortcut("2", modifiers: .command)
                 Button("Environments") { model.section = .environments }.keyboardShortcut("3", modifiers: .command)
                 Button("Worktrees") { model.section = .worktrees }.keyboardShortcut("4", modifiers: .command)
-                Button("Chats") { model.section = .chats }.keyboardShortcut("5", modifiers: .command)
-                Button("Connection") { model.section = .connection }.keyboardShortcut("6", modifiers: .command)
-                Button("Policy") { model.section = .policy }.keyboardShortcut("7", modifiers: .command)
+                Button("Changes") { model.section = .changes }.keyboardShortcut("5", modifiers: .command)
+                Button("Chats") { model.section = .chats }.keyboardShortcut("6", modifiers: .command)
+                Button("Connection") { model.section = .connection }.keyboardShortcut("7", modifiers: .command)
+                Button("Policy") { model.section = .policy }.keyboardShortcut("8", modifiers: .command)
                 Divider()
                 Button("Refresh") { Task { await model.refresh() } }.keyboardShortcut("r", modifiers: .command)
                 Button("Start Broker") { model.startBroker() }.keyboardShortcut("s", modifiers: [.command, .shift])
