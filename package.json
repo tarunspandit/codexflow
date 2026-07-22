@@ -1,6 +1,6 @@
 {
   "name": "@tarunspandit/codexflow",
-  "version": "0.40.0",
+  "version": "0.40.1",
   "description": "Independent one-command local coding backend that gives ChatGPT project, file, git, terminal, skill, and plugin access.",
   "type": "module",
   "license": "MIT",

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.40.1 (2026-07-23)
+
+- Rebuilt the signed native app after the package-version bump so the bundle, packaged build marker, launcher fingerprint, public surfaces, and release all advertise 0.40.1 and existing 0.39 installations refresh automatically.
+
 ## 0.40.0 (2026-07-23)
 
 - Added permissioned native macOS Computer Use for the cases where project, terminal, Git, and review tools are insufficient: a routed web chat can request one exact running app, observe its focused window, and address bounded accessibility elements without receiving arbitrary coordinate control.
