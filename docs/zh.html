@@ -57,7 +57,7 @@
           <div class="hero-copy reveal">
             <p class="eyebrow">本地代理基础设施 / Flow7 Tech</p>
             <h1 id="hero-title"><span>一个命令。</span><span>所有项目。</span><span>任意对话。</span></h1>
-            <p class="hero-lede">CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、受管 worktrees、受保护 Git 流程、持久终端、skills 与指令，都通过一条清晰可控的连接进入对话。</p>
+            <p class="hero-lede">CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、共享本地环境、受管 worktrees、受保护 Git 流程、持久终端、skills 与指令，都通过一条清晰可控的连接进入对话。</p>
             <div class="hero-actions">
               <div class="command-control" role="group" aria-label="安装 CodexFlow">
                 <span aria-hidden="true">$</span><code>npm i -g @tarunspandit/codexflow</code><button type="button" data-copy="npm install -g @tarunspandit/codexflow" data-copy-label="复制安装命令" data-copy-done="已复制">复制</button>
@@ -82,7 +82,7 @@
             </div>
           </div>
         </div>
-        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.31.0</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
+        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.32.0</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
       </section>
 
       <section class="system section-pad" id="system" aria-labelledby="system-title">
@@ -145,20 +145,20 @@
         <div class="section-shell">
           <div class="section-heading companion-heading reveal">
             <div><p class="eyebrow dark-label">原生桌面应用</p><h2 id="companion-title">你的电脑。<br />一个清晰界面。</h2></div>
-            <p>CodexFlow 会在 Mac 上打开原生应用。启动或停止 broker、创建隔离 worktrees、整理聊天路由、复制连接和编辑下次启动策略，都无需管理浏览器标签。</p>
+            <p>CodexFlow 会在 Mac 上打开原生应用。启动或停止 broker、运行共享项目环境、创建隔离 worktrees、整理聊天路由和编辑策略，都无需管理浏览器标签。</p>
           </div>
           <div class="companion-frame reveal" aria-label="CodexFlow 原生桌面应用预览">
             <aside class="companion-rail">
               <div class="companion-lockup"><img src="./assets/brand/flow7-tech-dark.webp" alt="" width="1024" height="1024" /><span><strong>CodexFlow</strong><small>原生桌面应用</small></span></div>
               <div class="companion-ready"><i aria-hidden="true"></i><span>正在此电脑上运行</span></div>
-              <ol><li class="is-active"><span>01</span>当前</li><li><span>02</span>项目</li><li><span>03</span>Worktrees</li><li><span>04</span>聊天</li><li><span>05</span>连接</li><li><span>06</span>策略</li></ol>
+              <ol><li class="is-active"><span>01</span>当前</li><li><span>02</span>项目</li><li><span>03</span>环境</li><li><span>04</span>Worktrees</li><li><span>05</span>聊天</li><li><span>06</span>连接</li><li><span>07</span>策略</li></ol>
               <small>ENDORSED BY FLOW7</small>
             </aside>
             <div class="companion-stage">
               <header><span class="companion-window-title"><i class="window-dots" aria-hidden="true"><b></b><b></b><b></b></i>CodexFlow / <strong>当前</strong></span><small>正在此电脑上运行</small></header>
               <div class="companion-content">
                 <div class="companion-intro"><small>当前运行</small><h3>一切运行，一目了然。</h3></div>
-                <dl class="companion-metrics"><div><dt>项目</dt><dd>自动发现</dd></div><div><dt>Worktrees</dt><dd>彼此隔离</dd></div><div><dt>聊天路由</dt><dd>各自独立</dd></div><div><dt>终端</dt><dd>随路由持久</dd></div></dl>
+                <dl class="companion-metrics"><div><dt>项目</dt><dd>自动发现</dd></div><div><dt>环境</dt><dd>项目共享</dd></div><div><dt>聊天路由</dt><dd>各自独立</dd></div><div><dt>终端</dt><dd>随路由持久</dd></div></dl>
                 <div class="companion-ledgers">
                   <section aria-label="聊天路由"><div class="companion-panel-head"><span>01 / 实时路由</span><strong>进行中的聊天</strong></div><ol>
                     <li><i aria-hidden="true"></i><div><strong>优化新手流程</strong><code>atlas-web</code></div><span>read · 完成</span><small>chat-a40c97f2</small></li>
@@ -183,7 +183,7 @@
             <article class="reveal"><span>03</span><div><p class="micro-label">修改</p><h3>在一个 root 中精确编辑。</h3></div><p>搜索、读取、写入、编辑并应用受保护补丁，不暴露其他项目，也不在机器中越界。</p><small>工作区范围</small></article>
             <article class="reveal"><span>04</span><div><p class="micro-label">并行</p><h3>一个任务，一个受管 checkout。</h3></div><p>创建隔离 worktrees，安全带入当前改动；如果目标 checkout 被独立修改，则拒绝覆盖。</p><small>受保护交接</small></article>
             <article class="reveal"><span>05</span><div><p class="micro-label">验证</p><h3>Git 与终端状态持续存在。</h3></div><p>只暂存并提交所选项目，运行受限验证，并让私有路由终端跨工具连接保持运行。</p><small>持久</small></article>
-            <article class="reveal"><span>06</span><div><p class="micro-label">适配</p><h3>Skills 与 plugins 跟随项目。</h3></div><p>向当前聊天提供工作区与用户 skills、plugin manifests、指令以及已配置的 MCP servers。</p><small>可扩展</small></article>
+            <article class="reveal"><span>06</span><div><p class="micro-label">适配</p><h3>项目环境也会随行。</h3></div><p>使用与 Codex 相同的项目环境格式提供 setup、cleanup、actions、skills、plugins 和 MCP 清单，但不运行 Codex。</p><small>可互操作</small></article>
           </div>
         </div>
       </section>

@@ -415,6 +415,173 @@ private struct ProjectRow: View {
     }
 }
 
+struct EnvironmentsView: View {
+    @EnvironmentObject private var model: AppModel
+
+    private var environments: [LocalEnvironmentOverview] { model.overview?.environments ?? [] }
+    private var actionsEnabled: Bool {
+        model.overview?.broker.writeMode == "workspace" && model.overview?.broker.bashMode != "off"
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 21) {
+                HStack(alignment: .bottom) {
+                    SectionHeading(
+                        eyebrow: "Shared project runtime",
+                        title: "Environments",
+                        detail: "The same .codex environment files used by Codex Desktop. Setup new worktrees automatically and keep project actions one click away."
+                    )
+                    Spacer()
+                    Button {
+                        Task { await model.stopEnvironmentAction() }
+                    } label: {
+                        Label("Stop action", systemImage: "stop.fill")
+                    }
+                    .buttonStyle(FlowButtonStyle(kind: .danger))
+                    .disabled(!model.hasLiveRuntime || !actionsEnabled)
+                }
+
+                HStack(spacing: 11) {
+                    Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(FlowColor.signal)
+                    Text("Portable by design: edit an environment once in .codex/environments, then use it from Codex Desktop or CodexFlow without conversion.")
+                        .font(FlowType.body(11)).foregroundStyle(FlowColor.inkMuted)
+                    Spacer()
+                    Text("CODEX NATIVE FORMAT").font(FlowType.label(8)).tracking(1.1).foregroundStyle(FlowColor.signal)
+                }
+                .padding(.horizontal, 15)
+                .frame(minHeight: 47)
+                .background(FlowColor.signalWash.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(FlowColor.signal.opacity(0.17), lineWidth: 1))
+
+                if !model.hasLiveRuntime {
+                    OfflineInlineCard(title: "Start a workspace to load its environments.", detail: "CodexFlow reads project-owned configuration through the local broker.")
+                } else if !actionsEnabled {
+                    OfflineInlineCard(title: "Environment actions need workspace execution.", detail: "Set Write access to Workspace and keep Bash enabled in Policy, then restart the broker.")
+                } else if environments.isEmpty {
+                    PaperCard {
+                        EmptyState(
+                            symbol: "shippingbox",
+                            title: "No local environments yet",
+                            detail: "Create one from Codex Desktop settings or add a version 1 TOML file under .codex/environments. It will appear here automatically."
+                        )
+                    }
+                } else {
+                    LazyVStack(spacing: 11) {
+                        ForEach(environments) { environment in
+                            EnvironmentCard(environment: environment)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 25)
+            .padding(.top, 25)
+            .padding(.bottom, 42)
+            .frame(maxWidth: 1160, alignment: .leading)
+        }
+    }
+}
+
+private struct EnvironmentCard: View {
+    @EnvironmentObject private var model: AppModel
+    let environment: LocalEnvironmentOverview
+
+    private var busy: Bool { model.environmentBusyAction != nil || model.worktreeBusy }
+
+    var body: some View {
+        PaperCard(padding: 18) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 15) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12).fill(FlowColor.signalWash)
+                        Image(systemName: "shippingbox.and.arrow.backward")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(FlowColor.signal)
+                    }
+                    .frame(width: 48, height: 48)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(spacing: 8) {
+                            Text(environment.name).font(FlowType.title(14)).foregroundStyle(FlowColor.ink)
+                            if environment.inherited {
+                                Text("INHERITED").font(FlowType.label(8)).tracking(1).foregroundStyle(FlowColor.signal)
+                                    .padding(.horizontal, 7).frame(minHeight: 21).background(FlowColor.signalWash).clipShape(Capsule())
+                            }
+                        }
+                        Text(environment.configPath)
+                            .font(FlowType.mono(10)).foregroundStyle(FlowColor.inkMuted)
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                    Spacer()
+                    InfoPair(label: "PLATFORM", value: environment.platform.codexFlowTitle)
+                    InfoPair(label: "SETUP", value: environment.hasSetup ? "Configured" : "None")
+                    InfoPair(label: "ACTIONS", value: "\(environment.actions.count)")
+                    Button("Reveal") {
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: environment.configPath)])
+                    }
+                    .buttonStyle(FlowButtonStyle(kind: .secondary))
+                }
+
+                FlowDivider()
+
+                HStack(spacing: 9) {
+                    if environment.actions.isEmpty {
+                        Text("No toolbar actions configured.")
+                            .font(FlowType.body(11)).foregroundStyle(FlowColor.inkMuted)
+                    } else {
+                        ForEach(environment.actions) { action in
+                            Button {
+                                Task { await model.runEnvironment(environment, action: "run", actionName: action.name) }
+                            } label: {
+                                Label(action.name, systemImage: action.symbol)
+                            }
+                            .buttonStyle(FlowButtonStyle(kind: .primary))
+                            .disabled(busy)
+                        }
+                    }
+                    Spacer()
+                    if environment.hasSetup {
+                        Button("Run setup") {
+                            Task { await model.runEnvironment(environment, action: "setup") }
+                        }
+                        .buttonStyle(FlowButtonStyle(kind: .quiet))
+                        .disabled(busy)
+                    }
+                    if environment.hasCleanup {
+                        Button("Run cleanup") {
+                            Task { await model.runEnvironment(environment, action: "cleanup") }
+                        }
+                        .buttonStyle(FlowButtonStyle(kind: .quiet))
+                        .disabled(busy)
+                    }
+                    Button {
+                        Task {
+                            await model.createManagedWorktree(environmentConfigPath: environment.configPath)
+                            model.section = .worktrees
+                        }
+                    } label: {
+                        Label("New worktree", systemImage: "arrow.triangle.branch")
+                    }
+                    .buttonStyle(FlowButtonStyle(kind: .secondary))
+                    .disabled(busy)
+                }
+            }
+        }
+    }
+}
+
+private extension LocalEnvironmentActionOverview {
+    var symbol: String {
+        switch icon {
+        case "run": "play.fill"
+        case "debug": "ladybug"
+        case "test": "checkmark.seal"
+        default: "wrench.and.screwdriver"
+        }
+    }
+}
+
 struct WorktreesView: View {
     @EnvironmentObject private var model: AppModel
     @State private var removalCandidate: ManagedWorktreeOverview?
@@ -513,6 +680,9 @@ private struct WorktreeCard: View {
                     HStack(spacing: 8) {
                         Text(worktree.id).font(FlowType.mono(12)).foregroundStyle(FlowColor.ink)
                         StatusPill(label: worktree.dirty ? "Uncommitted changes" : "Clean", color: worktree.dirty ? FlowColor.warning : FlowColor.success)
+                        if let environmentName = worktree.environmentName {
+                            StatusPill(label: environmentName, color: FlowColor.signal)
+                        }
                         if !worktree.exists { StatusPill(label: "Missing", color: FlowColor.danger) }
                     }
                     Text(worktree.projectRoot)

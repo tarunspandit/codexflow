@@ -3,6 +3,7 @@ import Foundation
 enum AppSection: String, CaseIterable, Identifiable {
     case now
     case projects
+    case environments
     case worktrees
     case chats
     case connection
@@ -14,6 +15,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .now: "Now"
         case .projects: "Projects"
+        case .environments: "Environments"
         case .worktrees: "Worktrees"
         case .chats: "Chats"
         case .connection: "Connection"
@@ -25,6 +27,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .now: "sparkles"
         case .projects: "square.stack.3d.up"
+        case .environments: "shippingbox.and.arrow.backward"
         case .worktrees: "arrow.triangle.branch"
         case .chats: "bubble.left.and.bubble.right"
         case .connection: "point.3.connected.trianglepath.dotted"
@@ -152,6 +155,7 @@ struct Overview: Decodable {
     let generatedAt: String
     let broker: BrokerOverview
     let projects: [ProjectOverview]
+    let environments: [LocalEnvironmentOverview]?
     let worktrees: [ManagedWorktreeOverview]?
     let sessions: [SessionOverview]
     let activity: [ActivityOverview]
@@ -198,6 +202,28 @@ struct RuntimeProject: Decodable, Hashable {
     let root: String
 }
 
+struct LocalEnvironmentActionOverview: Decodable, Identifiable, Hashable {
+    let name: String
+    let icon: String
+    let platform: String
+
+    var id: String { "\(name):\(platform)" }
+}
+
+struct LocalEnvironmentOverview: Decodable, Identifiable, Hashable {
+    let configPath: String
+    let sourceRoot: String
+    let inherited: Bool
+    let version: Int
+    let name: String
+    let platform: String
+    let hasSetup: Bool
+    let hasCleanup: Bool
+    let actions: [LocalEnvironmentActionOverview]
+
+    var id: String { configPath }
+}
+
 struct ManagedWorktreeOverview: Decodable, Identifiable, Hashable {
     let id: String
     let localRoot: String
@@ -211,6 +237,9 @@ struct ManagedWorktreeOverview: Decodable, Identifiable, Hashable {
     let exists: Bool
     let branch: String?
     let dirty: Bool
+    let environmentConfigPath: String?
+    let environmentName: String?
+    let setupCompletedAt: String?
 }
 
 struct SessionOverview: Decodable, Identifiable, Hashable {
@@ -247,6 +276,7 @@ struct OverviewSummary: Decodable {
     let recentSessions: Int
     let activityEvents: Int
     let managedWorktrees: Int?
+    let localEnvironments: Int?
 }
 
 struct WorktreeCommand: Encodable {
@@ -254,12 +284,27 @@ struct WorktreeCommand: Encodable {
     let worktreeId: String?
     let baseRef: String?
     let includeChanges: Bool?
+    let environmentConfigPath: String?
+    let setupTimeoutMs: Int?
 }
 
 struct WorktreeMutationResponse: Decodable {
     let ok: Bool
     let message: String
     let worktrees: [ManagedWorktreeOverview]
+}
+
+struct EnvironmentCommand: Encodable {
+    let action: String
+    let configPath: String?
+    let actionName: String?
+    let background: Bool?
+    let timeoutMs: Int?
+}
+
+struct EnvironmentMutationResponse: Decodable {
+    let ok: Bool
+    let message: String
 }
 
 struct ChatLifecycleCommand: Encodable {

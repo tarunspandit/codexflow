@@ -73,8 +73,9 @@ CodexFlow starts one local MCP server for all discovered projects. Each ChatGPT 
 - make scoped edits with `write`, `edit`, or guarded `apply_patch`
 - run safe verification commands through `bash`
 - keep per-chat shell state and interactive/background processes through `terminal`
+- reuse Codex-compatible `.codex/environments/*.toml` setup, cleanup, and project actions
 - review changed files with `show_changes`
-- create isolated managed worktrees and hand changes between local and parallel checkouts
+- create isolated managed worktrees, hydrate selected ignored setup files through `.worktreeinclude`, and hand changes between local and parallel checkouts
 - stage, unstage, discard explicit paths, branch, commit, push, and open pull requests through approval-visible Git actions
 - write handoff plans under `.ai-bridge`
 - export a selected context bundle for model surfaces that cannot call tools
@@ -98,6 +99,7 @@ conversation. The native app makes the broker legible and controllable:
 
 - **Now** shows connection health, project count, active chats, and recent activity.
 - **Projects** shows the folders CodexFlow discovered automatically.
+- **Environments** shows the project’s shared Codex environment definitions and runs setup, cleanup, or named actions.
 - **Worktrees** creates, reveals, audits, and safely removes isolated checkouts.
 - **Chats** shows independent project routing for real tool-using conversations, with local search, rename, pin, archive, and restore controls; background MCP discovery and component-fetch connections are deliberately hidden.
 - **Connection** provides the private Server URL without displaying its credential.
@@ -133,6 +135,28 @@ codexflow inspect --root /path/to/repo --json
 The analysis is deterministic and local. It uses confidence labels instead of claiming compiler precision, stays within configured file/byte/symbol limits, and falls back to normal lexical search and Git review when analysis is incomplete.
 
 Set `CODEXFLOW_ANALYSIS=0` to disable repository analysis without changing the rest of the connector.
+
+## Shared Local Environments
+
+CodexFlow reads the same checked-in local environment format as the Codex desktop app. Put one or more version-1 TOML files in `.codex/environments/`; nested projects can also inherit definitions from an allowed parent root.
+
+```toml
+version = 1
+name = "Local development"
+
+[setup]
+script = "npm install"
+
+[cleanup]
+script = "npm run clean"
+
+[[actions]]
+name = "Tests"
+icon = "test"
+command = "npm test"
+```
+
+Select an environment from ChatGPT or the native app. New managed worktrees run its setup automatically and receive `CODEX_SOURCE_TREE_PATH` and `CODEX_WORKTREE_PATH`. Add gitignored files such as local fixtures to `.worktreeinclude` when they should be copied into new worktrees. No Codex process is started.
 
 ## Normal Commands
 
@@ -209,6 +233,7 @@ https://your-device.your-tailnet.ts.net/mcp?codexflow_token=keep-this-token-stab
 - Generic writes are hidden unless `CODEXFLOW_WRITE_MODE=workspace`.
 - Safe bash blocks broad shell patterns and secret/build/cache paths.
 - Persistent terminals are isolated by private chat route; interactive input requires full bash mode.
+- Local-environment scripts are trusted project code and run only when workspace writes and shell execution are enabled.
 - Managed handoff fingerprints both checkouts and refuses to overwrite a destination that changed independently.
 - Git commits reject staged files outside the selected project; discard always requires explicit paths.
 - `apply_patch` is workspace-scoped and rejects blocked paths, symlink patches, and secret-looking patch content.
@@ -342,4 +367,5 @@ git diff --check
 - [FAQ](FAQ.md)
 - [Security](SECURITY.md)
 - [Stable URL guide](DOMAIN_SETUP.md)
+- [Codex desktop parity matrix](CODEX_DESKTOP_PARITY.md)
 - [Changelog](CHANGELOG.md)

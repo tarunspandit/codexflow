@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.32.0 (2026-07-22)
+
+- Added native Codex local-environment compatibility: CodexFlow discovers the same version-1 `.codex/environments/*.toml` files, honors platform-specific setup and cleanup scripts, exposes named actions, and supplies `CODEX_SOURCE_TREE_PATH` plus `CODEX_WORKTREE_PATH` without invoking the Codex CLI.
+- Added route-private environment selection and a first-class native Environments view for inspecting inherited configurations, running setup/cleanup or named actions, stopping background actions, and creating a worktree with its selected environment.
+- Made managed worktrees run the selected environment setup automatically, run cleanup before removal, and hydrate gitignored files matched by `.worktreeinclude` without following symlinks or overwriting destination files.
+- Added bounded config parsing, trusted-project script gates, project-switch reset behavior, owner-only environment metadata, and end-to-end smoke coverage across MCP, HTTP, worktree, and native surfaces.
+
 ## 0.31.0 (2026-07-22)
 
 - Added guarded, project-scoped Git workflow actions for staging, unstaging, explicit-path discard, branch creation/switching, commits, pushes, and GitHub pull requests; commits refuse staged files outside a selected nested project.

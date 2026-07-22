@@ -10,6 +10,7 @@ export interface ChatRouteRecord {
   routeId: string;
   workspaceId: string;
   root: string;
+  environmentConfigPath?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +40,7 @@ function validRecord(value: unknown): value is ChatRouteRecord {
   return isChatRouteId(record.routeId) &&
     typeof record.workspaceId === "string" && Boolean(record.workspaceId) &&
     typeof record.root === "string" && path.isAbsolute(record.root) &&
+    (record.environmentConfigPath === undefined || (typeof record.environmentConfigPath === "string" && path.isAbsolute(record.environmentConfigPath))) &&
     typeof record.createdAt === "string" && Boolean(record.createdAt) &&
     typeof record.updatedAt === "string" && Boolean(record.updatedAt);
 }
@@ -74,9 +76,25 @@ export class ChatRouteStore {
       routeId,
       workspaceId: workspace.id,
       root: workspace.root,
+      ...(existing?.environmentConfigPath ? { environmentConfigPath: existing.environmentConfigPath } : {}),
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     };
+    this.routes.set(routeId, record);
+    this.persist();
+    return { ...record };
+  }
+
+  selectEnvironment(routeId: string, configPath?: string): ChatRouteRecord {
+    if (!isChatRouteId(routeId)) throw new Error("Invalid CodexFlow route_id.");
+    const existing = this.routes.get(routeId);
+    if (!existing) throw new Error("This private chat route is not bound to a project.");
+    const record: ChatRouteRecord = {
+      ...existing,
+      ...(configPath ? { environmentConfigPath: path.resolve(configPath) } : {}),
+      updatedAt: new Date().toISOString()
+    };
+    if (!configPath) delete record.environmentConfigPath;
     this.routes.set(routeId, record);
     this.persist();
     return { ...record };
