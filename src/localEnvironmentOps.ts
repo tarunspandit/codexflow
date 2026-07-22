@@ -57,7 +57,7 @@ interface ScriptTable {
   win32?: { script?: unknown };
 }
 
-function currentPlatform(): LocalEnvironmentPlatform {
+export function currentEnvironmentPlatform(): LocalEnvironmentPlatform {
   if (process.platform === "darwin") return "darwin";
   if (process.platform === "win32") return "win32";
   return "linux";
@@ -81,6 +81,57 @@ function parseScript(value: unknown, required: boolean): LocalEnvironmentScript 
   return result;
 }
 
+export function parseEnvironmentText(
+  raw: string,
+  configPath: string,
+  sourceRoot: string,
+  workspaceRoot: string
+): LocalEnvironment {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parse(raw) as Record<string, unknown>;
+  } catch (error) {
+    throw new CodexFlowError(`Invalid local environment TOML in ${configPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (parsed.version !== 1) throw new CodexFlowError(`Unsupported local environment version in ${configPath}. Expected version = 1.`);
+  const name = stringValue(parsed.name).trim();
+  if (!name) throw new CodexFlowError(`Local environment has no name: ${configPath}`);
+  const rawActions = Array.isArray(parsed.actions) ? parsed.actions : [];
+  const actions: LocalEnvironmentAction[] = rawActions.map((value, index) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new CodexFlowError(`Invalid action ${index + 1} in ${configPath}.`);
+    }
+    const item = value as Record<string, unknown>;
+    const actionName = stringValue(item.name).trim();
+    const command = stringValue(item.command).trim();
+    if (!actionName || !command) throw new CodexFlowError(`Action ${index + 1} in ${configPath} requires name and command.`);
+    const platform = stringValue(item.platform) as LocalEnvironmentPlatform | "";
+    if (platform && !["darwin", "linux", "win32"].includes(platform)) {
+      throw new CodexFlowError(`Action ${actionName} in ${configPath} has an unsupported platform.`);
+    }
+    const icon = stringValue(item.icon) as LocalEnvironmentAction["icon"] | "";
+    if (icon && !["tool", "run", "debug", "test"].includes(icon)) {
+      throw new CodexFlowError(`Action ${actionName} in ${configPath} has an unsupported icon.`);
+    }
+    return {
+      name: actionName,
+      command,
+      ...(icon ? { icon } : {}),
+      ...(platform ? { platform } : {})
+    };
+  });
+  return {
+    configPath,
+    sourceRoot,
+    inherited: sourceRoot !== workspaceRoot,
+    version: 1,
+    name,
+    setup: parseScript(parsed.setup, true)!,
+    cleanup: parseScript(parsed.cleanup, false),
+    actions
+  };
+}
+
 function parseEnvironmentFile(config: CodexFlowConfig, file: string, sourceRoot: string, workspace: Workspace): LocalEnvironment {
   let raw: string;
   try {
@@ -94,50 +145,8 @@ function parseEnvironmentFile(config: CodexFlowConfig, file: string, sourceRoot:
     if (error instanceof CodexFlowError) throw error;
     throw new CodexFlowError(`Unable to read local environment config: ${file}`);
   }
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = parse(raw) as Record<string, unknown>;
-  } catch (error) {
-    throw new CodexFlowError(`Invalid local environment TOML in ${file}: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  if (parsed.version !== 1) throw new CodexFlowError(`Unsupported local environment version in ${file}. Expected version = 1.`);
-  const name = stringValue(parsed.name).trim();
-  if (!name) throw new CodexFlowError(`Local environment has no name: ${file}`);
-  const rawActions = Array.isArray(parsed.actions) ? parsed.actions : [];
-  const actions: LocalEnvironmentAction[] = rawActions.map((value, index) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new CodexFlowError(`Invalid action ${index + 1} in ${file}.`);
-    }
-    const item = value as Record<string, unknown>;
-    const actionName = stringValue(item.name).trim();
-    const command = stringValue(item.command).trim();
-    if (!actionName || !command) throw new CodexFlowError(`Action ${index + 1} in ${file} requires name and command.`);
-    const platform = stringValue(item.platform) as LocalEnvironmentPlatform | "";
-    if (platform && !["darwin", "linux", "win32"].includes(platform)) {
-      throw new CodexFlowError(`Action ${actionName} in ${file} has an unsupported platform.`);
-    }
-    const icon = stringValue(item.icon) as LocalEnvironmentAction["icon"] | "";
-    if (icon && !["tool", "run", "debug", "test"].includes(icon)) {
-      throw new CodexFlowError(`Action ${actionName} in ${file} has an unsupported icon.`);
-    }
-    return {
-      name: actionName,
-      command,
-      ...(icon ? { icon } : {}),
-      ...(platform ? { platform } : {})
-    };
-  });
   const configPath = fs.realpathSync(file);
-  return {
-    configPath,
-    sourceRoot,
-    inherited: sourceRoot !== workspace.root,
-    version: 1,
-    name,
-    setup: parseScript(parsed.setup, true)!,
-    cleanup: parseScript(parsed.cleanup, false),
-    actions
-  };
+  return parseEnvironmentText(raw, configPath, sourceRoot, workspace.root);
 }
 
 function discoveryCeiling(config: CodexFlowConfig, workspace: Workspace): string {
@@ -202,16 +211,32 @@ export function resolveLocalEnvironment(
 }
 
 export function environmentScript(environment: LocalEnvironment, kind: LocalEnvironmentScriptKind): string {
+  return environmentScriptForPlatform(environment, kind, currentEnvironmentPlatform());
+}
+
+export function environmentScriptForPlatform(
+  environment: LocalEnvironment,
+  kind: LocalEnvironmentScriptKind,
+  platform: LocalEnvironmentPlatform
+): string {
   const table = kind === "setup" ? environment.setup : environment.cleanup;
   if (!table) return "";
-  return (table[currentPlatform()] ?? table.script).trim();
+  return (table[platform] ?? table.script).trim();
 }
 
 export function environmentAction(environment: LocalEnvironment, name: string): LocalEnvironmentAction {
-  const matches = environment.actions.filter((action) => action.name === name && (!action.platform || action.platform === currentPlatform()));
+  return environmentActionForPlatform(environment, name, currentEnvironmentPlatform());
+}
+
+export function environmentActionForPlatform(
+  environment: LocalEnvironment,
+  name: string,
+  platform: LocalEnvironmentPlatform
+): LocalEnvironmentAction {
+  const matches = environment.actions.filter((action) => action.name === name && (!action.platform || action.platform === platform));
   if (matches.length === 1) return matches[0];
-  if (!matches.length) throw new CodexFlowError(`Action is unavailable for ${currentPlatform()}: ${name}`);
-  throw new CodexFlowError(`Action name is ambiguous for ${currentPlatform()}: ${name}`);
+  if (!matches.length) throw new CodexFlowError(`Action is unavailable for ${platform}: ${name}`);
+  throw new CodexFlowError(`Action name is ambiguous for ${platform}: ${name}`);
 }
 
 function shellQuote(value: string): string {
@@ -338,8 +363,10 @@ export async function runLocalEnvironmentCommand(
   });
 }
 
-export function localEnvironmentSummary(environment: LocalEnvironment): Record<string, unknown> {
-  const platform = currentPlatform();
+export function localEnvironmentSummary(
+  environment: LocalEnvironment,
+  platform = currentEnvironmentPlatform()
+): Record<string, unknown> {
   return {
     config_path: environment.configPath,
     source_root: environment.sourceRoot,
@@ -347,8 +374,8 @@ export function localEnvironmentSummary(environment: LocalEnvironment): Record<s
     version: environment.version,
     name: environment.name,
     platform,
-    has_setup: Boolean(environmentScript(environment, "setup")),
-    has_cleanup: Boolean(environmentScript(environment, "cleanup")),
+    has_setup: Boolean(environmentScriptForPlatform(environment, "setup", platform)),
+    has_cleanup: Boolean(environmentScriptForPlatform(environment, "cleanup", platform)),
     actions: environment.actions
       .filter((action) => !action.platform || action.platform === platform)
       .map((action) => ({ name: action.name, icon: action.icon ?? "tool", platform: action.platform ?? "all" }))

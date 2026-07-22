@@ -68,7 +68,7 @@ const content = {
       ["Review", "The diff belongs on your machine.", "Separates staged and unstaged files in the native app, renders bounded color-coded diffs, and keeps stage, unstage, and discard actions explicit.", "NATIVE"],
       ["Adapt", "Your project environment travels too.", "Uses the same checked-in Codex environment format for setup, cleanup, named actions, skills, plugins, and MCP inventory—without running Codex.", "INTEROPERABLE"],
       ["Schedule", "Recurring work keeps its project.", "Prepares durable ChatGPT Scheduled runs that reacquire a private route and use a clean managed worktree without adding another model backend.", "CHATGPT NATIVE"],
-      ["Remote", "The same picker reaches another machine.", "Approve a named OpenSSH host, save its project folder, then route bounded file, search, edit, Bash, and Git review tools without invoking Codex there.", "PROJECT ROUTING LIVE"],
+      ["Remote", "The same picker reaches another machine.", "Approve a named OpenSSH host, then keep isolated terminals, Codex environments, project skills, repository analysis, file edits, Bash, and Git review on that route—without invoking Codex there.", "REMOTE WORKSPACE LIVE"],
     ],
     safetyKicker: "Power with edges",
     safetyTitle: "Local access should feel serious.",
@@ -159,7 +159,7 @@ const content = {
       ["审查", "Diff 应该留在你的电脑。", "在原生应用中分开 staged 与 unstaged 文件，呈现受限的彩色 diff，并让 stage、unstage、discard 始终是明确操作。", "原生"],
       ["适配", "项目环境也会随行。", "使用与 Codex 相同的项目环境格式提供 setup、cleanup、actions、skills、plugins 和 MCP 清单，但不运行 Codex。", "可互操作"],
       ["定时", "重复任务始终回到正确项目。", "为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。", "CHATGPT 原生"],
-      ["远程", "同一个 picker，也能连接另一台机器。", "批准命名 OpenSSH host、保存项目目录，然后路由受限的文件、搜索、编辑、Bash 与 Git review 工具；远程端不会调用 Codex。", "项目路由已上线"],
+      ["远程", "同一个 picker，也能连接另一台机器。", "批准命名 OpenSSH host 后，即可在独立路由中使用持久终端、Codex 环境、项目 skills、仓库分析、文件编辑、Bash 与 Git review；远程端不会调用 Codex。", "远程工作区已上线"],
     ],
     safetyKicker: "能力必须有边界",
     safetyTitle: "本地访问应该被认真对待。",
@@ -218,7 +218,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
               <div className="instrument-readout"><p><span className="live-dot" aria-hidden="true" />{c.brokerReady}</p><dl>{c.readout.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>
             </div>
           </div>
-          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.36.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.37.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
         </section>
 
         <section className="system section-pad" id="system">

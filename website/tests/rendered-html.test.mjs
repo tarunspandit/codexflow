@@ -44,8 +44,9 @@ test("renders the complete English launch page", async () => {
   assert.match(html, /scheduled project runs/i);
   assert.match(html, /Recurring work keeps its project/i);
   assert.match(html, /The same picker reaches another machine/);
-  assert.match(html, /PROJECT ROUTING LIVE/);
-  assert.match(html, /CODEXFLOW \/ 0\.36\.0/);
+  assert.match(html, /REMOTE WORKSPACE LIVE/);
+  assert.match(html, /isolated terminals, Codex environments, project skills, repository analysis/i);
+  assert.match(html, /CODEXFLOW \/ 0\.37\.0/);
   assert.match(html, /representative native-app preview/i);
   assert.match(html, /Content-free telemetry/);
   assert.match(html, /public website cannot see your projects or chats/i);
@@ -69,7 +70,9 @@ test("renders the Chinese edition", async () => {
   assert.match(html, /定时项目任务/);
   assert.match(html, /Hosts/);
   assert.match(html, /同一个 picker，也能连接另一台机器/);
-  assert.match(html, /CODEXFLOW \/ 0\.36\.0/);
+  assert.match(html, /远程工作区已上线/);
+  assert.match(html, /持久终端、Codex 环境、项目 skills、仓库分析/);
+  assert.match(html, /CODEXFLOW \/ 0\.37\.0/);
   assert.match(html, /一切运行，一目了然/);
   assert.match(html, /示意预览/);
   assert.match(html, /不包含内容的遥测/);

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.37.0 (2026-07-22)
+
+- Added persistent terminals for approved SSH projects with per-chat cwd/environment/process state, concurrent route isolation, bounded transcript cursors, background commands, full-mode input, timeouts, and host/project revalidation on every action.
+- Added remote Codex-compatible project environments: version-1 `.codex/environments/*.toml` discovery, route-persisted selection, host-platform setup/cleanup, and named actions execute in the route's persistent remote terminal.
+- Added guarded remote workspace-skill discovery and loading. Saved SSH projects now advertise their own `.codex`, `.agents`, and project skill folders alongside local user/plugin capabilities.
+- Added bounded remote repository inspection for languages, project types, entrypoints, areas, files, source symbols, internal imports, and explicit coverage warnings.
+- Extended the end-to-end SSH regression to prove two simultaneous route terminals do not share state, interactive input works, explicit cwd escapes fail, environment scripts execute on the host, and remote skills/analysis resolve against the selected project.
+- Kept the parity claim honest: remote managed worktrees and local/remote handoff remain unfinished, along with Computer Use/browser control and richer per-hunk/inline review.
+
 ## 0.36.0 (2026-07-22)
 
 - Added saved remote projects on approved OpenSSH hosts. Canonical remote folders now appear beside local projects in the ordinary ChatGPT picker and bind to the same private per-chat route contract.

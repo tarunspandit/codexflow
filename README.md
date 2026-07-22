@@ -78,7 +78,7 @@ CodexFlow starts one local MCP server for all discovered projects. Each ChatGPT 
 - create isolated managed worktrees, hydrate selected ignored setup files through `.worktreeinclude`, and hand changes between local and parallel checkouts
 - prepare recurring local-project runs for ChatGPT Scheduled without adding another model backend
 - stage, unstage, discard explicit paths, branch, commit, push, and open pull requests through approval-visible Git actions
-- approve named SSH hosts, save canonical remote project folders, and route bounded file, search, edit, patch, Bash, and Git review tools to them from the same project picker
+- approve named SSH hosts, save canonical remote project folders, and route bounded file, search, edit, patch, Bash, persistent terminal, environment, skill, analysis, and Git review tools to them from the same project picker
 - write handoff plans under `.ai-bridge`
 - export a selected context bundle for model surfaces that cannot call tools
 
@@ -119,9 +119,11 @@ OpenSSH; Codex and the Codex CLI are never installed or invoked on the host.
 Only concrete aliases already present in SSH config can be approved. Every call
 rechecks the destination fingerprint, canonical project root, blocked paths,
 symlink containment, size limits, and the current write/Bash policy. Remote
-persistent terminals, environments, worktrees, handoff, repository analysis,
-and remote workspace-skill discovery are still tracked as unfinished in
-`CODEX_DESKTOP_PARITY.md`.
+persistent terminals keep cwd, environment, background process, input, and
+transcript state private to one chat. The same route discovers and executes
+host-platform Codex environment files, advertises guarded remote workspace
+skills, and builds bounded repository analysis. Remote managed worktrees and
+local/remote handoff remain tracked as unfinished in `CODEX_DESKTOP_PARITY.md`.
 
 Operational session telemetry stays in process memory, is bounded, and expires
 shortly after a chat closes. It contains only a non-actionable display
