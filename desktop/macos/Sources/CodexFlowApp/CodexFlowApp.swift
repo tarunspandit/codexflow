@@ -21,7 +21,7 @@ struct CodexFlowDesktopApp: App {
                 Button("Environments") { model.section = .environments }.keyboardShortcut("3", modifiers: .command)
                 Button("Worktrees") { model.section = .worktrees }.keyboardShortcut("4", modifiers: .command)
                 Button("Changes") { model.section = .changes }.keyboardShortcut("5", modifiers: .command)
-                Button("Chats") { model.section = .chats }.keyboardShortcut("6", modifiers: .command)
+                Button("Tasks") { model.section = .chats }.keyboardShortcut("6", modifiers: .command)
                 Button("Hosts") { model.section = .hosts }.keyboardShortcut("7", modifiers: .command)
                 Button("Computer") { model.section = .computer }.keyboardShortcut("8", modifiers: .command)
                 Button("Browser") { model.section = .browser }.keyboardShortcut("9", modifiers: .command)

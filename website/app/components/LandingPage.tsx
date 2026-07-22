@@ -16,7 +16,7 @@ const content = {
     nav: [["System", "#system"], ["Flow", "#flow"], ["Desktop app", "#companion"], ["Surface", "#surface"], ["Boundaries", "#safety"]],
     eyebrow: "Local agent infrastructure / Flow7 Tech",
     hero: ["One command.", "Every project.", "Any chat."],
-    heroBody: "CodexFlow gives ChatGPT a serious local coding backend. Projects, shared environments, worktrees, Git, persistent terminals, native review, scheduled runs, Computer Use, and an ephemeral browser become available through one deliberate connection.",
+    heroBody: "CodexFlow gives ChatGPT a serious local coding backend. Projects, live task progress, worktrees, Git, persistent terminals, native review, scheduled runs, Computer Use, and an ephemeral browser become available through one deliberate connection.",
     copy: "Copy",
     copied: "Copied",
     seePath: "See the path",
@@ -48,13 +48,13 @@ const content = {
     metricLabels: ["broker", "chats", "projects"],
     companionKicker: "The native desktop app",
     companionTitle: <>Your machine.<br />One clear surface.</>,
-    companionBody: "CodexFlow opens as a native app on your Mac. Control the broker, projects, environments, worktrees, diffs, routed chats, SSH hosts, Computer Use, and website-origin approvals from one surface.",
+    companionBody: "CodexFlow opens as a native app on your Mac. Supervise routed web tasks, plans, blockers, environments, worktrees, diffs, SSH hosts, Computer Use, and website-origin approvals from one surface.",
     companionLive: "Live on this computer",
-    companionViews: ["Now", "Projects", "Environments", "Worktrees", "Changes", "Chats", "Hosts", "Computer", "Browser", "Connection", "Policy"],
+    companionViews: ["Now", "Projects", "Environments", "Worktrees", "Changes", "Tasks", "Hosts", "Computer", "Browser", "Connection", "Policy"],
     companionMetrics: [["Projects", "Discovered"], ["Environments", "Shared"], ["Chat routes", "Independent"], ["Terminal", "Route-persistent"]],
     companionSessions: [["Onboarding", "atlas-web", "read · completed"], ["Auth refactor", "signal-api", "test · completed"], ["Release audit", "codexflow", "git status · live"]],
-    companionPrivacy: "Content-free telemetry",
-    companionPrivacyBody: "Only project, tool name, outcome, and duration enter telemetry. Explicit labels, pins, archives, and review notes persist in separate owner-only files; prompts, arguments, source, command output, tokens, and usable MCP session IDs do not.",
+    companionPrivacy: "Bounded local progress",
+    companionPrivacyBody: "Project, tool outcome, and duration stay content-free. Only labels, lifecycle choices, review notes, and the title, focus, and plan explicitly sent through task_progress persist owner-only; prompts, source, command output, tokens, and usable MCP session IDs do not.",
     companionBoundary: "This is a representative native-app preview. The real desktop app reads only your authenticated local CodexFlow broker; this public website cannot see your projects or chats. The browser page remains a small recovery fallback.",
     surfaceKicker: "The tool surface",
     surfaceTitle: <>Enough agency to work.<br />Enough structure to trust.</>,
@@ -111,7 +111,7 @@ const content = {
     nav: [["系统", "#system"], ["流程", "#flow"], ["桌面应用", "#companion"], ["能力", "#surface"], ["边界", "#safety"]],
     eyebrow: "本地代理基础设施 / Flow7 Tech",
     hero: ["一个命令。", "所有项目。", "任意对话。"],
-    heroBody: "CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、共享环境、worktrees、Git、持久终端、原生审查、定时任务、Computer Use 与临时浏览器，都通过一条清晰可控的连接进入对话。",
+    heroBody: "CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、实时任务进度、worktrees、Git、持久终端、原生审查、定时任务、Computer Use 与临时浏览器，都通过一条清晰可控的连接进入对话。",
     copy: "复制",
     copied: "已复制",
     seePath: "查看完整流程",
@@ -143,13 +143,13 @@ const content = {
     metricLabels: ["broker", "对话", "项目"],
     companionKicker: "原生桌面应用",
     companionTitle: <>你的电脑。<br />一个清晰界面。</>,
-    companionBody: "CodexFlow 会在 Mac 上打开原生应用。统一管理 broker、项目、环境、worktrees、diff、聊天路由、SSH hosts、Computer Use 与网站 origin 审批。",
+    companionBody: "CodexFlow 会在 Mac 上打开原生应用。统一监督 web 任务、计划、阻塞、环境、worktrees、diff、SSH hosts、Computer Use 与网站 origin 审批。",
     companionLive: "正在此电脑上运行",
-    companionViews: ["当前", "项目", "环境", "Worktrees", "改动", "聊天", "Hosts", "Computer", "Browser", "连接", "策略"],
+    companionViews: ["当前", "项目", "环境", "Worktrees", "改动", "任务", "Hosts", "Computer", "Browser", "连接", "策略"],
     companionMetrics: [["项目", "自动发现"], ["环境", "项目共享"], ["聊天路由", "各自独立"], ["终端", "随路由持久"]],
     companionSessions: [["优化新手流程", "atlas-web", "read · 完成"], ["重构身份验证", "signal-api", "test · 完成"], ["发布审查", "codexflow", "git status · 运行中"]],
-    companionPrivacy: "不包含内容的遥测",
-    companionPrivacyBody: "遥测只记录项目、工具名称、结果和耗时。你明确设置的标签、置顶、归档与 review notes 会分别保存在 owner-only 文件中；prompts、arguments、源码、命令输出、tokens 与可用的 MCP session IDs 不会保留。",
+    companionPrivacy: "受限的本地进度",
+    companionPrivacyBody: "项目、工具结果和耗时保持无内容遥测。只有你明确设置的标签、生命周期选择、review notes，以及通过 task_progress 提交的标题、重点和计划会 owner-only 保存；prompts、源码、命令输出、tokens 与可用的 MCP session IDs 不会保留。",
     companionBoundary: "这是原生应用的示意预览。真正的桌面应用只读取你本机经过身份验证的 CodexFlow broker；此公共网站无法看到你的项目或聊天。浏览器页面只保留为精简恢复入口。",
     surfaceKicker: "工具能力",
     surfaceTitle: <>足够完成工作。<br />也足够清楚，值得信任。</>,
@@ -224,7 +224,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
               <div className="instrument-readout"><p><span className="live-dot" aria-hidden="true" />{c.brokerReady}</p><dl>{c.readout.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>
             </div>
           </div>
-          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.41.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.42.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
         </section>
 
         <section className="system section-pad" id="system">
@@ -269,7 +269,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
                   <dl className="companion-metrics">{c.companionMetrics.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
                   <div className="companion-ledgers">
                     <section aria-label={locale === "zh" ? "聊天路由" : "Chat routing"}>
-                      <div className="companion-panel-head"><span>01 / {locale === "zh" ? "实时路由" : "LIVE ROUTING"}</span><strong>{locale === "zh" ? "进行中的聊天" : "Chats in motion"}</strong></div>
+                      <div className="companion-panel-head"><span>01 / {locale === "zh" ? "实时进度" : "LIVE PROGRESS"}</span><strong>{locale === "zh" ? "进行中的任务" : "Tasks in motion"}</strong></div>
                       <ol>{c.companionSessions.map(([chat, project, state], index) => <li key={chat}><i aria-hidden="true" /><div><strong>{chat}</strong><code>{project}</code></div><span>{state}</span><small>chat-{["a40c97f2", "7eac13b8", "29d1f640"][index]}</small></li>)}</ol>
                     </section>
                     <aside><span>02 / {locale === "zh" ? "隐私" : "PRIVACY"}</span><strong>{c.companionPrivacy}</strong><p>{c.companionPrivacyBody}</p></aside>

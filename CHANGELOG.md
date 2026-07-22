@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.42.0 (2026-07-23)
+
+- Added the route-scoped `task_progress` tool so a web chat can publish a bounded title, current focus, task state, and complete plan snapshot to the local native app without starting another model or agent.
+- Rebuilt the native Chats surface as Tasks: parallel routed work now shows live progress, completed/active/blocked steps, review and waiting states, local lifecycle controls, and clear project ownership in one supervision view.
+- Persisted only the explicitly reported bounded progress snapshot in the existing owner-only chat metadata file; prompts, general tool arguments, file contents, command output, credentials, and MCP transport identifiers remain excluded.
+- Added broker/runtime/API persistence coverage, independent-route HTTP regression, native fixture coverage, signed universal-app compilation, and Computer Use visual QA for the task board.
+- Updated the parity boundary: local task progress and parallel supervision are available; CodexFlow still does not spawn model agents, proxy Codex, automate ChatGPT, or provide a Windows-native client.
+
 ## 0.41.0 (2026-07-23)
 
 - Added a dedicated native Browser workspace and `browser_use` tool. Routed chats can request one exact HTTP(S) origin, open a visible WebKit tab, observe a fresh screenshot plus bounded semantic DOM targets, and operate the page without touching Safari, Chrome, or personal browser profiles.

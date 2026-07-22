@@ -22,7 +22,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .environments: "Environments"
         case .worktrees: "Worktrees"
         case .changes: "Changes"
-        case .chats: "Chats"
+        case .chats: "Tasks"
         case .hosts: "Hosts"
         case .computer: "Computer"
         case .browser: "Browser"
@@ -38,7 +38,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .environments: "shippingbox.and.arrow.backward"
         case .worktrees: "arrow.triangle.branch"
         case .changes: "plus.forwardslash.minus"
-        case .chats: "bubble.left.and.bubble.right"
+        case .chats: "checklist"
         case .hosts: "server.rack"
         case .computer: "macwindow.on.rectangle"
         case .browser: "safari"
@@ -268,6 +268,22 @@ struct SessionOverview: Decodable, Identifiable, Hashable {
     let title: String?
     let pinned: Bool?
     let archived: Bool?
+    let task: TaskProgressOverview?
+}
+
+struct TaskProgressOverview: Decodable, Hashable {
+    let title: String
+    let status: String
+    let detail: String?
+    let steps: [TaskProgressStepOverview]
+    let updatedAt: String
+}
+
+struct TaskProgressStepOverview: Decodable, Identifiable, Hashable {
+    let title: String
+    let status: String
+
+    var id: String { "\(title):\(status)" }
 }
 
 struct ActivityOverview: Decodable, Identifiable, Hashable {

@@ -104,8 +104,10 @@ conversation. The native app makes the broker legible and controllable:
 - **Environments** shows the project’s shared Codex environment definitions and runs setup, cleanup, or named actions.
 - **Worktrees** creates, reveals, audits, and safely removes isolated checkouts.
 - **Changes** separates staged and unstaged files, renders bounded color-coded diffs, stages/unstages/reverts individual hunks, and keeps line-anchored review notes visible to `show_changes` in the web chat.
-- **Chats** shows independent project routing for real tool-using conversations, with local search, rename, pin, archive, and restore controls; background MCP discovery and component-fetch connections are deliberately hidden.
+- **Tasks** shows every real project-routed web conversation with its bounded plan, current focus, blockers, review state, and completion progress, plus local search, rename, pin, archive, and restore controls; background MCP discovery connections are deliberately hidden.
 - **Hosts** discovers concrete aliases from `~/.ssh/config`, requires bounded local OpenSSH verification, saves canonical remote project folders, and revokes routing automatically if an alias resolves to a different destination.
+- **Computer** grants one routed chat bounded, code-signing-bound access to an approved native app.
+- **Browser** provides visible, origin-scoped website control in an ephemeral WebKit profile.
 - **Connection** provides the private Server URL without displaying its credential.
 - **Policy** shows the effective boundary and edits protected next-launch defaults.
 
@@ -132,10 +134,22 @@ implicit; each managed pair remains on its approved host.
 Operational session telemetry stays in process memory, is bounded, and expires
 shortly after a chat closes. It contains only a non-actionable display
 fingerprint, selected project, tool name, outcome, and duration. Explicit local
-rename/pin/archive choices and native review notes are persisted separately in
-owner-only metadata files so the native app can restore them and `show_changes`
-can receive deliberate review feedback. CodexFlow never stores prompts, tool
-arguments, file contents, command output, tokens, or usable MCP transport IDs.
+rename/pin/archive choices, native review notes, and the bounded title/detail/plan
+snapshot deliberately sent through `task_progress` are persisted in owner-only
+metadata files. This lets the native Tasks workspace supervise parallel web work
+without becoming a second chat or model runtime. CodexFlow never stores prompts,
+general tool arguments, file contents, command output, tokens, or usable MCP
+transport IDs.
+
+## Native task progress
+
+For meaningful multi-step work, the plugin asks ChatGPT to call `task_progress`
+after project selection and whenever the plan materially changes, becomes blocked,
+enters review, or completes. Each call replaces one route’s bounded snapshot: a
+120-character task title, optional 280-character current focus, up to twelve plan
+steps, and explicit status. The native **Tasks** workspace aggregates those
+independent routes into one supervision surface. It does not spawn agents, send
+model requests, scrape ChatGPT, or move conversation ownership away from the web.
 
 ## Repository Analysis
 

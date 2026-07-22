@@ -1295,7 +1295,7 @@ private extension String {
     }
 }
 
-struct ChatsView: View {
+struct TasksView: View {
     @EnvironmentObject private var model: AppModel
     @State private var scope = "all"
     @State private var query = ""
@@ -1324,13 +1324,13 @@ struct ChatsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 21) {
                 HStack(alignment: .bottom) {
-                    SectionHeading(eyebrow: "Independent routes", title: "Chats", detail: "A content-free view of the web conversations currently using this broker and the project each one selected.")
+                    SectionHeading(eyebrow: "Parallel web work", title: "Tasks", detail: "Supervise every project-routed web chat, its bounded plan, current focus, blockers, review state, and completion progress.")
                     Spacer()
-                    TextField("Search chats", text: $query)
+                    TextField("Search tasks", text: $query)
                         .textFieldStyle(.roundedBorder)
                         .font(FlowType.body(12))
                         .frame(width: 190)
-                    Picker("Chat scope", selection: $scope) {
+                    Picker("Task scope", selection: $scope) {
                         Text("All").tag("all")
                         Text("Active").tag("active")
                         Text("Closed").tag("closed")
@@ -1344,7 +1344,7 @@ struct ChatsView: View {
                 if !model.hasLiveRuntime {
                     OfflineInlineCard(title: "No live broker to observe.", detail: "Start CodexFlow, then activate the plugin in one or more web chats. Each conversation gets its own isolated project route.")
                 } else if sessions.isEmpty {
-                    PaperCard { EmptyState(symbol: "bubble.left.and.bubble.right", title: scope == "all" ? "No chats routed yet" : "No \(scope) chats", detail: "A chat appears after it selects a project. Discovery and picker connections stay hidden, and conversation text is never stored.") }
+                    PaperCard { EmptyState(symbol: "checklist", title: scope == "all" ? "No tasks routed yet" : "No \(scope) tasks", detail: "A task appears after its web chat selects a project. Discovery and picker connections stay hidden, and conversation text is never stored.") }
                 } else {
                     LazyVStack(spacing: 11) {
                         ForEach(sessions) { session in
@@ -1388,10 +1388,10 @@ private struct PrivacyStrip: View {
     var body: some View {
         HStack(spacing: 11) {
             Image(systemName: "eye.slash.fill").foregroundStyle(FlowColor.success)
-            Text("Prompts, tool arguments, file contents, command output, and credentials are never recorded here.")
+            Text("Only task titles, bounded plan steps, and operational outcomes reported through task_progress are stored. Prompts, file contents, command output, and credentials are not.")
                 .font(FlowType.body(11)).foregroundStyle(FlowColor.inkMuted)
             Spacer()
-            Text("CONTENT-FREE TELEMETRY").font(FlowType.label(8)).tracking(1.1).foregroundStyle(FlowColor.success)
+            Text("BOUNDED LOCAL PROGRESS").font(FlowType.label(8)).tracking(1.1).foregroundStyle(FlowColor.success)
         }
         .padding(.horizontal, 15)
         .frame(minHeight: 47)
@@ -1408,7 +1408,8 @@ private struct SessionDetailCard: View {
     let toggleArchive: () -> Void
     var body: some View {
         PaperCard(padding: 18) {
-            HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 15) {
+                HStack(spacing: 16) {
                 ZStack {
                     Circle().fill(session.state == "closed" ? FlowColor.paperMuted : FlowColor.signalWash).frame(width: 46, height: 46)
                     Image(systemName: "bubble.left.fill").foregroundStyle(session.state == "closed" ? FlowColor.inkMuted : FlowColor.signal)
@@ -1441,7 +1442,84 @@ private struct SessionDetailCard: View {
                 }
                 .menuStyle(.borderlessButton)
                 .frame(width: 38)
+                }
+                if let task = session.task {
+                    FlowDivider()
+                    TaskProgressBoard(task: task)
+                }
             }
+        }
+    }
+}
+
+private struct TaskProgressBoard: View {
+    let task: TaskProgressOverview
+
+    private var completed: Int { task.steps.filter { $0.status == "completed" }.count }
+    private var fraction: Double { task.steps.isEmpty ? (task.status == "complete" ? 1 : 0) : Double(completed) / Double(task.steps.count) }
+    private var statusColor: Color {
+        switch task.status {
+        case "complete": FlowColor.success
+        case "waiting": FlowColor.warning
+        case "cancelled": FlowColor.danger
+        case "review": FlowColor.signal
+        default: FlowColor.signal
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(spacing: 9) {
+                Text(task.title).font(FlowType.title(13)).foregroundStyle(FlowColor.ink)
+                StatusPill(label: task.status.codexFlowTitle, color: statusColor)
+                Spacer()
+                Text(task.steps.isEmpty ? "Updated \(Format.relative(task.updatedAt))" : "\(completed) / \(task.steps.count)")
+                    .font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted)
+            }
+            if let detail = task.detail, !detail.isEmpty {
+                Text(detail).font(FlowType.body(11)).foregroundStyle(FlowColor.inkMuted).lineLimit(2)
+            }
+            if !task.steps.isEmpty {
+                ProgressView(value: fraction)
+                    .progressViewStyle(.linear)
+                    .tint(statusColor)
+                    .accessibilityLabel("Task progress")
+                    .accessibilityValue("\(completed) of \(task.steps.count) steps complete")
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
+                    ForEach(Array(task.steps.enumerated()), id: \.offset) { _, step in
+                        HStack(alignment: .top, spacing: 7) {
+                            Image(systemName: step.status.taskStepSymbol)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(step.status.taskStepColor)
+                                .frame(width: 13, height: 15)
+                            Text(step.title)
+                                .font(FlowType.body(10))
+                                .foregroundStyle(step.status == "completed" ? FlowColor.inkMuted : FlowColor.ink)
+                                .lineLimit(2)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private extension String {
+    var taskStepSymbol: String {
+        switch self {
+        case "completed": "checkmark.circle.fill"
+        case "in_progress": "arrow.right.circle.fill"
+        case "blocked": "exclamationmark.triangle.fill"
+        default: "circle"
+        }
+    }
+
+    var taskStepColor: Color {
+        switch self {
+        case "completed": FlowColor.success
+        case "in_progress": FlowColor.signal
+        case "blocked": FlowColor.warning
+        default: FlowColor.inkMuted
         }
     }
 }

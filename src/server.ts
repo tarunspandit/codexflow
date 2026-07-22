@@ -81,6 +81,17 @@ export interface CodexFlowRuntimeObserver {
     workspace?: Workspace;
     routeId?: string;
   }): void;
+  onTaskProgress?(event: {
+    routeId: string;
+    workspace: Workspace;
+    task: {
+      title: string;
+      status: "planning" | "working" | "waiting" | "review" | "complete" | "cancelled";
+      detail?: string;
+      steps: Array<{ title: string; status: "pending" | "in_progress" | "completed" | "blocked" }>;
+      updatedAt: string;
+    } | null;
+  }): void;
 }
 
 function errorText(error: unknown): string {
@@ -594,6 +605,7 @@ const MINIMAL_TOOL_NAMES = [
   "edit",
   "apply_patch",
   "bash",
+  "task_progress",
   "show_changes"
 ] as const;
 
@@ -641,6 +653,7 @@ const FULL_TOOL_NAMES = [
   "git_workflow",
   "local_environment",
   "worktree",
+  "task_progress",
   "prepare_scheduled_task",
   "computer_use",
   "browser_use",
@@ -664,6 +677,7 @@ const CONNECTION_TEST_HIDDEN_TOOLS = new Set<string>([
   "git_workflow",
   "local_environment",
   "worktree",
+  "task_progress",
   "prepare_scheduled_task",
   "computer_use",
   "browser_use",
@@ -795,8 +809,9 @@ function serverInstructions(config: CodexFlowConfig): string {
       ? "6a. Use local_environment to discover the project's shared .codex/environments configuration and run named actions. Use worktree to isolate parallel tasks; a selected local environment automatically sets up a new worktree. Creating or handing off a worktree moves this private chat route to that checkout while preserving project scope."
       : "",
     "6b. When the user asks to schedule recurring or background project work, call prepare_scheduled_task. ChatGPT Scheduled owns the cadence, model turn, and run history; CodexFlow supplies the durable local project route and tools. Never create a local cron job or claim CodexFlow itself runs the model.",
-    "6c. Use computer_use only for a narrowly named native-app task when structured project tools are insufficient. Request the app first, wait for approval in the native CodexFlow Computer view, observe before every action, and never try to operate Terminal, ChatGPT/CodexFlow, system privacy settings, or a browser through generic desktop control.",
-    "6d. Use browser_use for website work in CodexFlow's dedicated ephemeral WebKit profile. Request each origin, wait for approval in the native Browser view, observe before every DOM action, and never drive Chrome, Safari, account/security pages, downloads, permission prompts, or browser extensions.",
+    "6c. For multi-step work, call task_progress after selecting the project, whenever the plan materially changes, when blocked, before review, and on completion. This gives the native app a bounded local progress board; it does not start another agent or replace updates in the web chat.",
+    "6d. Use computer_use only for a narrowly named native-app task when structured project tools are insufficient. Request the app first, wait for approval in the native CodexFlow Computer view, observe before every action, and never try to operate Terminal, ChatGPT/CodexFlow, system privacy settings, or a browser through generic desktop control.",
+    "6e. Use browser_use for website work in CodexFlow's dedicated ephemeral WebKit profile. Request each origin, wait for approval in the native Browser view, observe before every DOM action, and never drive Chrome, Safari, account/security pages, downloads, permission prompts, or browser extensions.",
     "7. Keep tool calls minimal. Prefer one targeted search plus show_changes instead of repeated broad inspection calls.",
     config.codexSessions !== "off"
       ? `8. Codex session history access is enabled in ${config.codexSessions} mode. Use it only when the user asks for local Codex session history.`
@@ -2251,6 +2266,85 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         write_mode: config.writeMode,
         tool_mode: config.toolMode
       }, { "openai/widgetSessionId": routeId });
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
+    "task_progress",
+    {
+      title: "Report Task Progress",
+      description:
+        "Publish a bounded plan and current task state to the local CodexFlow app for this private web-chat route. Use it for meaningful multi-step work, blockers, review, and completion. It only updates the local progress board; it never starts a model, agent, process, or schedule.",
+      inputSchema: {
+        route_id: ROUTE_ID_INPUT,
+        action: z.enum(["update", "clear"]).optional().describe("Update the task board or clear it. Default: update."),
+        title: z.string().trim().min(1).max(120).optional().describe("Short user-facing task title. Required for update."),
+        status: z.enum(["planning", "working", "waiting", "review", "complete", "cancelled"]).optional().describe("Current task state. Default: working."),
+        detail: z.string().trim().max(280).optional().describe("Optional short current-focus or blocker detail. Never include credentials or file contents."),
+        steps: z.array(z.object({
+          title: z.string().trim().min(1).max(120),
+          status: z.enum(["pending", "in_progress", "completed", "blocked"])
+        }).strict()).max(12).optional().describe("Complete ordered plan snapshot. Send the full current list on every update.")
+      },
+      annotations: HANDOFF_WRITE_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Updating local task progress...",
+        "openai/toolInvocation/invoked": "Task progress updated"
+      }
+    },
+    async (args) => {
+      const routeId = invocationRouteId();
+      if (!routeId) throw new CodexFlowError("task_progress requires the private route_id returned by list_projects or select_project.");
+      const route = routeStore.get(routeId);
+      if (!route) throw new CodexFlowError("This private chat route is not bound to a project. Call select_project first.");
+      const workspace: Workspace = route.location === "remote"
+        ? { id: route.workspaceId, root: route.root, openedAt: route.updatedAt }
+        : workspaceForRoute(routeId);
+      const action = args.action ?? "update";
+      if (action === "clear") {
+        observer.onTaskProgress?.({ routeId, workspace, task: null });
+        return textResult("# Task progress cleared\n\nThe local CodexFlow task board for this chat was cleared.", {
+          route_id: routeId,
+          workspace_id: workspace.id,
+          cleared: true
+        });
+      }
+      const title = String(args.title ?? "").trim();
+      if (!title) throw new CodexFlowError("title is required when updating task progress.");
+      const task = {
+        title,
+        status: (args.status ?? "working") as "planning" | "working" | "waiting" | "review" | "complete" | "cancelled",
+        ...(typeof args.detail === "string" && args.detail.trim() ? { detail: args.detail.trim() } : {}),
+        steps: Array.isArray(args.steps) ? args.steps.map((step: any) => ({ title: String(step.title).trim(), status: step.status })) : [],
+        updatedAt: new Date().toISOString()
+      };
+      const persistedText = [task.title, task.detail ?? "", ...task.steps.map((step: { title: string }) => step.title)].join("\n");
+      if (hasSecretValue(persistedText)) {
+        throw new CodexFlowError("Task progress was not saved because its title, detail, or steps appear to contain a credential. Remove the sensitive value and report only a short operational summary.");
+      }
+      observer.onTaskProgress?.({ routeId, workspace, task });
+      const completed = task.steps.filter((step: { status: string }) => step.status === "completed").length;
+      return textResult([
+        "# Task progress updated",
+        "",
+        `Task: ${task.title}`,
+        `State: ${task.status}`,
+        `Plan: ${completed}/${task.steps.length} steps complete`,
+        "The native CodexFlow app now shows this bounded progress snapshot. Continue reporting meaningful changes in the web chat as usual."
+      ].join("\n"), {
+        route_id: routeId,
+        workspace_id: workspace.id,
+        task: {
+          title: task.title,
+          status: task.status,
+          detail: task.detail ?? null,
+          steps: task.steps,
+          updated_at: task.updatedAt
+        }
+      });
     }
   );
 

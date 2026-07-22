@@ -27,6 +27,7 @@ codexflow can expose:
 - file metadata and selected file contents from allowed workspaces
 - git status and diffs
 - explicit line-anchored review comments written in the native app and returned to the selected project’s `show_changes` calls
+- bounded task titles, current-focus text, status, and plan steps explicitly reported by a routed web chat through `task_progress`
 - `.ai-bridge` planning files
 - optional shell command execution through the `bash` tool, hidden when bash mode is off
 - optional write/edit/apply_patch capability depending on `CODEXFLOW_WRITE_MODE`, advertised only in workspace write mode
@@ -59,6 +60,7 @@ Review changes against these failure modes before release:
 | A remote environment or skill escapes its project | Environment and skill discovery only traverses fixed project-owned roots, skips symlinks, limits file count and bytes, requires regular files, and resolves every returned path beneath the canonical saved project. Environment scripts require workspace write and Bash policy to be enabled. |
 | Remote worktree handoff overwrites independent work | Source and destination must share one Git common directory and HEAD. Owner-only manifests retain both state fingerprints; handoff refuses a changed destination, transfer is byte-bounded, symlinks/non-files are rejected, and removal snapshots dirty tracked and untracked project state before deleting the checkout. |
 | A stale or forged hunk action applies an unintended patch | The native app submits only a content-derived hunk ID. The authenticated broker resolves the guarded project path, regenerates the current raw Git diff, reconstructs the matching patch locally, checks it with `git apply --check`, and refuses missing, stale, staged-lane, or untracked-file mismatches. |
+| Task supervision silently becomes prompt logging | Only the bounded fields deliberately sent through `task_progress` are written to the owner-only chat metadata file: title, optional focus detail, explicit status, and up to twelve short steps. General prompts, tool arguments, file contents, command output, and transport IDs remain excluded. |
 | Native review notes leak into content-free telemetry | Review comments are deliberate user-authored project content stored separately in an owner-only mode-0600 file. They never enter runtime session/activity telemetry; they are returned only by authenticated Changes responses and the selected local project’s `show_changes`. Secret-looking comments are rejected. |
 | A chat silently captures or controls an arbitrary app | Computer Use requires Screen Recording and Accessibility permission on the Mac, then a second CodexFlow-native app grant. Allow-once grants are route-private and expire; persistent grants are stored owner-only and can be revoked. |
 | A different binary reuses an approved bundle identifier | Every app listing, snapshot, and action validates the executable signature and binds approval to its signing identifier, team, and code-directory hash. An identity change fails closed and requires fresh approval. |
