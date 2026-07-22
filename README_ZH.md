@@ -148,6 +148,12 @@ ChatGPT Web 负责 schedule、模型、cadence 与运行历史。需要定时处
 
 默认提示会执行聚焦验证、调用 `show_changes`、保留 worktree 供审查，并禁止 push/publish。电脑需要保持唤醒，CodexFlow broker 必须运行，Plugin URL 必须稳定。CodexFlow 不会创建本地 cron、不调用 Codex，也不会自己运行模型。
 
+### 原生 Computer Use 与 Browser Use
+
+当项目、Git 和终端工具不足时，Web chat 可以通过 `computer_use` 请求一个明确的原生 macOS 应用。请在原生 **Computer** 页面允许一次或持久授权，并在本机确认每个 press、文本或按键操作。授权绑定目标应用的代码签名；Terminal、ChatGPT/CodexFlow、系统设置、浏览器应用、安全输入框与疑似 secret 文本都会被拒绝。
+
+网站操作使用独立的 `browser_use` 边界。聊天先请求一个准确的 HTTP(S) origin；原生 **Browser** 页面可以拒绝、为该 route 允许十分钟，或持久允许直到撤销。页面在可见的临时 WebKit tab 中打开，不使用 Safari、Chrome 或你的个人浏览器 profile。聊天只能获得最新截图与受限的语义 DOM 目标；click、文本和敏感按键都绑定 route、tab、snapshot、element、operation 与 value，并需要本机确认。跨 origin 跳转、popup、下载、浏览器权限、登录/账户安全/支付页面、密码值、URL 凭据与疑似 secret 输入都会 fail closed。
+
 ## 其他启动方式
 
 不想全局安装时，也可以用：

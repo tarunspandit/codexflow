@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.41.0 (2026-07-23)
+
+- Added a dedicated native Browser workspace and `browser_use` tool. Routed chats can request one exact HTTP(S) origin, open a visible WebKit tab, observe a fresh screenshot plus bounded semantic DOM targets, and operate the page without touching Safari, Chrome, or personal browser profiles.
+- Added local origin approval with route-private ten-minute access or explicit owner-persistent grants, plus revocation and a bounded content-free browser activity ledger.
+- Sealed sensitive DOM actions to one route, tab, short-lived snapshot, element, operation, and value. Clicks, text entry, and consequential keys require native approval; stale targets fail closed after each action.
+- Enforced a separate non-persistent WebKit data store for every tab, cross-origin redirect refusal, and hard blocking for downloads, popups, JavaScript dialogs, authentication challenges, URL credentials, secret-looking query/input values, password contents/input, and authentication, account-security, billing, checkout, and payment pages.
+- Added mocked broker regressions and a real signed-app integration test covering native page open, screenshot capture, semantic targeting, confirmation, click effects, text input, populated password redaction, and close.
+- Visually inspected the bilingual Flow7-native Browser approval surface and updated public English/Chinese product surfaces and parity documentation.
+
 ## 0.40.1 (2026-07-23)
 
 - Rebuilt the signed native app after the package-version bump so the bundle, packaged build marker, launcher fingerprint, public surfaces, and release all advertise 0.40.1 and existing 0.39 installations refresh automatically.

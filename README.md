@@ -188,7 +188,13 @@ The default prompt verifies changes, calls `show_changes`, leaves the worktree a
 
 When structured project tools are not enough, a web chat can request one exact running macOS app through `computer_use`. Open the native **Computer** workspace to allow it once or persist access, then approve each press or text/key action locally. Observations are fresh, route-bound window captures plus bounded accessibility elements; actions never use arbitrary model-supplied coordinates.
 
-Approvals are tied to the app’s validated code-signing identity, and a replaced binary must be approved again. Terminal apps, ChatGPT/CodexFlow, System Settings, browser apps, secure fields, and secret-looking text are blocked. Browser control will use a separate per-host permission boundary.
+Approvals are tied to the app’s validated code-signing identity, and a replaced binary must be approved again. Terminal apps, ChatGPT/CodexFlow, System Settings, browser apps, secure fields, and secret-looking text are blocked from this generic app-control path.
+
+## Native Browser Use
+
+Website work uses the separate `browser_use` boundary. A routed chat requests one exact HTTP(S) origin; the native **Browser** workspace lets you deny it, allow it for that chat for ten minutes, or persist the origin until revocation. Approved pages open in visible WebKit tabs backed by a non-persistent profile, never in Safari, Chrome, or your personal browser session.
+
+The chat receives a fresh screenshot and bounded semantic DOM targets rather than cookies or arbitrary coordinates. Clicks, text entry, and consequential keys require a local confirmation sealed to one route, tab, snapshot, element, operation, and value. Cross-origin navigation, popup windows, downloads, browser permission prompts, authentication/account-security/payment pages, password values, embedded URL credentials, and secret-looking input fail closed.
 
 ## Normal Commands
 

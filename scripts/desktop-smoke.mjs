@@ -12,6 +12,7 @@ const executable = path.join(contents, 'MacOS', 'CodexFlow');
 const computerHelper = path.join(contents, 'Helpers', 'CodexFlowComputer');
 const resources = path.join(contents, 'Resources');
 const plist = path.join(contents, 'Info.plist');
+const browserSource = path.join(root, 'desktop', 'macos', 'Sources', 'CodexFlowApp', 'BrowserController.swift');
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', ...options });
@@ -81,6 +82,12 @@ if (process.platform === 'darwin') {
   assert.deepEqual(archs, ['arm64', 'x86_64']);
   const helperArchs = run('/usr/bin/lipo', ['-archs', computerHelper]).split(/\s+/).sort();
   assert.deepEqual(helperArchs, ['arm64', 'x86_64']);
+  assert.match(run('/usr/bin/otool', ['-L', executable]), /WebKit\.framework/, 'native browser must link WebKit');
+  const browserCode = fs.readFileSync(browserSource, 'utf8');
+  assert.match(browserCode, /websiteDataStore = \.nonPersistent\(\)/, 'native browser must use an ephemeral WebKit profile');
+  assert.match(browserCode, /Password fields are blocked/, 'native browser must refuse password input');
+  assert.match(browserCode, /shouldPerformDownload/, 'native browser must refuse downloads');
+  assert.match(browserCode, /requestMediaCapturePermissionFor/, 'native browser must refuse media permission prompts');
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', app]);
   const signature = run('/usr/bin/codesign', ['-dv', '--verbose=2', app], { stdio: ['ignore', 'pipe', 'pipe'] });
   assert.doesNotMatch(signature, /TeamIdentifier=[A-Z0-9]+/, 'release bundle is expected to be ad-hoc signed unless notarization is configured');

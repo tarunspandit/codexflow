@@ -88,6 +88,7 @@ for (const arch of ['arm64', 'x86_64']) {
     '-framework', 'SwiftUI',
     '-framework', 'AppKit',
     '-framework', 'Foundation',
+    '-framework', 'WebKit',
     '-o', binary,
     ...sourceFiles
   ]);

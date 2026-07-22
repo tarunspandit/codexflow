@@ -1898,6 +1898,294 @@ private struct ComputerActionApprovalCard: View {
     }
 }
 
+struct BrowserView: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 21) {
+                HStack(alignment: .bottom) {
+                    SectionHeading(
+                        eyebrow: "A separate web boundary",
+                        title: "Browser",
+                        detail: "A visible, ephemeral WebKit profile for approved website origins—separate from Safari, Chrome, and your personal sessions."
+                    )
+                    Spacer()
+                    if model.hasLiveRuntime {
+                        Button { Task { await model.refresh(forceProjectRefresh: false) } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                            .buttonStyle(FlowButtonStyle(kind: .secondary)).disabled(model.browserBusy)
+                    }
+                }
+
+                HStack(spacing: 11) {
+                    Image(systemName: "globe.badge.chevron.backward").foregroundStyle(FlowColor.signal)
+                    Text("Every origin is approved here. Cross-origin redirects are blocked, sensitive DOM actions ask again, downloads and browser permission prompts are refused, and all cookies disappear when the app closes.")
+                        .font(FlowType.body(11)).foregroundStyle(FlowColor.inkMuted)
+                    Spacer()
+                    Text("EPHEMERAL / ORIGIN SCOPED").font(FlowType.label(8)).tracking(1.1).foregroundStyle(FlowColor.signal)
+                }
+                .padding(.horizontal, 15).frame(minHeight: 57)
+                .background(FlowColor.signal.opacity(0.07)).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(FlowColor.signal.opacity(0.18), lineWidth: 1))
+
+                if !model.hasLiveRuntime {
+                    OfflineInlineCard(title: "Start the local broker to use Browser.", detail: "The web chat and this private WebKit profile meet only through the authenticated local broker.")
+                } else if let overview = model.browser {
+                    if !overview.actionRequests.isEmpty {
+                        browserRequestSection(eyebrow: "Exact next step", title: "Action confirmations", detail: "Each action is sealed to one route, tab, snapshot, DOM element, operation, and value.") {
+                            ForEach(overview.actionRequests) { request in BrowserActionApprovalCard(request: request) }
+                        }
+                    }
+                    if !overview.hostRequests.isEmpty {
+                        browserRequestSection(eyebrow: "New website boundary", title: "Origin requests", detail: "Allow once stays with one routed chat for ten minutes. Always allow persists until revoked.") {
+                            ForEach(overview.hostRequests) { request in BrowserHostApprovalCard(request: request) }
+                        }
+                    }
+
+                    BrowserStage(overview: overview, controller: model.browserController) { model.selectBrowserSession($0) }
+
+                    HStack(alignment: .top, spacing: 17) {
+                        PaperCard {
+                            CardHeading(title: "Always allowed", detail: "Persistent origin grants on this Mac", symbol: "checkmark.shield")
+                            FlowDivider().padding(.vertical, 14)
+                            if overview.alwaysAllowed.isEmpty {
+                                EmptyState(symbol: "globe.badge.chevron.backward", title: "No persistent origins", detail: "Prefer Allow once unless a site is part of your regular workflow.")
+                            } else {
+                                VStack(spacing: 0) {
+                                    ForEach(Array(overview.alwaysAllowed.enumerated()), id: \.element.id) { index, origin in
+                                        HStack(spacing: 11) {
+                                            StateDot(color: FlowColor.success)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(origin.origin).font(FlowType.label(10)).foregroundStyle(FlowColor.ink).lineLimit(1)
+                                                Text("Allowed \(Format.relative(origin.approvedAt))").font(FlowType.body(9)).foregroundStyle(FlowColor.inkMuted)
+                                            }
+                                            Spacer()
+                                            Button("Revoke") { Task { await model.revokeBrowserOrigin(origin.origin) } }
+                                                .buttonStyle(FlowButtonStyle(kind: .danger)).disabled(model.browserBusy)
+                                        }.frame(minHeight: 52)
+                                        if index < overview.alwaysAllowed.count - 1 { FlowDivider() }
+                                    }
+                                }
+                            }
+                        }.frame(maxWidth: .infinity)
+
+                        PaperCard {
+                            CardHeading(title: "Recent Browser activity", detail: "Content-free origin and operation outcomes", symbol: "waveform.path.ecg")
+                            FlowDivider().padding(.vertical, 14)
+                            if overview.recentActivity.isEmpty {
+                                EmptyState(symbol: "clock.arrow.circlepath", title: "No browser activity", detail: "Page contents, typed values, screenshots, and DOM text are never written to this ledger.")
+                            } else {
+                                VStack(spacing: 0) {
+                                    ForEach(Array(overview.recentActivity.prefix(8).enumerated()), id: \.element.id) { index, activity in
+                                        HStack(spacing: 10) {
+                                            StateDot(color: activity.outcome == "ok" || activity.outcome.contains("allow") || activity.outcome == "approved" ? FlowColor.success : activity.outcome.contains("pending") ? FlowColor.warning : FlowColor.inkMuted)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text("\(activity.operation.codexFlowTitle) · \(activity.origin)").font(FlowType.label(10)).foregroundStyle(FlowColor.ink).lineLimit(1)
+                                                Text(activity.routeDisplay).font(FlowType.mono(8)).foregroundStyle(FlowColor.inkMuted)
+                                            }
+                                            Spacer()
+                                            Text(activity.outcome.replacingOccurrences(of: "_", with: " ").uppercased()).font(FlowType.label(7)).tracking(0.6).foregroundStyle(FlowColor.inkMuted)
+                                        }.frame(minHeight: 48)
+                                        if index < min(overview.recentActivity.count, 8) - 1 { FlowDivider() }
+                                    }
+                                }
+                            }
+                        }.frame(maxWidth: .infinity)
+                    }
+                } else {
+                    PaperCard { EmptyState(symbol: "safari", title: "Browser is loading", detail: "Origin grants and ephemeral tabs appear when the local broker responds.") }
+                }
+            }
+            .padding(.horizontal, 25).padding(.top, 25).padding(.bottom, 42)
+            .frame(maxWidth: 1160, alignment: .leading)
+        }
+    }
+
+    private func browserRequestSection<Content: View>(eyebrow: String, title: String, detail: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(eyebrow.uppercased()).font(FlowType.label(8)).tracking(1.2).foregroundStyle(FlowColor.warning)
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).font(FlowType.title(19)).foregroundStyle(FlowColor.ink)
+                Spacer()
+                Text(detail).font(FlowType.body(9)).foregroundStyle(FlowColor.inkMuted).multilineTextAlignment(.trailing).frame(maxWidth: 520)
+            }
+            content()
+        }
+    }
+}
+
+private struct BrowserStage: View {
+    let overview: BrowserOverview
+    @ObservedObject var controller: BrowserController
+    let select: (String) -> Void
+
+    private var selected: BrowserSessionOverview? {
+        let id = controller.selectedSessionID ?? overview.sessions.first?.id
+        return overview.sessions.first { $0.id == id } ?? overview.sessions.first
+    }
+
+    var body: some View {
+        PaperCard(padding: 0) {
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    ForEach(overview.sessions) { session in
+                        BrowserTabButton(session: session, isSelected: selected?.id == session.id) { select(session.id) }
+                    }
+                    if overview.sessions.isEmpty {
+                        Text("NO ACTIVE TABS").font(FlowType.label(8)).tracking(0.8).foregroundStyle(Color.white.opacity(0.48))
+                    }
+                    Spacer()
+                    StateDot(color: overview.status.nativeConnected ? FlowColor.success : FlowColor.warning)
+                    Text(overview.status.nativeConnected ? "NATIVE READY" : "WAITING FOR APP").font(FlowType.label(8)).tracking(0.8).foregroundStyle(Color.white.opacity(0.62))
+                    Text("\(overview.status.engine.uppercased()) / \(overview.status.profile.uppercased())").font(FlowType.label(8)).tracking(0.8).foregroundStyle(Color.white.opacity(0.52))
+                }.padding(10).background(FlowColor.ground.opacity(0.65))
+
+                HStack(spacing: 9) {
+                    Image(systemName: "lock.fill").font(.system(size: 9)).foregroundStyle(FlowColor.success)
+                    Text(selected?.currentUrl ?? "No browser tab is open").font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted).lineLimit(1)
+                    Spacer()
+                    Text("PERSONAL BROWSER DATA: OFF").font(FlowType.label(7)).tracking(0.7).foregroundStyle(FlowColor.signal)
+                }.padding(.horizontal, 14).frame(minHeight: 40).overlay(alignment: .bottom) { FlowDivider() }
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 0).fill(Color.white)
+                    if let selected, controller.webView(for: selected.id) != nil {
+                        BrowserWebContainer(controller: controller, sessionID: selected.id)
+                    } else {
+                        EmptyState(symbol: "safari", title: "No ephemeral page is active", detail: "A web chat opens a page only after its origin is approved here. The page then appears in this visible surface.")
+                    }
+                }.frame(minHeight: 440, maxHeight: 540)
+            }
+        }
+    }
+}
+
+private struct BrowserTabButton: View {
+    let session: BrowserSessionOverview
+    let isSelected: Bool
+    let action: () -> Void
+    private var label: String { session.title.isEmpty ? session.origin : session.title }
+    private var dotColor: Color { isSelected ? FlowColor.success : FlowColor.inkMuted }
+    private var textColor: Color { isSelected ? FlowColor.ink : FlowColor.inkMuted }
+    private var fillColor: Color { isSelected ? FlowColor.paperBright : Color.clear }
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                StateDot(color: dotColor)
+                Text(label).font(FlowType.label(9)).lineLimit(1)
+            }.padding(.horizontal, 11).frame(minHeight: 34)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(textColor)
+        .background(fillColor)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct BrowserHostApprovalCard: View {
+    let request: BrowserHostRequest
+
+    private var timing: String {
+        request.routeDisplay + " · " + Format.expiry(request.expiresAt)
+    }
+
+    var body: some View {
+        PaperCard(padding: 17) {
+            HStack(alignment: .top, spacing: 15) {
+                ApprovalIcon(systemName: "globe")
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(request.origin).font(FlowType.title(14)).foregroundStyle(FlowColor.ink)
+                    Text(request.reason).font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted)
+                    Text(timing).font(FlowType.mono(8)).foregroundStyle(FlowColor.inkMuted.opacity(0.72))
+                }
+                Spacer()
+                BrowserHostActions(request: request)
+            }
+        }
+    }
+}
+
+private struct BrowserHostActions: View {
+    @EnvironmentObject private var model: AppModel
+    let request: BrowserHostRequest
+    var body: some View {
+        HStack(spacing: 8) {
+            Button("Deny") { Task { await model.decideBrowserHost(request.id, decision: "deny") } }
+                .buttonStyle(FlowButtonStyle(kind: .danger))
+            Button("Allow once") { Task { await model.decideBrowserHost(request.id, decision: "allow_once") } }
+                .buttonStyle(FlowButtonStyle(kind: .secondary))
+            Button("Always allow") { Task { await model.decideBrowserHost(request.id, decision: "always_allow") } }
+                .buttonStyle(FlowButtonStyle(kind: .primary))
+        }.disabled(model.browserBusy)
+    }
+}
+
+private struct BrowserActionApprovalCard: View {
+    let request: BrowserActionRequest
+
+    private var heading: String {
+        request.operation.codexFlowTitle + " · " + request.target
+    }
+
+    private var timing: String {
+        request.routeDisplay + " · " + Format.expiry(request.expiresAt)
+    }
+
+    var body: some View {
+        PaperCard(padding: 17) {
+            HStack(alignment: .top, spacing: 15) {
+                ApprovalIcon(systemName: "hand.tap.fill")
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(heading).font(FlowType.title(13)).foregroundStyle(FlowColor.ink)
+                    Text(request.origin).font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted)
+                    BrowserValuePreview(value: request.valuePreview)
+                    Text(timing).font(FlowType.mono(8)).foregroundStyle(FlowColor.inkMuted.opacity(0.72))
+                }
+                Spacer()
+                BrowserActionButtons(request: request)
+            }
+        }
+    }
+}
+
+private struct ApprovalIcon: View {
+    let systemName: String
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12).fill(FlowColor.warning.opacity(0.1))
+            Image(systemName: systemName).foregroundStyle(FlowColor.warning)
+        }
+        .frame(width: 46, height: 46)
+    }
+}
+
+private struct BrowserValuePreview: View {
+    let value: String?
+
+    var body: some View {
+        if let value {
+            Text("Value: " + value)
+                .font(FlowType.body(9))
+                .foregroundStyle(FlowColor.inkMuted)
+                .lineLimit(2)
+        }
+    }
+}
+
+private struct BrowserActionButtons: View {
+    @EnvironmentObject private var model: AppModel
+    let request: BrowserActionRequest
+    var body: some View {
+        HStack(spacing: 8) {
+            Button("Deny") { Task { await model.decideBrowserAction(request.id, approve: false) } }
+                .buttonStyle(FlowButtonStyle(kind: .danger))
+            Button("Approve step") { Task { await model.decideBrowserAction(request.id, approve: true) } }
+                .buttonStyle(FlowButtonStyle(kind: .primary))
+        }.disabled(model.browserBusy)
+    }
+}
+
 struct ConnectionView: View {
     @EnvironmentObject private var model: AppModel
 
@@ -2341,6 +2629,19 @@ private struct OfflineInlineCard: View {
 }
 
 private enum Format {
+    static func expiry(_ iso: String) -> String {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        guard let date = fractional.date(from: iso) ?? plain.date(from: iso) else { return "expiry unknown" }
+        let seconds = Int(date.timeIntervalSinceNow)
+        if seconds <= 0 { return "expired" }
+        if seconds < 60 { return "expires in <1m" }
+        if seconds < 3_600 { return "expires in \(seconds / 60)m" }
+        return "expires in \(seconds / 3_600)h"
+    }
+
     static func relative(_ iso: String) -> String {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

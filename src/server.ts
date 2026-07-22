@@ -48,6 +48,7 @@ import { inspectWorkspace, invalidateWorkspaceAnalysis, reviewWorkspaceChanges }
 import { inspectRemoteWorkspace } from "./remoteAnalysisOps.js";
 import { listWorkspaceReviewComments } from "./reviewOps.js";
 import { computerUse } from "./computerUseOps.js";
+import { browserUse } from "./browserUseOps.js";
 import {
   createRemoteManagedWorktree,
   handoffRemoteManagedWorktree,
@@ -487,6 +488,7 @@ const SUPERTOOL_ACTION_ALIASES: Record<string, string> = {
   snapshot: "workspace_snapshot",
   changes: "show_changes",
   computer: "computer_use",
+  browser: "browser_use",
   handoff_poll: "wait_for_handoff",
   pro_export: "export_pro_context",
   agent_handoff: "handoff_to_agent",
@@ -606,6 +608,7 @@ const STANDARD_TOOL_NAMES = [
   "worktree",
   "prepare_scheduled_task",
   "computer_use",
+  "browser_use",
   "read_handoff",
   "wait_for_handoff",
   "export_pro_context",
@@ -640,6 +643,7 @@ const FULL_TOOL_NAMES = [
   "worktree",
   "prepare_scheduled_task",
   "computer_use",
+  "browser_use",
   "show_changes",
   "read_handoff",
   "wait_for_handoff",
@@ -662,6 +666,7 @@ const CONNECTION_TEST_HIDDEN_TOOLS = new Set<string>([
   "worktree",
   "prepare_scheduled_task",
   "computer_use",
+  "browser_use",
   "export_pro_context",
   "handoff_to_agent",
   "handoff_to_codex"
@@ -791,6 +796,7 @@ function serverInstructions(config: CodexFlowConfig): string {
       : "",
     "6b. When the user asks to schedule recurring or background project work, call prepare_scheduled_task. ChatGPT Scheduled owns the cadence, model turn, and run history; CodexFlow supplies the durable local project route and tools. Never create a local cron job or claim CodexFlow itself runs the model.",
     "6c. Use computer_use only for a narrowly named native-app task when structured project tools are insufficient. Request the app first, wait for approval in the native CodexFlow Computer view, observe before every action, and never try to operate Terminal, ChatGPT/CodexFlow, system privacy settings, or a browser through generic desktop control.",
+    "6d. Use browser_use for website work in CodexFlow's dedicated ephemeral WebKit profile. Request each origin, wait for approval in the native Browser view, observe before every DOM action, and never drive Chrome, Safari, account/security pages, downloads, permission prompts, or browser extensions.",
     "7. Keep tool calls minimal. Prefer one targeted search plus show_changes instead of repeated broad inspection calls.",
     config.codexSessions !== "off"
       ? `8. Codex session history access is enabled in ${config.codexSessions} mode. Use it only when the user asks for local Codex session history.`
@@ -1218,6 +1224,7 @@ const LOCAL_WRITE_ANNOTATIONS = { readOnlyHint: false, openWorldHint: false, des
 const BASH_ANNOTATIONS = { readOnlyHint: false, openWorldHint: true, destructiveHint: true, idempotentHint: false };
 const HANDOFF_WRITE_ANNOTATIONS = { readOnlyHint: false, openWorldHint: false, destructiveHint: false, idempotentHint: false };
 const COMPUTER_USE_ANNOTATIONS = { readOnlyHint: false, openWorldHint: true, destructiveHint: false, idempotentHint: false };
+const BROWSER_USE_ANNOTATIONS = { readOnlyHint: false, openWorldHint: true, destructiveHint: false, idempotentHint: false };
 
 const workspaceManagers = new Map<string, WorkspaceManager>();
 const chatRouteStores = new Map<string, ChatRouteStore>();
@@ -1452,6 +1459,87 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         };
       }
       return result;
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
+    "browser_use",
+    {
+      title: "Browser",
+      description:
+        "Use CodexFlow's dedicated ephemeral WebKit browser after the user approves each website origin in the native Browser view. Observe before every DOM-targeted action. Sensitive actions require a separate native confirmation. Chrome, Safari, downloads, extensions, account/security settings, browser permissions, credentials, and arbitrary coordinates are outside this tool.",
+      inputSchema: {
+        route_id: ROUTE_ID_INPUT,
+        action: z.enum(["status", "request_host", "open", "observe", "act", "close"]),
+        url: z.string().trim().min(1).max(4096).optional().describe("Complete HTTP(S) URL for request_host or open. Origins must be approved before opening."),
+        reason: z.string().trim().min(1).max(500).optional().describe("Narrow user-facing reason shown with a host access request."),
+        browser_session_id: z.string().regex(/^but_[a-f0-9]{16}$/).optional().describe("Ephemeral browser session returned by open."),
+        snapshot_id: z.string().regex(/^bus_[a-f0-9]{16}$/).optional().describe("Fresh browser snapshot returned by observe."),
+        element_id: z.string().regex(/^dom_[a-f0-9]{16}$/).optional().describe("DOM element from the fresh snapshot."),
+        operation: z.enum(["click", "focus", "set_value", "key", "scroll_into_view"]).optional(),
+        value: z.string().max(4000).optional().describe("Text for set_value. Password fields and secret-looking values are refused."),
+        key: z.enum(["return", "tab", "escape", "space", "delete"]).optional(),
+        action_request_id: z.string().regex(/^bux_[a-f0-9]{16}$/).optional().describe("Native confirmation id from the identical previous act call.")
+      },
+      annotations: BROWSER_USE_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Using the approved browser...",
+        "openai/toolInvocation/invoked": "Browser step complete"
+      }
+    },
+    async (args) => {
+      const routeId = invocationRouteId();
+      if (!routeId) throw new CodexFlowError("browser_use requires the private route_id returned by list_projects or select_project.");
+      if (!routeStore.get(routeId)) throw new CodexFlowError("This private chat route is not bound to a project. Call select_project first.");
+      if (args.action === "status") {
+        const result = browserUse.routeStatus(routeId);
+        return textResult(`# Browser\n\n${JSON.stringify(result, null, 2)}`, result);
+      }
+      if (args.action === "request_host") {
+        const result = browserUse.requestHost(routeId, String(args.url ?? ""), String(args.reason ?? ""));
+        const copy = result.status === "allowed"
+          ? `# Browser\n\n${result.origin} is approved for this chat. Open the requested URL next.`
+          : `# Browser host approval required\n\nOpen the native CodexFlow Browser view and decide request ${result.request_id} for ${result.origin}.`;
+        return textResult(copy, result);
+      }
+      if (args.action === "open") {
+        const result = await browserUse.open(routeId, String(args.url ?? ""));
+        return textResult(`# Browser opened\n\n${result.title}\n${result.url}\n\nObserve this session before interacting.`, result);
+      }
+      if (args.action === "observe") {
+        const result = await browserUse.observe(routeId, String(args.browser_session_id ?? ""));
+        const screenshot = String(result.screenshot_base64 ?? "");
+        const { screenshot_base64: _screenshot, ...structured } = result;
+        const elements = Array.isArray(structured.elements) ? structured.elements as Array<Record<string, unknown>> : [];
+        const rows = elements.slice(0, 160).map((element) =>
+          `- ${element.id} · ${element.role}${element.name ? ` · ${element.name}` : ""}${element.text ? ` · ${element.text}` : ""}`
+        );
+        return {
+          content: [
+            { type: "text", text: redactSensitiveText(`# Browser snapshot\n\n${structured.title}\n${structured.url}\nSnapshot: ${structured.snapshot_id}\n\n${rows.join("\n") || "No interactive DOM elements were returned."}\n\nObserve again after every action; snapshots are short-lived and route-private.`) },
+            ...(screenshot ? [{ type: "image", data: screenshot, mimeType: "image/png" }] : [])
+          ],
+          structuredContent: redactStructured(structured)
+        };
+      }
+      if (args.action === "close") {
+        const result = await browserUse.close(routeId, String(args.browser_session_id ?? ""));
+        return textResult("# Browser closed\n\nThe ephemeral browser session was closed.", result);
+      }
+      const result = await browserUse.act(routeId, {
+        sessionId: String(args.browser_session_id ?? ""), snapshotId: String(args.snapshot_id ?? ""), elementId: String(args.element_id ?? ""),
+        operation: args.operation,
+        ...(args.value !== undefined ? { value: String(args.value) } : {}),
+        ...(args.key !== undefined ? { key: args.key } : {}),
+        ...(args.action_request_id !== undefined ? { actionRequestId: String(args.action_request_id) } : {})
+      });
+      const copy = result.status === "confirmation_required"
+        ? `# Browser confirmation required\n\nOpen the native CodexFlow Browser view and decide action ${result.action_request_id}. Then repeat the identical act call with action_request_id=${result.action_request_id}.`
+        : `# Browser action complete\n\nOperation: ${result.operation}\n\nObserve the page again before another action.`;
+      return textResult(copy, result);
     }
   );
 

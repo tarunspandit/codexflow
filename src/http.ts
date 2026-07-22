@@ -37,6 +37,7 @@ import {
 } from "./localEnvironmentOps.js";
 import { persistentTerminals } from "./terminalOps.js";
 import { computerUse } from "./computerUseOps.js";
+import { browserUse } from "./browserUseOps.js";
 import { gitDiffStatus, gitStatus } from "./gitOps.js";
 import { runGitWorkflow } from "./gitWorkflow.js";
 import {
@@ -183,6 +184,30 @@ const AdminComputerCommand = z.discriminatedUnion("action", [
     bundleId: z.string().trim().min(1).max(300)
   }).strict()
 ]);
+
+const AdminBrowserCommand = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("decide_host"),
+    requestId: z.string().regex(/^buh_[a-f0-9]{16}$/),
+    decision: z.enum(["allow_once", "always_allow", "deny"])
+  }).strict(),
+  z.object({
+    action: z.literal("decide_action"),
+    requestId: z.string().regex(/^bux_[a-f0-9]{16}$/),
+    approve: z.boolean()
+  }).strict(),
+  z.object({
+    action: z.literal("revoke"),
+    origin: z.string().trim().min(1).max(500)
+  }).strict()
+]);
+
+const AdminBrowserCompletion = z.object({
+  commandId: z.string().regex(/^buc_[a-f0-9]{16}$/),
+  ok: z.boolean(),
+  result: z.record(z.unknown()).optional(),
+  error: z.string().max(2000).optional()
+}).strict();
 
 interface DesktopChangedFile {
   path: string;
@@ -1055,6 +1080,51 @@ async function main(): Promise<void> {
     jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/computer.");
   });
 
+  app.get("/admin/browser", (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(redactStructured(browserUse.overview(req.query.take === "1" || req.query.take === "true")));
+    } catch (error) {
+      jsonError(res, 400, "browser_unavailable", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.post("/admin/browser", adminRateLimit, adminBodyLimit, express.json({ limit: "16kb" }), (req, res) => {
+    const parsed = AdminBrowserCommand.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      jsonError(res, 400, "invalid_browser_command", "Choose a supported native Browser approval action.", parsed.error.flatten());
+      return;
+    }
+    try {
+      switch (parsed.data.action) {
+        case "decide_host": browserUse.decideHost(parsed.data.requestId, parsed.data.decision); break;
+        case "decide_action": browserUse.decideAction(parsed.data.requestId, parsed.data.approve); break;
+        case "revoke": browserUse.revoke(parsed.data.origin); break;
+      }
+      res.json({ ...browserUse.overview(false), message: "Browser policy updated." });
+    } catch (error) {
+      jsonError(res, 400, "browser_action_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.post("/admin/browser/complete", adminRateLimit, express.json({ limit: "12mb" }), (req, res) => {
+    const parsed = AdminBrowserCompletion.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      jsonError(res, 400, "invalid_browser_completion", "The native browser result was invalid.", parsed.error.flatten());
+      return;
+    }
+    try {
+      browserUse.completeCommand(parsed.data.commandId, parsed.data.ok, parsed.data.result, parsed.data.error);
+      res.json({ ok: true });
+    } catch (error) {
+      jsonError(res, 400, "browser_completion_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.all(["/admin/browser", "/admin/browser/complete"], (_req, res) => {
+    jsonError(res, 405, "method_not_allowed", "Use GET or POST for the browser administration API.");
+  });
+
   app.get("/admin/changes", async (req, res) => {
     const parsed = AdminChangesQuery.safeParse(req.query);
     if (!parsed.success) {
@@ -1401,7 +1471,7 @@ async function main(): Promise<void> {
       });
       return;
     }
-    if (req.path === "/admin/profile" || req.path === "/admin/remotes" || req.path === "/admin/changes" || req.path === "/admin/environments" || req.path === "/admin/worktrees" || req.path === "/admin/chats") {
+    if (req.path === "/admin/profile" || req.path === "/admin/remotes" || req.path === "/admin/computer" || req.path === "/admin/browser" || req.path === "/admin/browser/complete" || req.path === "/admin/changes" || req.path === "/admin/environments" || req.path === "/admin/worktrees" || req.path === "/admin/chats") {
       jsonError(
         res,
         status,
