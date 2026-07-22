@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-The 0.41.0 candidate adds a dedicated native Browser boundary to the previously released 0.40.1 Computer Use surface. A routed chat can request one origin, operate a visible non-persistent WebKit tab through fresh screenshots and semantic DOM targets, and receive local confirmation for meaningful actions without touching personal Safari or Chrome state. The native Changes workspace supports stable content-derived hunk actions and line-anchored review notes; approved OpenSSH projects retain route-private terminals, environments, skills, analysis, and guarded managed worktrees. Literal Codex desktop parity is not claimed; richer native task progress/orchestration and native clients beyond macOS remain tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and live ChatGPT scheduled/two-chat acceptance remain account-authenticated checks.
+The released 0.41.0 build adds a dedicated native Browser boundary to the 0.40.1 Computer Use surface. A routed chat can request one origin, operate a visible non-persistent WebKit tab through fresh screenshots and semantic DOM targets, and receive local confirmation for meaningful actions without touching personal Safari or Chrome state. The native Changes workspace supports stable content-derived hunk actions and line-anchored review notes; approved OpenSSH projects retain route-private terminals, environments, skills, analysis, and guarded managed worktrees. Source, the GitHub release, GitHub Pages, Sites version 18, the installed signed universal app, and the permanent tunnel are live. Literal Codex desktop parity is not claimed; richer native task progress/orchestration and native clients beyond macOS remain tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and live ChatGPT scheduled/two-chat acceptance remain account-authenticated checks.
 
 ## Product truth
 
@@ -97,17 +97,18 @@ The 0.41.0 candidate adds a dedicated native Browser boundary to the previously 
 
 ## Verification evidence
 
-- Root TypeScript build, complete smoke suite, stress suite, signed universal-app build/smoke, package dry-run, production audit, and bilingual website lint/build/render/audit pass for 0.40.1.
+- Root TypeScript build, complete smoke suite, stress suite, signed universal-app build/smoke, package dry-run, production audit, and bilingual website lint/build/render/audit pass for 0.41.0.
 - The dedicated project picker renders and selects a real project in an isolated browser harness without console errors; `list_projects` uses its cache-versioned resource while `select_project` is usable without an output template.
 - Runtime and HTTP regression tests confirm that multiple MCP transports sharing one private route aggregate into one GUI chat, simultaneous routes remain isolated, route-level calls/errors are accumulated correctly, and unbound discovery/picker transports stay hidden from chat telemetry.
 - The native app builds for `x86_64 arm64`, passes strict signature/plist/resource checks, launches in fixture mode, and refreshes a deliberately corrupted same-version installation.
 - A real private temporary broker was authenticated, stopped, started, policy-edited, restarted, and checked through the signed GUI; unauthorized HTTP remained 401 and the native log contained no credential.
 - The dedicated native-review regression proves two-hunk stage/unstage/revert, stale-ID refusal, untracked-file refusal, mode-0600 review-note persistence/deletion, and note visibility in `show_changes`.
 - The signed universal app was visually verified with the hunk toolbar, line comment composer, inline notes, and stale-note treatment rendered in fixture mode.
-- The 0.40.1 public website describes managed SSH worktrees, guarded handoff, per-hunk review, web-chat-visible line notes, and permissioned Computer Use; English/Chinese output is verified on GitHub Pages and the Flow7-hosted production deployment.
+- The 0.41.0 public website describes managed SSH worktrees, guarded handoff, per-hunk review, web-chat-visible line notes, permissioned Computer Use, and isolated native Browser control; English/Chinese output is verified on GitHub Pages and the Flow7-hosted production deployment.
+- A real signed-app integration drove a visible non-persistent WebKit tab through open, screenshot, semantic DOM, sealed confirmation, click, input, password redaction, and close; mocked broker coverage additionally verifies origin isolation, prohibited operations, stale invalidation, revocation, and duplicate-command handling.
 - Direct SSH-helper regression proves host/project trust invalidation, blocked-path rejection, bounded reads/writes, search/edit behavior, and genuinely concurrent remote operations. The HTTP/MCP regression proves the saved remote project appears in the ordinary picker, persists its private route, and provides isolated terminals, environment execution, workspace skills, repository inspection, file work, Bash, and Git at the intended root.
 - The Flow7 adoption checklist and Full Product Completion Contract were re-read after implementation; every local gate passes.
-- The existing public URLs remain `https://tarunspandit.github.io/codexflow/` and `https://codexflow.tarunspandit.chatgpt.site/`; both were verified serving the 0.40.1 Computer Use copy in English and Chinese.
+- The existing public URLs remain `https://tarunspandit.github.io/codexflow/` and `https://codexflow.tarunspandit.chatgpt.site/`; both were verified serving the 0.41.0 Browser release in English and Chinese.
 - Pull request 14 was squash-merged to `main` at commit `9e95eb0`; the corresponding GitHub Pages deployment completed successfully.
 - Pull request 16 was squash-merged to `main` at commit `9c22565`; release `v0.32.0`, GitHub Pages, and Sites version 8 are live.
 - Pull request 18 was squash-merged to `main` at commit `33a3148`; release `v0.33.0`, GitHub Pages, and Sites version 9 are live.
@@ -118,6 +119,7 @@ The 0.41.0 candidate adds a dedicated native Browser boundary to the previously 
 - Pull request 28 was squash-merged to `main` at commit `a1c9a8a`; release `v0.38.0`, GitHub Pages run `29933107263`, and Sites version 14 are live. Sites version 14 uses source commit `be14bb1`, version `appgprj_6a5722bc42d08191a6f1882cf084ae2b~appgver_0dda6eb859348191a61bae5f2b3ff6ab`, and deployment `appgdep_6a60e0e8b11c81919273d80ab5ade865` completed successfully.
 - Pull request 30 was squash-merged to `main` at commit `966f8cc`; release `v0.39.0` and GitHub Pages run `29935794562` are live. Sites version 15 uses source commit `a394643`, version `appgprj_6a5722bc42d08191a6f1882cf084ae2b~appgver_b134765697448191a2b464adbae4958b`, and deployment `appgdep_6a60e8b0f8108191ac68e98f6e606518` completed successfully.
 - Pull requests 32 and 33 were squash-merged to `main` at commits `5718616` and `adbe6f4`; release `v0.40.1` and GitHub Pages run `29939380582` are live. Sites version 17 uses source commit `9c2beca`, version `appgprj_6a5722bc42d08191a6f1882cf084ae2b~appgver_4445f9e7fcec8191a52c08f9fb635c25`, and deployment `appgdep_6a60f3cd934881919c4f15c9a7b49304` completed successfully. The installed `/Users/tarunpandit/Applications/CodexFlow.app` reports 0.40.1 and its helper reports both required macOS permissions granted.
+- Pull request 35 was squash-merged to `main` at commit `d572b85`; release `v0.41.0` and GitHub Pages run `29942353358` are live. Sites version 18 uses source commit `2636b1c`, version `appgprj_6a5722bc42d08191a6f1882cf084ae2b~appgver_e4883f4514f081919a958261cb1a60aa`, and deployment `appgdep_6a60fe37d124819193f09af60d79ea2b` completed successfully. The installed `/Users/tarunpandit/Applications/CodexFlow.app` reports 0.41.0, passes strict signature validation, and contains `x86_64` and `arm64` slices.
 - The permanent `https://codexflow.flow7.org` tunnel is reachable and correctly returns `401` for unauthenticated root and MCP requests.
 - The stale `CodexFlow Local` ChatGPT connector was uninstalled, leaving `CodexFlow` as the current connector.
 
@@ -127,9 +129,9 @@ The 0.41.0 candidate adds a dedicated native Browser boundary to the previously 
 
 ## Open blockers
 
-- npm registry publication requires a refreshed maintainer login (`npm whoami` returned E401 during the 0.40 release on 2026-07-23). This does not block source, desktop, GitHub release, GitHub Pages, Sites, or permanent-tunnel operation.
+- npm registry publication requires a refreshed maintainer login (`npm whoami` returned E401 during the 0.41.0 release on 2026-07-23). This does not block source, desktop, GitHub release, GitHub Pages, Sites, or permanent-tunnel operation.
 - The final live two-chat ChatGPT acceptance pass requires an authenticated ChatGPT browser session. The equivalent broker-level concurrent-route regression test passes.
 
 ## Completion record
 
-Every required ledger row remains verified. The full 0.40.1 release matrix passes, and source, GitHub release, GitHub Pages, the Flow7-hosted site, installed native app, and permanent tunnel are live. This release adds permissioned, code-signing-bound native Computer Use without creating a second local chat, arbitrary coordinate control, or a browser/terminal approval bypass. npm publication and the account-authenticated ChatGPT acceptance passes remain external checks.
+Every required ledger row remains verified. The full 0.41.0 release matrix passes, and source, GitHub release, GitHub Pages, Sites version 18, the installed signed universal app, and the permanent tunnel are live. This release adds permissioned, route-scoped native Browser control on top of code-signing-bound Computer Use without creating a second local chat, inheriting a personal browser profile, or bypassing browser/terminal approvals. npm publication and the account-authenticated ChatGPT acceptance passes remain external checks; literal Codex desktop parity is still limited by richer native task progress/orchestration and non-macOS clients.
