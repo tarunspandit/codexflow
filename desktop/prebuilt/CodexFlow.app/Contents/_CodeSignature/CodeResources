@@ -47,6 +47,15 @@
 	</dict>
 	<key>files2</key>
 	<dict>
+		<key>Helpers/CodexFlowComputer</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			YH8OdHXKyYrhGyPx4mm3K5jOHg8=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"607f0e7475cac98ae11b23f1e269b72b98ce1e0f" or cdhash H"57d94b9c754d4f65124aa3cff6d3a1c699702ab9"</string>
+		</dict>
 		<key>Resources/Build.txt</key>
 		<dict>
 			<key>hash2</key>

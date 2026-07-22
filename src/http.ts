@@ -36,6 +36,7 @@ import {
   runLocalEnvironmentCommand
 } from "./localEnvironmentOps.js";
 import { persistentTerminals } from "./terminalOps.js";
+import { computerUse } from "./computerUseOps.js";
 import { gitDiffStatus, gitStatus } from "./gitOps.js";
 import { runGitWorkflow } from "./gitWorkflow.js";
 import {
@@ -162,6 +163,24 @@ const AdminRemoteCommand = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("remove_project"),
     projectId: z.string().regex(/^rws_[a-f0-9]{24}$/)
+  }).strict()
+]);
+
+const AdminComputerCommand = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("request_permissions") }).strict(),
+  z.object({
+    action: z.literal("decide_access"),
+    requestId: z.string().regex(/^cua_[a-f0-9]{16}$/),
+    decision: z.enum(["allow_once", "always_allow", "deny"])
+  }).strict(),
+  z.object({
+    action: z.literal("decide_action"),
+    requestId: z.string().regex(/^cux_[a-f0-9]{16}$/),
+    approve: z.boolean()
+  }).strict(),
+  z.object({
+    action: z.literal("revoke"),
+    bundleId: z.string().trim().min(1).max(300)
   }).strict()
 ]);
 
@@ -994,6 +1013,46 @@ async function main(): Promise<void> {
 
   app.all("/admin/remotes", (_req, res) => {
     jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/remotes.");
+  });
+
+  app.get("/admin/computer", async (_req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(redactStructured(await computerUse.overview()));
+    } catch (error) {
+      jsonError(res, 400, "computer_use_unavailable", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.post("/admin/computer", adminRateLimit, adminBodyLimit, express.json({ limit: "16kb" }), async (req, res) => {
+    const parsed = AdminComputerCommand.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      jsonError(res, 400, "invalid_computer_command", "Choose a supported native Computer Use action.", parsed.error.flatten());
+      return;
+    }
+    try {
+      switch (parsed.data.action) {
+        case "request_permissions":
+          res.json({ ...(await computerUse.requestSystemPermissions()), message: "macOS permission request opened. Review it on this computer." });
+          return;
+        case "decide_access":
+          computerUse.decideAccess(parsed.data.requestId, parsed.data.decision);
+          break;
+        case "decide_action":
+          computerUse.decideAction(parsed.data.requestId, parsed.data.approve);
+          break;
+        case "revoke":
+          computerUse.revoke(parsed.data.bundleId);
+          break;
+      }
+      res.json({ ...(await computerUse.overview()), message: "Computer Use policy updated." });
+    } catch (error) {
+      jsonError(res, 400, "computer_action_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.all("/admin/computer", (_req, res) => {
+    jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/computer.");
   });
 
   app.get("/admin/changes", async (req, res) => {

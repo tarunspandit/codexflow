@@ -184,6 +184,12 @@ ChatGPT web already owns scheduling, model selection, cadence, and run history. 
 
 The default prompt verifies changes, calls `show_changes`, leaves the worktree available for review, and does not push or publish. The computer must stay awake, CodexFlow must stay running, and the ChatGPT plugin must use a stable URL. CodexFlow does not create a cron job, invoke Codex, or run a model itself.
 
+## Native Computer Use
+
+When structured project tools are not enough, a web chat can request one exact running macOS app through `computer_use`. Open the native **Computer** workspace to allow it once or persist access, then approve each press or text/key action locally. Observations are fresh, route-bound window captures plus bounded accessibility elements; actions never use arbitrary model-supplied coordinates.
+
+Approvals are tied to the app’s validated code-signing identity, and a replaced binary must be approved again. Terminal apps, ChatGPT/CodexFlow, System Settings, browser apps, secure fields, and secret-looking text are blocked. Browser control will use a separate per-host permission boundary.
+
 ## Normal Commands
 
 ```bash

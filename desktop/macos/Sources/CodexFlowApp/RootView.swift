@@ -46,6 +46,7 @@ struct RootView: View {
         case .changes: ChangesView()
         case .chats: ChatsView()
         case .hosts: HostsView()
+        case .computer: ComputerView()
         case .connection: ConnectionView()
         case .policy: PolicyView()
         }

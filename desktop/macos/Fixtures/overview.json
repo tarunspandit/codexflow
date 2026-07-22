@@ -1,5 +1,5 @@
 {
-  "initial_section": "changes",
+  "initial_section": "computer",
   "runtime": {
     "version": 1,
     "root": "/Users/demo/Work/atlas-studio",
@@ -23,7 +23,7 @@
     "generated_at": "2026-07-15T08:31:14.000Z",
     "broker": {
       "state": "ready",
-      "version": "0.39.0",
+      "version": "0.40.0",
       "started_at": "2026-07-15T06:09:00.000Z",
       "uptime_ms": 8534000,
       "default_root": "/Users/demo/Work/atlas-studio",
@@ -126,6 +126,31 @@
       {"alias":"renderbox","hostname":"render.internal","user":"demo","port":22,"source":"/Users/demo/.ssh/config","approved":false,"status":"available","verified_at":null,"platform":null,"home":null,"has_node":null,"has_git":null,"project_count":0},
       {"alias":"archive","hostname":"archive.internal","user":"ops","port":2222,"source":"/Users/demo/.ssh/config","approved":false,"status":"config_changed","verified_at":null,"platform":null,"home":null,"has_node":null,"has_git":null,"project_count":0}
     ]
+  },
+  "computer": {
+    "ok": true,
+    "status": {"available":true,"platform":"macos","screen_recording":true,"accessibility":true,"error":null},
+    "apps": [
+      {"bundle_id":"com.apple.Notes","name":"Notes","pid":840,"active":true,"prohibited":false,"prohibited_reason":null},
+      {"bundle_id":"com.figma.Desktop","name":"Figma","pid":902,"active":false,"prohibited":false,"prohibited_reason":null},
+      {"bundle_id":"com.apple.Terminal","name":"Terminal","pid":304,"active":false,"prohibited":true,"prohibited_reason":"Terminal apps cannot be automated because that could bypass CodexFlow shell policy."},
+      {"bundle_id":"com.google.Chrome","name":"Google Chrome","pid":441,"active":false,"prohibited":true,"prohibited_reason":"Browser apps require the separate website-host permission boundary."}
+    ],
+    "always_allowed": [
+      {"bundle_id":"com.figma.Desktop","app_name":"Figma","approved_at":"2026-07-23T08:10:00.000Z"}
+    ],
+    "access_requests": [
+      {"id":"cua_0123456789abcdef","bundle_id":"com.apple.Notes","app_name":"Notes","reason":"Verify the native editor after the workspace change.","route_display":"route-7bc91f2a","created_at":"2026-07-23T08:29:00.000Z","expires_at":"2026-07-23T08:39:00.000Z"}
+    ],
+    "action_requests": [
+      {"id":"cux_0123456789abcdef","bundle_id":"com.figma.Desktop","app_name":"Figma","operation":"press","target":"AXButton · Publish changes","value_preview":null,"route_display":"route-e3290cd1","created_at":"2026-07-23T08:30:00.000Z","expires_at":"2026-07-23T08:33:00.000Z"}
+    ],
+    "recent_activity": [
+      {"at":"2026-07-23T08:30:00.000Z","route_display":"route-e3290cd1","app_name":"Figma","operation":"press","outcome":"confirmation_pending"},
+      {"at":"2026-07-23T08:28:40.000Z","route_display":"route-7bc91f2a","app_name":"Notes","operation":"request_access","outcome":"pending"},
+      {"at":"2026-07-23T08:24:10.000Z","route_display":"route-e3290cd1","app_name":"Figma","operation":"observe","outcome":"ok"}
+    ],
+    "message": null
   },
   "profile": {
     "ok": true,

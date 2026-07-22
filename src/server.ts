@@ -47,6 +47,7 @@ import { hasSecretValue, redactSensitiveText, redactStructured } from "./redact.
 import { inspectWorkspace, invalidateWorkspaceAnalysis, reviewWorkspaceChanges } from "./analysis/index.js";
 import { inspectRemoteWorkspace } from "./remoteAnalysisOps.js";
 import { listWorkspaceReviewComments } from "./reviewOps.js";
+import { computerUse } from "./computerUseOps.js";
 import {
   createRemoteManagedWorktree,
   handoffRemoteManagedWorktree,
@@ -485,6 +486,7 @@ const SUPERTOOL_ACTION_ALIASES: Record<string, string> = {
   open: "open_current_workspace",
   snapshot: "workspace_snapshot",
   changes: "show_changes",
+  computer: "computer_use",
   handoff_poll: "wait_for_handoff",
   pro_export: "export_pro_context",
   agent_handoff: "handoff_to_agent",
@@ -603,6 +605,7 @@ const STANDARD_TOOL_NAMES = [
   "local_environment",
   "worktree",
   "prepare_scheduled_task",
+  "computer_use",
   "read_handoff",
   "wait_for_handoff",
   "export_pro_context",
@@ -636,6 +639,7 @@ const FULL_TOOL_NAMES = [
   "local_environment",
   "worktree",
   "prepare_scheduled_task",
+  "computer_use",
   "show_changes",
   "read_handoff",
   "wait_for_handoff",
@@ -657,6 +661,7 @@ const CONNECTION_TEST_HIDDEN_TOOLS = new Set<string>([
   "local_environment",
   "worktree",
   "prepare_scheduled_task",
+  "computer_use",
   "export_pro_context",
   "handoff_to_agent",
   "handoff_to_codex"
@@ -785,6 +790,7 @@ function serverInstructions(config: CodexFlowConfig): string {
       ? "6a. Use local_environment to discover the project's shared .codex/environments configuration and run named actions. Use worktree to isolate parallel tasks; a selected local environment automatically sets up a new worktree. Creating or handing off a worktree moves this private chat route to that checkout while preserving project scope."
       : "",
     "6b. When the user asks to schedule recurring or background project work, call prepare_scheduled_task. ChatGPT Scheduled owns the cadence, model turn, and run history; CodexFlow supplies the durable local project route and tools. Never create a local cron job or claim CodexFlow itself runs the model.",
+    "6c. Use computer_use only for a narrowly named native-app task when structured project tools are insufficient. Request the app first, wait for approval in the native CodexFlow Computer view, observe before every action, and never try to operate Terminal, ChatGPT/CodexFlow, system privacy settings, or a browser through generic desktop control.",
     "7. Keep tool calls minimal. Prefer one targeted search plus show_changes instead of repeated broad inspection calls.",
     config.codexSessions !== "off"
       ? `8. Codex session history access is enabled in ${config.codexSessions} mode. Use it only when the user asks for local Codex session history.`
@@ -1211,6 +1217,7 @@ const SESSION_READ_ANNOTATIONS = { readOnlyHint: true, openWorldHint: false, des
 const LOCAL_WRITE_ANNOTATIONS = { readOnlyHint: false, openWorldHint: false, destructiveHint: true, idempotentHint: false };
 const BASH_ANNOTATIONS = { readOnlyHint: false, openWorldHint: true, destructiveHint: true, idempotentHint: false };
 const HANDOFF_WRITE_ANNOTATIONS = { readOnlyHint: false, openWorldHint: false, destructiveHint: false, idempotentHint: false };
+const COMPUTER_USE_ANNOTATIONS = { readOnlyHint: false, openWorldHint: true, destructiveHint: false, idempotentHint: false };
 
 const workspaceManagers = new Map<string, WorkspaceManager>();
 const chatRouteStores = new Map<string, ChatRouteStore>();
@@ -1494,6 +1501,80 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         registeredToolCount: registeredToolNames(server).length
       };
       return textResult(`# CodexFlow Server Config\n\n${JSON.stringify(safeConfig, null, 2)}`, safeConfig);
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
+    "computer_use",
+    {
+      title: "Computer Use",
+      description:
+        "Operate one explicitly approved native macOS app when structured project tools are insufficient. Access is requested in chat and decided on the computer; every press or text entry requires a separate native confirmation. Terminal, ChatGPT/CodexFlow, system privacy settings, secure fields, secrets, and browser apps are blocked.",
+      inputSchema: {
+        route_id: ROUTE_ID_INPUT,
+        workspace_id: z.string().optional().describe("Selected local workspace id. Remote-project routes cannot use this computer."),
+        action: z.enum(["status", "request_app", "observe", "act"]).describe("Check access, request one app, observe its current window, or perform one confirmed accessibility action."),
+        app_query: z.string().trim().min(1).max(300).optional().describe("Exact running app name or bundle id for request_app."),
+        reason: z.string().trim().min(1).max(500).optional().describe("Narrow user-facing reason shown in the native approval request."),
+        app_id: z.string().trim().min(1).max(300).optional().describe("Approved app bundle id returned by request_app or status."),
+        snapshot_id: z.string().regex(/^cus_[a-f0-9]{16}$/).optional().describe("Fresh snapshot id returned by observe."),
+        element_id: z.string().regex(/^axe_[a-f0-9]{16}$/).optional().describe("Accessibility element id from the fresh snapshot."),
+        operation: z.enum(["press", "focus", "set_value", "key"]).optional().describe("One accessibility operation. Press and text/key input require native confirmation."),
+        value: z.string().max(4000).optional().describe("Text for set_value. Secure fields and secret-looking content are refused."),
+        key: z.enum(["return", "tab", "escape", "space", "delete"]).optional().describe("Key for operation=key."),
+        action_request_id: z.string().regex(/^cux_[a-f0-9]{16}$/).optional().describe("Confirmation request id from the identical previous act call after the user approves it natively.")
+      },
+      annotations: COMPUTER_USE_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Using the approved native app...",
+        "openai/toolInvocation/invoked": "Computer Use step complete"
+      }
+    },
+    async (args) => {
+      const routeId = invocationRouteId();
+      if (!routeId) throw new CodexFlowError("computer_use requires the private route_id returned by list_projects or select_project.");
+      workspaces.getWorkspace(args.workspace_id);
+      if (args.action === "status") {
+        const result = await computerUse.routeStatus(routeId);
+        return textResult(`# Computer Use\n\n${JSON.stringify(result, null, 2)}`, result);
+      }
+      if (args.action === "request_app") {
+        const result = await computerUse.requestAccess(routeId, String(args.app_query ?? ""), String(args.reason ?? ""));
+        const text = result.status === "allowed"
+          ? `# Computer Use\n\n${result.app_name} is approved for this chat. Call computer_use with action=observe and app_id=${result.bundle_id}.`
+          : `# Computer Use approval required\n\nOpen the native CodexFlow Computer view and decide request ${result.request_id} for ${result.app_name}. After approval, call action=observe with app_id=${result.bundle_id}.`;
+        return textResult(text, result);
+      }
+      if (args.action === "observe") {
+        const result = await computerUse.snapshot(routeId, String(args.app_id ?? ""));
+        const screenshot = String(result.screenshot_base64 ?? "");
+        const { screenshot_base64: _screenshot, ...structured } = result;
+        const elements = Array.isArray(structured.elements) ? structured.elements as Array<Record<string, unknown>> : [];
+        const rows = elements.slice(0, 120).map((element) =>
+          `- ${element.id} · ${element.role}${element.title ? ` · ${element.title}` : ""}${element.value ? ` · value: ${element.value}` : ""}`
+        );
+        return {
+          content: [
+            { type: "text", text: redactSensitiveText(`# Computer Use snapshot\n\nApp: ${structured.app_name}\nSnapshot: ${structured.snapshot_id}\n\n${rows.join("\n") || "No accessible elements were returned."}\n\nObserve again after every action; snapshot ids expire quickly and cannot cross chats.`) },
+            ...(screenshot ? [{ type: "image", data: screenshot, mimeType: "image/png" }] : [])
+          ],
+          structuredContent: redactStructured(structured)
+        };
+      }
+      const result = await computerUse.act(routeId, {
+        bundleId: String(args.app_id ?? ""), snapshotId: String(args.snapshot_id ?? ""), elementId: String(args.element_id ?? ""),
+        operation: args.operation,
+        ...(args.value !== undefined ? { value: String(args.value) } : {}),
+        ...(args.key !== undefined ? { key: args.key } : {}),
+        ...(args.action_request_id !== undefined ? { actionRequestId: String(args.action_request_id) } : {})
+      });
+      const text = result.status === "confirmation_required"
+        ? `# Computer Use confirmation required\n\nOpen the native CodexFlow Computer view and decide action ${result.action_request_id}. Then repeat the identical act call with action_request_id=${result.action_request_id}.`
+        : `# Computer Use action complete\n\nOperation: ${result.operation}\n\nObserve the app again before taking another action.`;
+      return textResult(text, result);
     }
   );
 

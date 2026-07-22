@@ -9,6 +9,7 @@ const root = path.resolve('.');
 const app = path.join(root, 'desktop', 'prebuilt', 'CodexFlow.app');
 const contents = path.join(app, 'Contents');
 const executable = path.join(contents, 'MacOS', 'CodexFlow');
+const computerHelper = path.join(contents, 'Helpers', 'CodexFlowComputer');
 const resources = path.join(contents, 'Resources');
 const plist = path.join(contents, 'Info.plist');
 
@@ -40,6 +41,8 @@ function fingerprintDirectory(directory) {
 assert.ok(fs.statSync(app).isDirectory(), 'native app bundle is missing');
 assert.ok(fs.statSync(executable).isFile(), 'native app executable is missing');
 assert.ok((fs.statSync(executable).mode & 0o111) !== 0, 'native app executable is not executable');
+assert.ok(fs.statSync(computerHelper).isFile(), 'native Computer Use helper is missing');
+assert.ok((fs.statSync(computerHelper).mode & 0o111) !== 0, 'native Computer Use helper is not executable');
 
 for (const file of [
   'CodexFlow.icns',
@@ -76,9 +79,16 @@ if (process.platform === 'darwin') {
 
   const archs = run('/usr/bin/lipo', ['-archs', executable]).split(/\s+/).sort();
   assert.deepEqual(archs, ['arm64', 'x86_64']);
+  const helperArchs = run('/usr/bin/lipo', ['-archs', computerHelper]).split(/\s+/).sort();
+  assert.deepEqual(helperArchs, ['arm64', 'x86_64']);
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', app]);
   const signature = run('/usr/bin/codesign', ['-dv', '--verbose=2', app], { stdio: ['ignore', 'pipe', 'pipe'] });
   assert.doesNotMatch(signature, /TeamIdentifier=[A-Z0-9]+/, 'release bundle is expected to be ad-hoc signed unless notarization is configured');
+  const helperStatus = JSON.parse(run(computerHelper, [], { input: JSON.stringify({ action: 'status' }) }));
+  assert.equal(helperStatus.ok, true);
+  assert.equal(helperStatus.platform, 'macos');
+  assert.equal(typeof helperStatus.screen_recording, 'boolean');
+  assert.equal(typeof helperStatus.accessibility, 'boolean');
 
   const fixture = path.join(root, 'desktop', 'macos', 'Fixtures', 'overview.json');
   const child = spawn(executable, ['--fixture', fixture], { stdio: 'ignore' });

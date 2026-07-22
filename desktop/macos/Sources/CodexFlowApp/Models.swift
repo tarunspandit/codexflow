@@ -8,6 +8,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case changes
     case chats
     case hosts
+    case computer
     case connection
     case policy
 
@@ -22,6 +23,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .changes: "Changes"
         case .chats: "Chats"
         case .hosts: "Hosts"
+        case .computer: "Computer"
         case .connection: "Connection"
         case .policy: "Policy"
         }
@@ -36,6 +38,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .changes: "plus.forwardslash.minus"
         case .chats: "bubble.left.and.bubble.right"
         case .hosts: "server.rack"
+        case .computer: "macwindow.on.rectangle"
         case .connection: "point.3.connected.trianglepath.dotted"
         case .policy: "slider.horizontal.3"
         }
@@ -381,6 +384,89 @@ struct RemoteHostOverview: Decodable, Identifiable, Hashable {
     var id: String { alias }
 }
 
+struct ComputerOverview: Decodable {
+    let ok: Bool
+    let status: ComputerPermissionStatus
+    let apps: [ComputerAppOverview]
+    let alwaysAllowed: [ComputerAllowedApp]
+    let accessRequests: [ComputerAccessRequest]
+    let actionRequests: [ComputerActionRequest]
+    let recentActivity: [ComputerActivity]
+    let message: String?
+}
+
+struct ComputerPermissionStatus: Decodable {
+    let available: Bool
+    let platform: String
+    let screenRecording: Bool
+    let accessibility: Bool
+    let error: String?
+}
+
+struct ComputerPermissionResponse: Decodable {
+    let available: Bool
+    let platform: String
+    let screenRecording: Bool
+    let accessibility: Bool
+    let message: String?
+}
+
+struct ComputerAppOverview: Decodable, Identifiable, Hashable {
+    let bundleId: String
+    let name: String
+    let pid: Int32
+    let active: Bool
+    let prohibited: Bool
+    let prohibitedReason: String?
+    var id: String { bundleId }
+}
+
+struct ComputerAllowedApp: Decodable, Identifiable, Hashable {
+    let bundleId: String
+    let appName: String
+    let approvedAt: String
+    var id: String { bundleId }
+}
+
+struct ComputerAccessRequest: Decodable, Identifiable, Hashable {
+    let id: String
+    let bundleId: String
+    let appName: String
+    let reason: String
+    let routeDisplay: String
+    let createdAt: String
+    let expiresAt: String
+}
+
+struct ComputerActionRequest: Decodable, Identifiable, Hashable {
+    let id: String
+    let bundleId: String
+    let appName: String
+    let operation: String
+    let target: String
+    let valuePreview: String?
+    let routeDisplay: String
+    let createdAt: String
+    let expiresAt: String
+}
+
+struct ComputerActivity: Decodable, Identifiable, Hashable {
+    let at: String
+    let routeDisplay: String
+    let appName: String
+    let operation: String
+    let outcome: String
+    var id: String { "\(at):\(routeDisplay):\(operation)" }
+}
+
+struct ComputerCommand: Encodable {
+    let action: String
+    let requestId: String?
+    let decision: String?
+    let approve: Bool?
+    let bundleId: String?
+}
+
 struct RemoteProjectOverview: Decodable, Identifiable, Hashable {
     let id: String
     let hostAlias: String
@@ -520,6 +606,7 @@ struct DesktopFixture: Decodable {
     let profile: ProfileResponse?
     let changes: ChangesResponse?
     let remotes: RemoteConnectionsResponse?
+    let computer: ComputerOverview?
     let initialSection: String?
 }
 
