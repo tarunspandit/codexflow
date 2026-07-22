@@ -54,7 +54,7 @@ const content = {
     companionMetrics: [["Projects", "Discovered"], ["Environments", "Shared"], ["Chat routes", "Independent"], ["Terminal", "Route-persistent"]],
     companionSessions: [["Onboarding", "atlas-web", "read · completed"], ["Auth refactor", "signal-api", "test · completed"], ["Release audit", "codexflow", "git status · live"]],
     companionPrivacy: "Content-free telemetry",
-    companionPrivacyBody: "Only project, tool name, outcome, and duration. Explicit local labels, pins, and archive choices persist; prompts, arguments, source, command output, tokens, and usable MCP session IDs do not.",
+    companionPrivacyBody: "Only project, tool name, outcome, and duration enter telemetry. Explicit labels, pins, archives, and review notes persist in separate owner-only files; prompts, arguments, source, command output, tokens, and usable MCP session IDs do not.",
     companionBoundary: "This is a representative native-app preview. The real desktop app reads only your authenticated local CodexFlow broker; this public website cannot see your projects or chats. The browser page remains a small recovery fallback.",
     surfaceKicker: "The tool surface",
     surfaceTitle: <>Enough agency to work.<br />Enough structure to trust.</>,
@@ -65,7 +65,7 @@ const content = {
       ["Change", "Precise edits inside one root.", "Search, read, write, edit, and apply guarded patches without exposing another project or wandering through the machine.", "WORKSPACE SCOPED"],
       ["Parallelize", "One task, one managed checkout.", "Creates isolated worktrees locally or on an approved SSH host, carries current changes in safely, and refuses to overwrite a destination that changed independently.", "GUARDED HANDOFF"],
       ["Verify", "Git and terminal state that continue.", "Stages and commits only the selected project, runs bounded verification, and keeps a private route terminal alive across tool transports.", "PERSISTENT"],
-      ["Review", "The diff belongs on your machine.", "Separates staged and unstaged files in the native app, renders bounded color-coded diffs, and keeps stage, unstage, and discard actions explicit.", "NATIVE"],
+      ["Review", "The diff belongs on your machine.", "Separates staged and unstaged files, stages or reverts one hunk at a time, and carries line-anchored review notes into the web chat’s next change review.", "NATIVE"],
       ["Adapt", "Your project environment travels too.", "Uses the same checked-in Codex environment format for setup, cleanup, named actions, skills, plugins, and MCP inventory—without running Codex.", "INTEROPERABLE"],
       ["Schedule", "Recurring work keeps its project.", "Prepares durable ChatGPT Scheduled runs that reacquire a private route and use a clean managed worktree without adding another model backend.", "CHATGPT NATIVE"],
       ["Remote", "The same picker reaches another machine.", "Approve a named OpenSSH host, then keep isolated terminals, Codex environments, project skills, repository analysis, managed worktrees, guarded handoff, file edits, Bash, and Git review on that route—without invoking Codex there.", "REMOTE WORKSPACE LIVE"],
@@ -145,7 +145,7 @@ const content = {
     companionMetrics: [["项目", "自动发现"], ["环境", "项目共享"], ["聊天路由", "各自独立"], ["终端", "随路由持久"]],
     companionSessions: [["优化新手流程", "atlas-web", "read · 完成"], ["重构身份验证", "signal-api", "test · 完成"], ["发布审查", "codexflow", "git status · 运行中"]],
     companionPrivacy: "不包含内容的遥测",
-    companionPrivacyBody: "只记录项目、工具名称、结果和耗时。你明确设置的本地标签、置顶和归档会保留；prompts、arguments、源码、命令输出、tokens 与可用的 MCP session IDs 不会保留。",
+    companionPrivacyBody: "遥测只记录项目、工具名称、结果和耗时。你明确设置的标签、置顶、归档与 review notes 会分别保存在 owner-only 文件中；prompts、arguments、源码、命令输出、tokens 与可用的 MCP session IDs 不会保留。",
     companionBoundary: "这是原生应用的示意预览。真正的桌面应用只读取你本机经过身份验证的 CodexFlow broker；此公共网站无法看到你的项目或聊天。浏览器页面只保留为精简恢复入口。",
     surfaceKicker: "工具能力",
     surfaceTitle: <>足够完成工作。<br />也足够清楚，值得信任。</>,
@@ -156,7 +156,7 @@ const content = {
       ["修改", "在一个 root 中精确编辑。", "搜索、读取、写入、编辑并应用受保护补丁，不暴露其他项目，也不在机器中越界。", "工作区范围"],
       ["并行", "一个任务，一个受管 checkout。", "创建隔离 worktrees，安全带入当前改动；如果目标 checkout 被独立修改，则拒绝覆盖。", "受保护交接"],
       ["验证", "Git 与终端状态持续存在。", "只暂存并提交所选项目，运行受限验证，并让私有路由终端跨工具连接保持运行。", "持久"],
-      ["审查", "Diff 应该留在你的电脑。", "在原生应用中分开 staged 与 unstaged 文件，呈现受限的彩色 diff，并让 stage、unstage、discard 始终是明确操作。", "原生"],
+      ["审查", "Diff 应该留在你的电脑。", "分开 staged 与 unstaged 文件，逐 hunk stage 或 revert，并把逐行 review note 带入 web chat 的下一次改动审查。", "原生"],
       ["适配", "项目环境也会随行。", "使用与 Codex 相同的项目环境格式提供 setup、cleanup、actions、skills、plugins 和 MCP 清单，但不运行 Codex。", "可互操作"],
       ["定时", "重复任务始终回到正确项目。", "为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。", "CHATGPT 原生"],
       ["远程", "同一个 picker，也能连接另一台机器。", "批准命名 OpenSSH host 后，即可在独立路由中使用持久终端、Codex 环境、项目 skills、仓库分析、文件编辑、Bash 与 Git review；远程端不会调用 Codex。", "远程工作区已上线"],
@@ -218,7 +218,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
               <div className="instrument-readout"><p><span className="live-dot" aria-hidden="true" />{c.brokerReady}</p><dl>{c.readout.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>
             </div>
           </div>
-          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.38.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.39.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
         </section>
 
         <section className="system section-pad" id="system">

@@ -712,6 +712,9 @@ struct ChangesView: View {
     @EnvironmentObject private var model: AppModel
     @State private var selectedID: String?
     @State private var discardCandidate: ChangedFileOverview?
+    @State private var discardHunkCandidate: ReviewHunkDiscardCandidate?
+    @State private var commentAnchor: ReviewCommentAnchor?
+    @State private var commentBody = ""
 
     private var response: ChangesResponse? { model.changes }
     private var selectedFile: ChangedFileOverview? {
@@ -778,6 +781,38 @@ struct ChangesView: View {
             Text(file.staged
                 ? "This restores \(file.path) in both the index and working tree to HEAD. It cannot be undone by CodexFlow."
                 : "This restores \(file.path) in the working tree. It cannot be undone by CodexFlow.")
+        }
+        .confirmationDialog(
+            "Revert this hunk?",
+            isPresented: Binding(
+                get: { discardHunkCandidate != nil },
+                set: { if !$0 { discardHunkCandidate = nil } }
+            ),
+            presenting: discardHunkCandidate
+        ) { candidate in
+            Button("Revert hunk", role: .destructive) {
+                discardHunkCandidate = nil
+                Task { await mutateHunk(action: "discard_hunk", selected: candidate.selected, hunk: candidate.hunk) }
+            }
+            Button("Cancel", role: .cancel) { discardHunkCandidate = nil }
+        } message: { candidate in
+            Text("Only \(candidate.hunk.header) in \(candidate.selected.path) will be reverted from the working tree. This cannot be undone by CodexFlow.")
+        }
+        .sheet(item: $commentAnchor) { anchor in
+            ReviewCommentComposer(
+                anchor: anchor,
+                commentText: $commentBody,
+                cancel: {
+                    commentAnchor = nil
+                    commentBody = ""
+                },
+                save: {
+                    let body = commentBody
+                    commentAnchor = nil
+                    commentBody = ""
+                    Task { await addComment(anchor: anchor, body: body) }
+                }
+            )
         }
     }
 
@@ -912,7 +947,18 @@ struct ChangesView: View {
                     EmptyState(symbol: "doc", title: "No textual diff", detail: "The file may be binary, deleted, or unchanged in this Git lane.")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    DiffReader(diff: selected.diff)
+                    DiffReader(
+                        selected: selected,
+                        busy: model.changesBusy,
+                        stageHunk: { hunk in Task { await mutateHunk(action: "stage_hunk", selected: selected, hunk: hunk) } },
+                        unstageHunk: { hunk in Task { await mutateHunk(action: "unstage_hunk", selected: selected, hunk: hunk) } },
+                        discardHunk: { hunk in discardHunkCandidate = ReviewHunkDiscardCandidate(selected: selected, hunk: hunk) },
+                        addComment: { hunk, line, text in
+                            commentBody = ""
+                            commentAnchor = ReviewCommentAnchor(selected: selected, hunk: hunk, line: line, lineText: text)
+                        },
+                        deleteComment: { comment in Task { await deleteComment(comment, selected: selected) } }
+                    )
                 }
             }
         } else if model.changesBusy {
@@ -959,6 +1005,85 @@ struct ChangesView: View {
         selectedID = nil
         await selectFirstIfNeeded()
     }
+
+    private func mutateHunk(action: String, selected: SelectedChangeOverview, hunk: ReviewHunkOverview) async {
+        await model.mutateReviewHunk(action: action, selected: selected, hunk: hunk)
+        await reconcileSelection()
+    }
+
+    private func addComment(anchor: ReviewCommentAnchor, body: String) async {
+        await model.addReviewComment(selected: anchor.selected, hunk: anchor.hunk, line: anchor.line, body: body)
+        await reconcileSelection()
+    }
+
+    private func deleteComment(_ comment: ReviewCommentOverview, selected: SelectedChangeOverview) async {
+        await model.deleteReviewComment(comment, selected: selected)
+        await reconcileSelection()
+    }
+
+    private func reconcileSelection() async {
+        if let selected = model.changes?.selected {
+            selectedID = "\(selected.staged ? "staged" : "unstaged"):\(selected.path)"
+        } else {
+            selectedID = nil
+            await selectFirstIfNeeded()
+        }
+    }
+}
+
+private struct ReviewHunkDiscardCandidate: Identifiable {
+    let selected: SelectedChangeOverview
+    let hunk: ReviewHunkOverview
+    var id: String { hunk.id }
+}
+
+private struct ReviewCommentAnchor: Identifiable {
+    let selected: SelectedChangeOverview
+    let hunk: ReviewHunkOverview
+    let line: Int
+    let lineText: String
+    var id: String { "\(hunk.id):\(line)" }
+}
+
+private struct ReviewCommentComposer: View {
+    let anchor: ReviewCommentAnchor
+    @Binding var commentText: String
+    let cancel: () -> Void
+    let save: () -> Void
+
+    var bodyView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Inline review note").font(FlowType.title(17)).foregroundStyle(FlowColor.ink)
+                Text(anchor.selected.path).font(FlowType.mono(10)).foregroundStyle(FlowColor.inkMuted).lineLimit(1)
+            }
+            Text(anchor.lineText.isEmpty ? "Blank diff line" : anchor.lineText)
+                .font(FlowType.mono(10)).foregroundStyle(FlowColor.ink)
+                .padding(11).frame(maxWidth: .infinity, alignment: .leading)
+                .background(FlowColor.paperMuted).clipShape(RoundedRectangle(cornerRadius: 9))
+            TextEditor(text: $commentText)
+                .font(FlowType.body(12))
+                .frame(minHeight: 110)
+                .padding(7)
+                .background(FlowColor.paper)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(FlowColor.line, lineWidth: 1))
+            Text("Stored only in this computer’s owner-only CodexFlow review state.")
+                .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted)
+            HStack {
+                Spacer()
+                Button("Cancel", action: cancel).buttonStyle(FlowButtonStyle(kind: .secondary))
+                Button("Add note", action: save)
+                    .buttonStyle(FlowButtonStyle(kind: .primary))
+                    .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || commentText.count > 2000)
+            }
+        }
+        .padding(22)
+        .frame(width: 480)
+        .background(FlowColor.ground)
+    }
+
+    var body: some View { bodyView }
 }
 
 private struct ChangeGroup: View {
@@ -1014,28 +1139,123 @@ private struct ChangeGroup: View {
 }
 
 private struct DiffReader: View {
-    let diff: String
+    let selected: SelectedChangeOverview
+    let busy: Bool
+    let stageHunk: (ReviewHunkOverview) -> Void
+    let unstageHunk: (ReviewHunkOverview) -> Void
+    let discardHunk: (ReviewHunkOverview) -> Void
+    let addComment: (ReviewHunkOverview, Int, String) -> Void
+    let deleteComment: (ReviewCommentOverview) -> Void
+
+    private var lines: [String] { selected.diff.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) }
+    private var outdatedComments: [ReviewCommentOverview] { selected.comments.filter { $0.outdated == true } }
+    private func hunk(at line: Int) -> ReviewHunkOverview? {
+        selected.hunks.first { line >= $0.startLine && line <= $0.endLine }
+    }
+    private func comments(at line: Int) -> [ReviewCommentOverview] {
+        selected.comments.filter { $0.outdated != true && $0.line == line }
+    }
 
     var body: some View {
         GeometryReader { proxy in
             ScrollView([.horizontal, .vertical]) {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(diff.split(separator: "\n", omittingEmptySubsequences: false).enumerated()), id: \.offset) { _, raw in
-                        let line = String(raw)
-                        Text(line.isEmpty ? " " : line)
-                            .font(FlowType.mono(11))
-                            .foregroundStyle(line.codexFlowDiffForeground)
-                            .padding(.horizontal, 13)
-                            .frame(maxWidth: .infinity, minHeight: 19, alignment: .leading)
+                    if !outdatedComments.isEmpty {
+                        HStack(spacing: 8) {
+                            Image(systemName: "clock.badge.exclamationmark").foregroundStyle(FlowColor.warning)
+                            Text("\(outdatedComments.count) review note\(outdatedComments.count == 1 ? "" : "s") belong to hunks that changed. Delete them here or refresh the review context.")
+                                .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted)
+                            Spacer()
+                            ForEach(outdatedComments) { comment in
+                                Button { deleteComment(comment) } label: { Image(systemName: "trash") }
+                                    .buttonStyle(.plain).help("Delete outdated note").accessibilityLabel("Delete outdated review note")
+                            }
+                        }
+                        .padding(11).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(FlowColor.warning.opacity(0.08))
+                    }
+                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                        if let hunk = selected.hunks.first(where: { $0.startLine == index }) {
+                            HunkReviewBar(
+                                hunk: hunk, staged: selected.staged, busy: busy,
+                                stage: { stageHunk(hunk) }, unstage: { unstageHunk(hunk) }, discard: { discardHunk(hunk) }
+                            )
+                        }
+                        if hunk(at: index)?.startLine != index {
+                            HStack(spacing: 0) {
+                                Text("\(index + 1)")
+                                    .font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted.opacity(0.7))
+                                    .frame(width: 42, alignment: .trailing).padding(.trailing, 9)
+                                Text(line.isEmpty ? " " : line)
+                                    .font(FlowType.mono(11))
+                                    .foregroundStyle(line.codexFlowDiffForeground)
+                                    .padding(.leading, 4)
+                                    .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
+                                    .textSelection(.enabled)
+                                if let hunk = hunk(at: index) {
+                                    Button { addComment(hunk, index, line) } label: {
+                                        Image(systemName: "text.bubble").font(.system(size: 10, weight: .medium)).frame(width: 28, height: 22)
+                                    }
+                                    .buttonStyle(.plain).foregroundStyle(FlowColor.signal.opacity(0.46)).disabled(busy).help("Add inline review note")
+                                    .accessibilityLabel("Add inline review note for diff line \(index + 1)")
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .background(line.codexFlowDiffBackground)
+                            ForEach(comments(at: index)) { comment in
+                                HStack(alignment: .top, spacing: 9) {
+                                    Image(systemName: "text.bubble.fill").font(.system(size: 11)).foregroundStyle(FlowColor.signal)
+                                    Text(comment.body).font(FlowType.body(11)).foregroundStyle(FlowColor.ink).textSelection(.enabled)
+                                    Spacer()
+                                    Button { deleteComment(comment) } label: { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)) }
+                                        .buttonStyle(.plain).foregroundStyle(FlowColor.inkMuted).disabled(busy).help("Delete review note")
+                                        .accessibilityLabel("Delete inline review note")
+                                }
+                                .padding(.horizontal, 14).padding(.vertical, 10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(FlowColor.signalWash.opacity(0.72))
+                                .overlay(alignment: .leading) { Rectangle().fill(FlowColor.signal).frame(width: 3) }
+                            }
+                        }
                     }
                 }
                 .frame(minWidth: proxy.size.width, alignment: .leading)
-                .textSelection(.enabled)
                 .padding(.vertical, 8)
             }
         }
         .background(Color(hex: 0xFBF9F5))
+    }
+}
+
+private struct HunkReviewBar: View {
+    let hunk: ReviewHunkOverview
+    let staged: Bool
+    let busy: Bool
+    let stage: () -> Void
+    let unstage: () -> Void
+    let discard: () -> Void
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Text(hunk.header).font(FlowType.mono(10)).foregroundStyle(FlowColor.signal).lineLimit(1)
+            Text("+\(hunk.additions) −\(hunk.deletions)").font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted)
+            Spacer()
+            if hunk.actionable {
+                if staged {
+                    Button("Unstage hunk", action: unstage).buttonStyle(FlowButtonStyle(kind: .secondary))
+                } else {
+                    Button("Stage hunk", action: stage).buttonStyle(FlowButtonStyle(kind: .primary))
+                    Button("Revert hunk", action: discard).buttonStyle(FlowButtonStyle(kind: .danger))
+                }
+            } else {
+                Text("Use file action").font(FlowType.label(8)).tracking(0.8).foregroundStyle(FlowColor.inkMuted)
+            }
+        }
+        .padding(.horizontal, 12).frame(minHeight: 43)
+        .background(FlowColor.signalWash.opacity(0.52))
+        .overlay(alignment: .bottom) { Rectangle().fill(FlowColor.signal.opacity(0.2)).frame(height: 1) }
+        .disabled(busy)
     }
 }
 

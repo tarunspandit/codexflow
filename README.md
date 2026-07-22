@@ -103,7 +103,7 @@ conversation. The native app makes the broker legible and controllable:
 - **Projects** shows the folders CodexFlow discovered automatically.
 - **Environments** shows the project’s shared Codex environment definitions and runs setup, cleanup, or named actions.
 - **Worktrees** creates, reveals, audits, and safely removes isolated checkouts.
-- **Changes** separates staged and unstaged files, renders bounded color-coded diffs, and performs explicit file-level stage, unstage, or discard actions.
+- **Changes** separates staged and unstaged files, renders bounded color-coded diffs, stages/unstages/reverts individual hunks, and keeps line-anchored review notes visible to `show_changes` in the web chat.
 - **Chats** shows independent project routing for real tool-using conversations, with local search, rename, pin, archive, and restore controls; background MCP discovery and component-fetch connections are deliberately hidden.
 - **Hosts** discovers concrete aliases from `~/.ssh/config`, requires bounded local OpenSSH verification, saves canonical remote project folders, and revokes routing automatically if an alias resolves to a different destination.
 - **Connection** provides the private Server URL without displaying its credential.
@@ -132,9 +132,10 @@ implicit; each managed pair remains on its approved host.
 Operational session telemetry stays in process memory, is bounded, and expires
 shortly after a chat closes. It contains only a non-actionable display
 fingerprint, selected project, tool name, outcome, and duration. Explicit local
-rename/pin/archive choices are persisted in an owner-only metadata file so the
-native app can restore them. CodexFlow never stores prompts, tool arguments,
-file contents, command output, tokens, or usable MCP transport IDs.
+rename/pin/archive choices and native review notes are persisted separately in
+owner-only metadata files so the native app can restore them and `show_changes`
+can receive deliberate review feedback. CodexFlow never stores prompts, tool
+arguments, file contents, command output, tokens, or usable MCP transport IDs.
 
 ## Repository Analysis
 

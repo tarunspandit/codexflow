@@ -26,6 +26,7 @@ codexflow can expose:
 
 - file metadata and selected file contents from allowed workspaces
 - git status and diffs
+- explicit line-anchored review comments written in the native app and returned to the selected project’s `show_changes` calls
 - `.ai-bridge` planning files
 - optional shell command execution through the `bash` tool, hidden when bash mode is off
 - optional write/edit/apply_patch capability depending on `CODEXFLOW_WRITE_MODE`, advertised only in workspace write mode
@@ -55,6 +56,8 @@ Review changes against these failure modes before release:
 | One remote terminal leaks state into another chat | Persistent SSH shells are keyed by private route and approved project identity. Host/project fingerprints are revalidated before every run/read/write/stop action; transcripts are bounded and redacted, and route sessions never share shell processes. |
 | A remote environment or skill escapes its project | Environment and skill discovery only traverses fixed project-owned roots, skips symlinks, limits file count and bytes, requires regular files, and resolves every returned path beneath the canonical saved project. Environment scripts require workspace write and Bash policy to be enabled. |
 | Remote worktree handoff overwrites independent work | Source and destination must share one Git common directory and HEAD. Owner-only manifests retain both state fingerprints; handoff refuses a changed destination, transfer is byte-bounded, symlinks/non-files are rejected, and removal snapshots dirty tracked and untracked project state before deleting the checkout. |
+| A stale or forged hunk action applies an unintended patch | The native app submits only a content-derived hunk ID. The authenticated broker resolves the guarded project path, regenerates the current raw Git diff, reconstructs the matching patch locally, checks it with `git apply --check`, and refuses missing, stale, staged-lane, or untracked-file mismatches. |
+| Native review notes leak into content-free telemetry | Review comments are deliberate user-authored project content stored separately in an owner-only mode-0600 file. They never enter runtime session/activity telemetry; they are returned only by authenticated Changes responses and the selected local project’s `show_changes`. Secret-looking comments are rejected. |
 | A displayed chat identifier can be replayed against MCP | The app exposes a one-way display fingerprint, never the random transport identifier used by the MCP endpoint. |
 | Remote MCP tool runs Codex/OpenCode/Pi directly | Agent execution remains a user-started CLI/watch process on the local machine. |
 | Autonomous loop drives ChatGPT Web or bypasses approvals | `loop-handoff` only runs local terminal commands over `.ai-bridge` files; it does not resume browser sessions, approve prompts, or expose a remote MCP executor. |
@@ -128,6 +131,7 @@ codexflow \
 - Keep `CODEXFLOW_CONTEXT_DIR` as a workspace-relative hidden directory such as `.ai-bridge`; CodexFlow rejects source, build, dependency, credential, and absolute context directories.
 - Use `--bash full` only for trusted local repos.
 - Do not treat MCP session ids or bash session labels as Codex conversation ids. CodexFlow does not execute inside a Codex app session.
+- Do not place credentials in native review comments; they are intentionally shared with authenticated `show_changes` calls for that project.
 - Prefer a repo-specific `--root` instead of `--allow-home`.
 - Use `--no-install-cloudflared --cloudflared <path>` if your organization requires a managed Cloudflare Tunnel binary.
 - Verify SSH hosts only after normal `ssh <alias>` access works and the destination fingerprint is expected. Remove approval in the native Hosts view before changing an alias to a different machine.

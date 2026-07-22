@@ -124,7 +124,7 @@ codexflow app
 - **项目**：CodexFlow 自动发现的文件夹。
 - **环境**：读取与 Codex 桌面应用相同的 `.codex/environments/*.toml`，执行 setup、cleanup 和命名 actions。
 - **Worktrees**：创建、检查、显示和安全删除隔离 checkout。
-- **改动**：分开展示 staged 与 unstaged 文件，呈现有颜色和统计的受限 diff，并对明确文件执行 stage、unstage 或 discard。
+- **改动**：分开展示 staged 与 unstaged 文件，呈现有颜色和统计的受限 diff；可以逐 hunk stage、unstage 或 revert，并把逐行 review note 通过 `show_changes` 带回 web chat。
 - **聊天**：真正使用工具的当前与最近关闭对话各自路由到哪个项目；后台 discovery 与组件请求不会伪装成聊天。
 - **Hosts**：从 `~/.ssh/config` 发现具体 aliases，在本机通过 OpenSSH 明确验证或撤销，并在 alias 改为其他目标时自动让批准失效。
 - **连接**：只在明确操作时复制私有 Server URL，并管理 broker 的启动、停止和重启。
@@ -132,9 +132,9 @@ codexflow app
 
 应用可在 broker 离线时选择工作区并启动它，也可在多个近期或活跃的 workspace runtime 之间切换。旧的 token 保护浏览器页面只保留为紧急恢复和诊断入口；它会优先打开桌面应用，不再复制完整产品界面。
 
-远程项目通过 CodexFlow 自有的临时 Node helper 与非交互 OpenSSH 运行；远程 host 上不会安装或调用 Codex / Codex CLI。只有 SSH config 中具体、已在本机验证的 alias 才能获批。保存 canonical 项目目录后，它会与本地项目一起出现在普通 chat picker 中，并支持受限的 tree/read/search/write/edit/patch、Bash、持久终端、Codex 环境、workspace skills、repository analysis、Git status/diff 与 change review。每次调用都会重新验证目标 fingerprint、项目 root、blocked paths、symlink、大小限制以及当前 write/Bash 策略。每个聊天的远程终端状态完全隔离；环境 setup/cleanup/actions 按远程 host 平台执行。远程 managed worktrees 与本地/远程 handoff 仍列在 `CODEX_DESKTOP_PARITY.md` 的未完成项中。
+远程项目通过 CodexFlow 自有的临时 Node helper 与非交互 OpenSSH 运行；远程 host 上不会安装或调用 Codex / Codex CLI。只有 SSH config 中具体、已在本机验证的 alias 才能获批。保存 canonical 项目目录后，它会与本地项目一起出现在普通 chat picker 中，并支持受限的 tree/read/search/write/edit/patch、Bash、持久终端、Codex 环境、workspace skills、repository analysis、Git review 与 managed worktrees。每次调用都会重新验证目标 fingerprint、项目 root、blocked paths、symlink、大小限制以及当前 write/Bash 策略。每个聊天的远程终端状态完全隔离；环境 setup/cleanup/actions 按远程 host 平台执行。远程 worktree 创建、source/worktree handoff、冲突拒绝、cleanup、dirty snapshot 与移除都沿用同一个私有 route。
 
-会话遥测只存在于进程内存中，有数量上限，并会在会话关闭后很快过期。它只保存不可操作的显示指纹、已选项目、工具名称、结果和耗时；不会保存 prompts、工具 arguments、文件内容、命令输出、tokens 或可用的 MCP transport IDs。
+会话遥测只存在于进程内存中，有数量上限，并会在会话关闭后很快过期。它只保存不可操作的显示指纹、已选项目、工具名称、结果和耗时。明确设置的 rename、pin、archive 与原生 review notes 会分别保存在 owner-only metadata 文件中，让应用恢复这些选择并让 `show_changes` 接收有意提交的审查反馈；不会保存 prompts、工具 arguments、文件内容、命令输出、tokens 或可用的 MCP transport IDs。
 
 ### 共享本地环境
 

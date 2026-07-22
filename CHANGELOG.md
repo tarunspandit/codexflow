@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.39.0 (2026-07-23)
+
+- Rebuilt the native Changes diff reader around first-class unified-diff hunks with one-click stage, unstage, and explicitly confirmed working-tree revert actions.
+- Added stable content-derived hunk identifiers and server-side patch reconstruction, so the app never submits an arbitrary patch and stale hunk actions fail closed after the underlying diff changes.
+- Added line-anchored native review comments with a focused composer, inline rendering, stale-anchor warnings, owner-only mode-0600 persistence, secret detection, and explicit deletion.
+- Surfaced native review notes through `show_changes`, allowing the active web chat to receive the user’s local review feedback without adding a second chat composer or storing prompts and tool transcripts.
+- Kept untracked files on explicit file-level stage/discard actions and added end-to-end regression coverage for two-hunk stage/unstage/revert, comments, stale IDs, model-visible notes, and untracked refusal.
+- Visually verified the signed universal macOS app in fixture mode after removing duplicate hunk headers and reducing inline-control noise.
+- Kept the parity claim honest: Computer Use/browser control, richer native plan/task orchestration, and equivalent native clients beyond macOS remain unfinished.
+
 ## 0.38.0 (2026-07-23)
 
 - Added CodexFlow-managed Git worktrees on approved SSH projects. A web chat can create a detached remote checkout, carry bounded tracked and untracked project changes into it, and immediately continue on the new saved project route.

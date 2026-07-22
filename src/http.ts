@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { randomUUID } from "node:crypto";
 import { timingSafeEqual } from "node:crypto";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express, { type NextFunction, type Request, type Response } from "express";
@@ -37,8 +36,16 @@ import {
   runLocalEnvironmentCommand
 } from "./localEnvironmentOps.js";
 import { persistentTerminals } from "./terminalOps.js";
-import { gitDiff, gitDiffStatus, gitStatus } from "./gitOps.js";
+import { gitDiffStatus, gitStatus } from "./gitOps.js";
 import { runGitWorkflow } from "./gitWorkflow.js";
+import {
+  addReviewComment,
+  deleteReviewComment,
+  listReviewComments,
+  rawReviewDiff,
+  reviewHunks,
+  runReviewHunkAction
+} from "./reviewOps.js";
 import {
   disconnectRemoteConnection,
   listRemoteConnections,
@@ -114,11 +121,33 @@ const AdminChangesQuery = z.object({
   staged: z.enum(["true", "false", "1", "0"]).optional()
 });
 
-const AdminChangesCommand = z.object({
-  action: z.enum(["stage", "unstage", "discard"]),
-  paths: z.array(z.string().trim().min(1).max(4096)).min(1).max(200),
-  includeStaged: z.boolean().optional()
-}).strict();
+const AdminChangesCommand = z.discriminatedUnion("action", [
+  z.object({
+    action: z.enum(["stage", "unstage", "discard"]),
+    paths: z.array(z.string().trim().min(1).max(4096)).min(1).max(200),
+    includeStaged: z.boolean().optional()
+  }).strict(),
+  z.object({
+    action: z.enum(["stage_hunk", "unstage_hunk", "discard_hunk"]),
+    path: z.string().trim().min(1).max(4096),
+    staged: z.boolean(),
+    hunkId: z.string().regex(/^hunk_[a-f0-9]{16}$/)
+  }).strict(),
+  z.object({
+    action: z.literal("comment"),
+    path: z.string().trim().min(1).max(4096),
+    staged: z.boolean(),
+    hunkId: z.string().regex(/^hunk_[a-f0-9]{16}$/),
+    line: z.number().int().min(0).max(1_000_000),
+    body: z.string().trim().min(1).max(2000)
+  }).strict(),
+  z.object({
+    action: z.literal("delete_comment"),
+    commentId: z.string().regex(/^rc_[a-f0-9]{16}$/),
+    path: z.string().trim().min(1).max(4096),
+    staged: z.boolean()
+  }).strict()
+]);
 
 const AdminRemoteCommand = z.discriminatedUnion("action", [
   z.object({
@@ -480,39 +509,6 @@ function desktopGitUnavailable(output: string): boolean {
   return value.startsWith("fatal:") || value.startsWith("git unavailable or failed:") || value.includes("not a git repository");
 }
 
-async function untrackedFileDiff(
-  config: CodexFlowConfig,
-  guard: PathGuard,
-  workspace: Workspace,
-  filePath: string
-): Promise<{ diff: string; truncated: boolean }> {
-  const resolved = guard.resolve(workspace, filePath);
-  await guard.assertTextFile(resolved.absPath, config.maxReadBytes);
-  const raw = await fs.readFile(resolved.absPath, "utf8");
-  const maxBytes = Math.min(config.maxReadBytes, config.maxOutputBytes);
-  let text = raw;
-  let truncated = false;
-  while (Buffer.byteLength(text, "utf8") > maxBytes && text.length > 0) {
-    text = text.slice(0, Math.max(0, Math.floor(text.length * 0.8)));
-    truncated = true;
-  }
-  const lines = text.replace(/\n$/, "").split("\n");
-  const safePath = resolved.relPath.replace(/[\r\n]/g, "");
-  const body = lines.map((line) => `+${line}`).join("\n");
-  return {
-    diff: redactSensitiveText([
-      `diff --git a/${safePath} b/${safePath}`,
-      "new file mode 100644",
-      "--- /dev/null",
-      `+++ b/${safePath}`,
-      `@@ -0,0 +1,${lines.length} @@`,
-      body,
-      ...(truncated ? ["+… preview truncated by local review limit …"] : [])
-    ].join("\n")),
-    truncated
-  };
-}
-
 async function desktopChangesResponse(
   config: CodexFlowConfig,
   guard: PathGuard,
@@ -538,16 +534,17 @@ async function desktopChangesResponse(
   const unstagedFiles = changedFilesFromStatus(gitDiffStatus(config, guard, workspace, undefined, false), false);
   let diff = "";
   let truncated = false;
+  let hunks: ReturnType<typeof reviewHunks> = [];
+  let comments: ReturnType<typeof listReviewComments> = [];
   if (selectedPath) {
     const selected = selectedStaged ? stagedFiles : unstagedFiles;
     const file = selected.find((item) => item.path === selectedPath);
     if (!file) throw new Error(`The selected ${selectedStaged ? "staged" : "unstaged"} change no longer exists.`);
-    if (!selectedStaged && file.status === "untracked") {
-      ({ diff, truncated } = await untrackedFileDiff(config, guard, workspace, selectedPath));
-    } else {
-      diff = gitDiff(config, guard, workspace, selectedPath, selectedStaged);
-      if (diff === "(no output)") diff = "";
-    }
+    const raw = await rawReviewDiff(config, guard, workspace, selectedPath, selectedStaged);
+    diff = redactSensitiveText(raw.diff);
+    truncated = raw.truncated;
+    hunks = reviewHunks(raw.diff, raw.path, selectedStaged, raw.untracked);
+    comments = listReviewComments(workspace, raw.path, selectedStaged, hunks);
   }
   const stats = desktopDiffStats(diff);
   const branchLine = status.split("\n")[0]?.replace(/^##\s*/, "") ?? "";
@@ -571,10 +568,23 @@ async function desktopChangesResponse(
           diff,
           additions: stats.additions,
           deletions: stats.deletions,
-          truncated
+          truncated,
+          hunks,
+          comments
         }
       : null
   });
+}
+
+async function desktopChangesAfterMutation(
+  config: CodexFlowConfig,
+  guard: PathGuard,
+  workspace: Workspace,
+  selectedPath: string,
+  selectedStaged: boolean
+): Promise<Record<string, unknown>> {
+  try { return await desktopChangesResponse(config, guard, workspace, selectedPath, selectedStaged); }
+  catch { return desktopChangesResponse(config, guard, workspace); }
 }
 
 function jsonError(res: Response, status: number, code: string, message: string, issues?: unknown): void {
@@ -1003,10 +1013,6 @@ async function main(): Promise<void> {
   });
 
   app.post("/admin/changes", adminRateLimit, adminBodyLimit, express.json({ limit: "32kb" }), async (req, res) => {
-    if (config.writeMode !== "workspace") {
-      jsonError(res, 403, "changes_read_only", "Changing the Git index or working tree requires workspace write mode.");
-      return;
-    }
     const parsed = AdminChangesCommand.safeParse(req.body ?? {});
     if (!parsed.success) {
       jsonError(res, 400, "invalid_changes_command", "Invalid changes command.", parsed.error.flatten());
@@ -1014,14 +1020,47 @@ async function main(): Promise<void> {
     }
     try {
       const workspace = workspaces.defaultWorkspace();
+      if (["stage", "unstage", "discard", "stage_hunk", "unstage_hunk", "discard_hunk"].includes(parsed.data.action) && config.writeMode !== "workspace") {
+        jsonError(res, 403, "changes_read_only", "Changing the Git index or working tree requires workspace write mode.");
+        return;
+      }
+      if (parsed.data.action === "comment") {
+        const raw = await rawReviewDiff(config, guard, workspace, parsed.data.path, parsed.data.staged);
+        const hunks = reviewHunks(raw.diff, raw.path, parsed.data.staged, raw.untracked);
+        addReviewComment(guard, workspace, { ...parsed.data, hunks });
+        res.json({
+          ...(await desktopChangesResponse(config, guard, workspace, raw.path, parsed.data.staged)),
+          message: "Inline review comment added.", action: parsed.data.action
+        });
+        return;
+      }
+      if (parsed.data.action === "delete_comment") {
+        deleteReviewComment(workspace, parsed.data.commentId);
+        res.json({
+          ...(await desktopChangesAfterMutation(config, guard, workspace, parsed.data.path, parsed.data.staged)),
+          message: "Inline review comment deleted.", action: parsed.data.action
+        });
+        return;
+      }
+      if (["stage_hunk", "unstage_hunk", "discard_hunk"].includes(parsed.data.action)) {
+        const command = parsed.data as Extract<z.infer<typeof AdminChangesCommand>, { action: "stage_hunk" | "unstage_hunk" | "discard_hunk" }>;
+        await runReviewHunkAction(config, guard, workspace, command);
+        res.json({
+          ...(await desktopChangesAfterMutation(config, guard, workspace, command.path, command.staged)),
+          message: command.action === "stage_hunk" ? "Hunk staged." : command.action === "unstage_hunk" ? "Hunk unstaged." : "Hunk reverted.",
+          action: command.action
+        });
+        return;
+      }
+      const command = parsed.data as Extract<z.infer<typeof AdminChangesCommand>, { action: "stage" | "unstage" | "discard" }>;
       const result = runGitWorkflow(config, guard, workspace, {
-        action: parsed.data.action,
-        paths: parsed.data.paths,
-        includeStaged: parsed.data.includeStaged
+        action: command.action,
+        paths: command.paths,
+        includeStaged: command.includeStaged
       });
       res.json({
         ...(await desktopChangesResponse(config, guard, workspace)),
-        message: `${parsed.data.paths.length} file${parsed.data.paths.length === 1 ? "" : "s"} ${parsed.data.action === "stage" ? "staged" : parsed.data.action === "unstage" ? "unstaged" : "discarded"}.`,
+        message: `${command.paths.length} file${command.paths.length === 1 ? "" : "s"} ${command.action === "stage" ? "staged" : command.action === "unstage" ? "unstaged" : "discarded"}.`,
         action: result.action
       });
     } catch (error) {

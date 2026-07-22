@@ -530,7 +530,49 @@ final class AppModel: ObservableObject {
         changesBusy = true
         defer { changesBusy = false }
         do {
-            let payload = try JSONEncoder().encode(ChangesCommand(action: action, paths: paths, includeStaged: includeStaged))
+            let payload = try JSONEncoder().encode(ChangesCommand(
+                action: action, paths: paths, includeStaged: includeStaged,
+                path: nil, staged: nil, hunkId: nil, line: nil, body: nil, commentId: nil
+            ))
+            let response: ChangesResponse = try await request(runtime: runtime, path: "/admin/changes", method: "POST", body: payload)
+            changes = response
+            notice = response.message
+            await refresh(forceProjectRefresh: false)
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func mutateReviewHunk(action: String, selected: SelectedChangeOverview, hunk: ReviewHunkOverview) async {
+        await sendReviewCommand(ChangesCommand(
+            action: action, paths: nil, includeStaged: nil,
+            path: selected.path, staged: selected.staged, hunkId: hunk.id,
+            line: nil, body: nil, commentId: nil
+        ))
+    }
+
+    func addReviewComment(selected: SelectedChangeOverview, hunk: ReviewHunkOverview, line: Int, body: String) async {
+        await sendReviewCommand(ChangesCommand(
+            action: "comment", paths: nil, includeStaged: nil,
+            path: selected.path, staged: selected.staged, hunkId: hunk.id,
+            line: line, body: body, commentId: nil
+        ))
+    }
+
+    func deleteReviewComment(_ comment: ReviewCommentOverview, selected: SelectedChangeOverview) async {
+        await sendReviewCommand(ChangesCommand(
+            action: "delete_comment", paths: nil, includeStaged: nil,
+            path: selected.path, staged: selected.staged, hunkId: nil,
+            line: nil, body: nil, commentId: comment.id
+        ))
+    }
+
+    private func sendReviewCommand(_ command: ChangesCommand) async {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, !changesBusy else { return }
+        changesBusy = true
+        defer { changesBusy = false }
+        do {
+            let payload = try JSONEncoder().encode(command)
             let response: ChangesResponse = try await request(runtime: runtime, path: "/admin/changes", method: "POST", body: payload)
             changes = response
             notice = response.message

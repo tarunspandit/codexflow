@@ -301,6 +301,34 @@ struct SelectedChangeOverview: Decodable, Hashable {
     let additions: Int
     let deletions: Int
     let truncated: Bool
+    let hunks: [ReviewHunkOverview]
+    let comments: [ReviewCommentOverview]
+}
+
+struct ReviewHunkOverview: Decodable, Identifiable, Hashable {
+    let id: String
+    let header: String
+    let startLine: Int
+    let endLine: Int
+    let oldStart: Int
+    let oldCount: Int
+    let newStart: Int
+    let newCount: Int
+    let additions: Int
+    let deletions: Int
+    let actionable: Bool
+}
+
+struct ReviewCommentOverview: Decodable, Identifiable, Hashable {
+    let id: String
+    let path: String
+    let staged: Bool
+    let hunkId: String
+    let line: Int
+    let body: String
+    let createdAt: String
+    let updatedAt: String
+    let outdated: Bool?
 }
 
 struct ChangesSummary: Decodable, Hashable {
@@ -325,8 +353,14 @@ struct ChangesResponse: Decodable {
 
 struct ChangesCommand: Encodable {
     let action: String
-    let paths: [String]
+    let paths: [String]?
     let includeStaged: Bool?
+    let path: String?
+    let staged: Bool?
+    let hunkId: String?
+    let line: Int?
+    let body: String?
+    let commentId: String?
 }
 
 struct RemoteHostOverview: Decodable, Identifiable, Hashable {
