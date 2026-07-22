@@ -39,6 +39,11 @@ async function waitForExit(child, timeoutMs = 5000) {
   });
 }
 
+async function canonicalPath(value) {
+  const resolved = path.normalize(await fs.realpath(value));
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-cli-smoke-root-'));
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-cli-smoke-home-'));
 const env = {
@@ -100,9 +105,10 @@ while (Date.now() < autoDeadline) {
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
 try {
-  assert.equal(autoHealth?.defaultRoot, await fs.realpath(autoProjectB), `${autoOutput}\nzero-setup launch did not choose the most recent Codex project`);
-  assert.ok(autoHealth.allowedRoots.includes(await fs.realpath(autoProjectA)), 'zero-setup launch did not include project A');
-  assert.ok(autoHealth.allowedRoots.includes(await fs.realpath(autoProjectB)), 'zero-setup launch did not include project B');
+  assert.equal(await canonicalPath(autoHealth?.defaultRoot), await canonicalPath(autoProjectB), `${autoOutput}\nzero-setup launch did not choose the most recent Codex project`);
+  const allowedRoots = await Promise.all(autoHealth.allowedRoots.map(canonicalPath));
+  assert.ok(allowedRoots.includes(await canonicalPath(autoProjectA)), 'zero-setup launch did not include project A');
+  assert.ok(allowedRoots.includes(await canonicalPath(autoProjectB)), 'zero-setup launch did not include project B');
   assert.match(autoOutput, /Projects found\s+2/);
   assert.doesNotMatch(autoOutput, /Where is your project located|First run setup|Save this setup/);
 } finally {
@@ -123,10 +129,10 @@ assert.equal(appBefore.status, 0, appBefore.stderr || appBefore.stdout);
 assert.match(appBefore.stdout, /Opened the CodexFlow desktop app/);
 const firstDesktopLaunch = JSON.parse((await fs.readFile(desktopLaunchOutput, 'utf8')).trim().split('\n').at(-1));
 assert.equal(firstDesktopLaunch[0], env.CODEXFLOW_DESKTOP_APP);
-assert.equal(firstDesktopLaunch[1], await fs.realpath(root));
+assert.equal(await canonicalPath(firstDesktopLaunch[1]), await canonicalPath(root));
 const desktopConfigPath = path.join(home, 'desktop.json');
 const desktopConfig = JSON.parse(await fs.readFile(desktopConfigPath, 'utf8'));
-assert.equal(desktopConfig.defaultRoot, await fs.realpath(root));
+assert.equal(await canonicalPath(desktopConfig.defaultRoot), await canonicalPath(root));
 assert.equal(desktopConfig.nodePath, process.execPath);
 assert.equal(desktopConfig.launcherPath, path.join(projectRoot, 'scripts', 'codexflow.mjs'));
 assert.doesNotMatch(JSON.stringify(desktopConfig), /codexflow_token|localAuthToken|fixture-only-token/);
@@ -204,7 +210,7 @@ try {
   assert.doesNotMatch(`${appDuring.stdout}${appDuring.stderr}`, new RegExp(appToken));
   const nativeLaunches = (await fs.readFile(desktopLaunchOutput, 'utf8')).trim().split('\n').map(JSON.parse);
   const lastNativeLaunch = nativeLaunches.at(-1);
-  assert.equal(lastNativeLaunch[1], await fs.realpath(root));
+  assert.equal(await canonicalPath(lastNativeLaunch[1]), await canonicalPath(root));
   assert.doesNotMatch(JSON.stringify(lastNativeLaunch), new RegExp(appToken));
 
   const fallbackDuring = run(['app', '--root', root], {
