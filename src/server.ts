@@ -8,7 +8,7 @@ import { z } from "zod";
 import type { CodexFlowConfig } from "./config.js";
 import { WorkspaceManager, PathGuard, CodexFlowError, type Workspace } from "./guard.js";
 import { repoTree, readTextFile, writeTextFile, editTextFile, ensureAiBridge } from "./fsOps.js";
-import { searchWorkspace } from "./searchOps.js";
+import { searchWorkspace, type SearchResult } from "./searchOps.js";
 import { assertBashSession, runBash } from "./bashOps.js";
 import { gitDiff, gitDiffStatus, gitLog, gitStatus } from "./gitOps.js";
 import { runGitWorkflow } from "./gitWorkflow.js";
@@ -44,6 +44,16 @@ import { inspectWorkspace, invalidateWorkspaceAnalysis, reviewWorkspaceChanges }
 import { CODEXFLOW_VERSION } from "./version.js";
 import { ChatRouteStore, isChatRouteId } from "./chatRoutes.js";
 import { codexFlowHome } from "./profileStore.js";
+import {
+  getApprovedRemoteProject,
+  listSavedRemoteProjects,
+  type SavedRemoteProject
+} from "./remoteConnections.js";
+import {
+  assertRemoteBash,
+  assertRemoteWriteContent,
+  runRemoteWorkspaceOperation
+} from "./remoteWorkspace.js";
 
 const STRUCTURED_STRING_MAX_CHARS = 30_000;
 
@@ -179,6 +189,8 @@ const LIST_PROJECTS_OUTPUT_SCHEMA = {
     project_id: z.string(),
     name: z.string(),
     root: z.string(),
+    location: z.enum(["local", "remote"]),
+    host_alias: z.string().nullable(),
     sources: z.array(z.string()),
     last_active_at: z.string().nullable(),
     selected: z.boolean()
@@ -220,6 +232,8 @@ const SELECT_PROJECT_OUTPUT_SCHEMA = {
   workspace_id: z.string(),
   name: z.string(),
   root: z.string(),
+  location: z.enum(["local", "remote"]),
+  host_alias: z.string().nullable(),
   sources: z.array(z.string()),
   agents_loaded: z.boolean(),
   agents_path: z.string().optional(),
@@ -419,6 +433,10 @@ interface ServerRuntimeContext {
   observer: CodexFlowRuntimeObserver;
   activeWorkspace: () => Workspace | undefined;
 }
+
+type SelectedProjectTarget =
+  | { kind: "local"; workspace: Workspace }
+  | { kind: "remote"; workspace: Workspace; project: SavedRemoteProject };
 
 const serverRuntimeContexts = new WeakMap<object, ServerRuntimeContext>();
 
@@ -1236,6 +1254,9 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     if (!route) {
       throw new CodexFlowError("This private chat route is not bound to a project. Call select_project with this route_id before using project tools.");
     }
+    if (route.location === "remote") {
+      throw new CodexFlowError("This route uses a remote project. This particular tool is not remote-capable yet; use tree, search, read, write, edit, apply_patch, bash, git_status, git_diff, or git_log.");
+    }
     let workspace: Workspace;
     try {
       workspace = workspaceManager.openWorkspace(route.root);
@@ -1279,9 +1300,48 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     },
     activeWorkspace(): Workspace | undefined {
       const routeId = invocationRouteId();
-      if (routeId) return routeStore.get(routeId) ? workspaceForRoute(routeId) : undefined;
+      if (routeId) {
+        const route = routeStore.get(routeId);
+        if (!route) return undefined;
+        if (route.location === "remote") return { id: route.workspaceId, root: route.root, openedAt: route.updatedAt };
+        return workspaceForRoute(routeId);
+      }
       return activeWorkspaceId ? workspaceManager.getWorkspace(activeWorkspaceId) : undefined;
     }
+  };
+  const remoteTargetForRoute = (routeId: string): SelectedProjectTarget => {
+    const route = routeStore.get(routeId);
+    if (!route) throw new CodexFlowError("This private chat route is not bound to a project. Call select_project first.");
+    if (route.location !== "remote") return { kind: "local", workspace: workspaceForRoute(routeId) };
+    let project: SavedRemoteProject;
+    try {
+      project = getApprovedRemoteProject(route.workspaceId);
+    } catch (error) {
+      throw new CodexFlowError(error instanceof Error ? error.message : String(error));
+    }
+    if (
+      project.root !== route.root ||
+      project.hostAlias !== route.remoteHostAlias ||
+      project.hostFingerprint !== route.remoteHostFingerprint
+    ) {
+      throw new CodexFlowError("The remote project identity changed. Verify the host and select the saved project again.");
+    }
+    return {
+      kind: "remote",
+      project,
+      workspace: { id: project.id, root: project.root, openedAt: project.updatedAt }
+    };
+  };
+  const projectTarget = (workspaceId?: string): SelectedProjectTarget => {
+    const routeId = invocationRouteId();
+    if (routeId) {
+      const target = remoteTargetForRoute(routeId);
+      if (workspaceId && workspaceId !== target.workspace.id) {
+        throw new CodexFlowError("workspace_id does not belong to this private chat route. Use the workspace_id returned by select_project.");
+      }
+      return target;
+    }
+    return { kind: "local", workspace: workspaces.getWorkspace(workspaceId) };
   };
   const guard = new PathGuard(config);
   const server = new McpServer({ name: "CodexFlow", version: CODEXFLOW_VERSION }, { instructions: serverInstructions(config) });
@@ -1756,7 +1816,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     {
       title: "Choose a project",
       description:
-        "Call this first in a new CodexFlow coding chat. It creates a private route_id, synchronizes configured folders with recent local Codex project folders, and returns a text list plus an optional project picker. Preserve route_id on selection and later project calls. The text list remains the fallback when a client cannot render components. It does not run the Codex CLI.",
+        "Call this first in a new CodexFlow coding chat. It creates a private route_id and returns synchronized local folders plus saved projects on approved SSH hosts. Preserve route_id on selection and later project calls. The text list remains the fallback when a client cannot render components. It does not run the Codex CLI.",
       inputSchema: {
         refresh: z.boolean().optional().describe("Rescan configured roots and local Codex project metadata. Default: false."),
         query: z.string().optional().describe("Optional case-insensitive filter over project name and path."),
@@ -1780,20 +1840,36 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         maxProjects: limitInt(args.max_projects, 100, 1, 250)
       });
       const query = String(args.query ?? "").trim().toLowerCase();
-      const projects = candidates.flatMap((candidate) => {
+      const localProjects = candidates.flatMap((candidate) => {
         if (query && !`${candidate.name}\n${candidate.root}`.toLowerCase().includes(query)) return [];
         const workspace = workspaceManager.openWorkspace(candidate.root);
         return [{
           project_id: workspace.id,
           name: candidate.name,
           root: candidate.root,
+          location: "local" as const,
+          host_alias: null,
           sources: candidate.sources,
           last_active_at: candidate.lastActiveAt ? new Date(candidate.lastActiveAt).toISOString() : null,
           selected: workspace.id === (boundRoute?.workspaceId ?? activeWorkspaceId)
         }];
       });
+      const remoteProjects = listSavedRemoteProjects({ availableOnly: true }).flatMap((project) => {
+        if (query && !`${project.name}\n${project.root}\n${project.hostAlias}`.toLowerCase().includes(query)) return [];
+        return [{
+          project_id: project.id,
+          name: project.name,
+          root: project.root,
+          location: "remote" as const,
+          host_alias: project.hostAlias,
+          sources: ["saved-remote", `ssh:${project.hostAlias}`],
+          last_active_at: project.updatedAt,
+          selected: project.id === boundRoute?.workspaceId
+        }];
+      });
+      const projects = [...localProjects, ...remoteProjects].slice(0, limitInt(args.max_projects, 100, 1, 250));
       const rows = projects.length
-        ? projects.map((project) => `- ${project.project_id} — ${project.name} — ${project.root}${project.selected ? " (selected)" : ""}`).join("\n")
+        ? projects.map((project) => `- ${project.project_id} — ${project.name} — ${project.location === "remote" ? `${project.host_alias}:` : ""}${project.root}${project.selected ? " (selected)" : ""}`).join("\n")
         : "No projects found inside the configured allowed roots.";
       return textResult(`# Choose a project\n\nPrivate route ID: ${routeId}\n\nUse the optional picker if it is visible, or reply with an exact project name. Preserve route_id on select_project and every later project tool call. The conversation remains fully usable when the picker cannot render.\n\n${rows}`, {
         route_id: routeId,
@@ -1812,7 +1888,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     {
       title: "Select Project",
       description:
-        "Bind one private route_id to a synchronized local project. Return and preserve route_id plus workspace_id. ChatGPT may create a separate MCP transport for every call, so pass route_id on every later CodexFlow file, git, search, edit, and terminal call.",
+        "Bind one private route_id to a synchronized local project or saved project on an approved SSH host. Return and preserve route_id plus workspace_id. ChatGPT may create a separate MCP transport for every call, so pass route_id on every later CodexFlow file, git, search, and edit call.",
       inputSchema: {
         project_id: z.string().optional().describe("Project id returned by list_projects."),
         name: z.string().optional().describe("Exact project name from list_projects when project_id is unavailable."),
@@ -1833,11 +1909,78 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       const routeId = invocationRouteId() ?? routeStore.createRouteId();
       const candidates = await discoverProjects(config, { maxProjects: 250 });
       const choices = candidates.map((candidate) => ({ candidate, workspace: workspaceManager.openWorkspace(candidate.root) }));
-      let matches = args.project_id
+      const localMatches = args.project_id
         ? choices.filter((choice) => choice.workspace.id === args.project_id)
         : choices.filter((choice) => choice.candidate.name.toLowerCase() === String(args.name).trim().toLowerCase());
-      if (matches.length > 1) throw new CodexFlowError(`Multiple projects are named ${args.name}. Select one by project_id.`);
-      const selected = matches[0];
+      const remoteMatches = listSavedRemoteProjects({ availableOnly: true }).filter((project) => args.project_id
+        ? project.id === args.project_id
+        : project.name.toLowerCase() === String(args.name).trim().toLowerCase());
+      if (localMatches.length + remoteMatches.length > 1) throw new CodexFlowError(`Multiple projects are named ${args.name}. Select one by project_id.`);
+      const remoteSelection = remoteMatches[0];
+      if (remoteSelection) {
+        let project: SavedRemoteProject;
+        try {
+          project = getApprovedRemoteProject(remoteSelection.id);
+        } catch (error) {
+          throw new CodexFlowError(error instanceof Error ? error.message : String(error));
+        }
+        routeStore.bindRemote(routeId, project);
+        const [summary, inventory] = await Promise.all([
+          Promise.resolve(runRemoteWorkspaceOperation<{
+            tree?: string;
+            gitStatus: string;
+            agentsPath?: string;
+            agentsText?: string;
+          }>(project.hostAlias, config, {
+            action: "summary",
+            root: project.root,
+            maxDepth: limitInt(args.max_depth, 2, 1, 8),
+            maxEntries: 500
+          })),
+          codexflowInventory(config, workspaceManager.defaultWorkspace(), { includeGlobalSkills: true, includeMcpServers: true, maxSkills: 120 })
+        ]);
+        const skills = inventory.skills.filter((skill) => skill.source !== "workspace");
+        const pluginSkills = skills.filter((skill) => skill.source === "plugin");
+        const text = [
+          `# Remote project selected: ${project.name}`,
+          "",
+          `Project ID: ${project.id}`,
+          `Private route ID: ${routeId}`,
+          `Host: ${project.hostAlias}`,
+          `Root: ${project.root}`,
+          "This conversation now routes bounded project tools through CodexFlow's own SSH helper. Codex and the Codex CLI are not invoked.",
+          "",
+          summary.agentsPath ? `Repository instructions: ${summary.agentsPath}` : "Repository instructions: none found",
+          `Broker skills advertised: ${skills.length}`,
+          `Plugins advertised: ${inventory.plugins.length}`
+        ].join("\n");
+        return textResult(text, {
+          route_id: routeId,
+          selected: true,
+          project_id: project.id,
+          workspace_id: project.id,
+          name: project.name,
+          root: project.root,
+          location: "remote",
+          host_alias: project.hostAlias,
+          sources: ["saved-remote", `ssh:${project.hostAlias}`],
+          agents_loaded: Boolean(summary.agentsPath),
+          ...(summary.agentsPath ? { agents_path: summary.agentsPath } : {}),
+          tree: parseBool(args.include_tree, true) ? summary.tree : undefined,
+          git_status: summary.gitStatus,
+          skills,
+          skill_count: skills.length,
+          plugins: inventory.plugins,
+          plugin_count: inventory.plugins.length,
+          plugin_skills: pluginSkills,
+          mcp_servers: inventory.mcpServers,
+          mcp_server_count: inventory.mcpServers.length,
+          bash_mode: config.bashMode,
+          write_mode: config.writeMode,
+          tool_mode: config.toolMode
+        }, { "openai/widgetSessionId": routeId });
+      }
+      const selected = localMatches[0];
       if (!selected) throw new CodexFlowError("Project not found in the synchronized catalog. Call list_projects with refresh=true.");
       bindWorkspace(selected.workspace, routeId);
       routeStore.selectEnvironment(routeId, undefined);
@@ -1872,6 +2015,8 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         workspace_id: selected.workspace.id,
         name: selected.candidate.name,
         root: selected.workspace.root,
+        location: "local",
+        host_alias: null,
         sources: selected.candidate.sources,
         agents_loaded: summary.agentsLoaded,
         agents_path: summary.agentsPath,
@@ -2269,13 +2414,21 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
-      const result = await repoTree(config, guard, workspace, {
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
+      const treeOptions = {
         path: args.path ?? ".",
         maxDepth: limitInt(args.max_depth, 4, 1, 12),
         includeHidden: parseBool(args.include_hidden, false),
         maxEntries: limitInt(args.max_entries, 800, 1, 3000)
-      });
+      };
+      const result = target.kind === "remote"
+        ? await runRemoteWorkspaceOperation<{ text: string; entries: number; truncated: boolean }>(target.project.hostAlias, config, {
+            action: "tree",
+            root: target.project.root,
+            ...treeOptions
+          })
+        : await repoTree(config, guard, workspace, treeOptions);
       return textResult(result.text, { workspace_id: workspace.id, root: workspace.root, ...result });
     }
   );
@@ -2307,9 +2460,10 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
-      const result = await searchWorkspace(config, guard, workspace, {
-        query: args.query,
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
+      const searchOptions = {
+        query: args.symbol?.toString() || args.query,
         regex: parseBool(args.regex, false),
         root: args.path ?? ".",
         glob: args.glob,
@@ -2318,7 +2472,20 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         intent: args.intent,
         symbol: args.symbol,
         includeTests: args.include_tests === undefined ? undefined : parseBool(args.include_tests, false)
-      });
+      };
+      const result: SearchResult = target.kind === "remote"
+        ? await runRemoteWorkspaceOperation<SearchResult>(target.project.hostAlias, config, {
+            action: "search",
+            root: target.project.root,
+            path: searchOptions.root,
+            query: searchOptions.query,
+            regex: searchOptions.regex,
+            glob: searchOptions.glob,
+            includeHidden: searchOptions.includeHidden,
+            maxResults: searchOptions.maxResults,
+            maxReadBytes: config.maxReadBytes
+          })
+        : await searchWorkspace(config, guard, workspace, searchOptions);
       const structured: Record<string, unknown> = {
         workspace_id: workspace.id,
         root: workspace.root,
@@ -2365,12 +2532,32 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
-      const result = await readTextFile(config, guard, workspace, args.path, {
-        startLine: args.start_line,
-        endLine: args.end_line,
-        maxBytes: args.max_bytes
-      });
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
+      const maxBytes = Math.min(args.max_bytes ?? config.maxReadBytes, config.maxReadBytes);
+      const result = target.kind === "remote"
+        ? await runRemoteWorkspaceOperation<{
+            path: string;
+            text: string;
+            startLine: number;
+            endLine: number;
+            totalLines: number;
+            bytes: number;
+            sha256: string;
+            truncated: boolean;
+          }>(target.project.hostAlias, config, {
+            action: "read",
+            root: target.project.root,
+            path: args.path,
+            startLine: args.start_line,
+            endLine: args.end_line,
+            maxBytes
+          })
+        : await readTextFile(config, guard, workspace, args.path, {
+            startLine: args.start_line,
+            endLine: args.end_line,
+            maxBytes
+          });
       const text = `# Read File\n\nPath: ${result.path}\nLines: ${result.startLine}-${result.endLine} of ${result.totalLines}\nBytes: ${result.bytes}\nSHA-256: ${result.sha256}\n\n\`\`\`text\n${result.text}\n\`\`\``;
       return textResult(text, { workspace_id: workspace.id, root: workspace.root, ...result });
     }
@@ -2398,13 +2585,53 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
-      const resolved = guard.resolve(workspace, args.path, { forWrite: true });
-      assertWriteToolAllowed(config, resolved.relPath);
-      const result = await writeTextFile(config, guard, workspace, args.path, String(args.content ?? ""), {
-        createDirs: args.create_dirs !== false,
-        overwrite: args.overwrite !== false
-      });
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
+      const content = String(args.content ?? "");
+      let result: {
+        path: string;
+        existed: boolean;
+        bytes: number;
+        sha256: string;
+        diff: { additions: number; deletions: number; diff: string; changed: boolean };
+      };
+      if (target.kind === "remote") {
+        assertWriteToolAllowed(config, args.path);
+        assertRemoteWriteContent("write", [content]);
+        const remote = await runRemoteWorkspaceOperation<{
+          path: string;
+          existed: boolean;
+          bytes: number;
+          sha256: string;
+          additions: number;
+          deletions: number;
+          diff: string;
+          changed: boolean;
+        }>(target.project.hostAlias, config, {
+          action: "write",
+          root: target.project.root,
+          path: args.path,
+          content,
+          createDirs: args.create_dirs !== false,
+          overwrite: args.overwrite !== false,
+          maxWriteBytes: config.maxWriteBytes
+        });
+        result = {
+          path: remote.path,
+          existed: remote.existed,
+          bytes: remote.bytes,
+          sha256: remote.sha256,
+          diff: { additions: remote.additions, deletions: remote.deletions, diff: remote.diff, changed: remote.changed }
+        };
+      } else {
+        const resolved = guard.resolve(workspace, args.path, { forWrite: true });
+        assertWriteToolAllowed(config, resolved.relPath);
+        const local = await writeTextFile(config, guard, workspace, args.path, content, {
+          createDirs: args.create_dirs !== false,
+          overwrite: args.overwrite !== false
+        });
+        result = local;
+      }
       if (result.diff.changed) invalidateWorkspaceAnalysis(workspace.id);
       const text = `# Write File\n\nPath: ${result.path}\nExisted before: ${result.existed}\nBytes: ${result.bytes}\nSHA-256: ${result.sha256}\nDiff stats: +${result.diff.additions} -${result.diff.deletions}${diffBlock(result.diff.diff)}`;
       return textResult(text, {
@@ -2444,13 +2671,54 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
-      const resolved = guard.resolve(workspace, args.path, { forWrite: true });
-      assertWriteToolAllowed(config, resolved.relPath);
-      const result = await editTextFile(config, guard, workspace, args.path, String(args.old_text ?? ""), String(args.new_text ?? ""), {
-        replaceAll: parseBool(args.replace_all, false),
-        expectedReplacements: args.expected_replacements
-      });
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
+      const oldText = String(args.old_text ?? "");
+      const newText = String(args.new_text ?? "");
+      let result: {
+        path: string;
+        replacements: number;
+        bytes: number;
+        sha256: string;
+        diff: { additions: number; deletions: number; diff: string; changed: boolean };
+      };
+      if (target.kind === "remote") {
+        assertWriteToolAllowed(config, args.path);
+        assertRemoteWriteContent("edit", [newText]);
+        const remote = await runRemoteWorkspaceOperation<{
+          path: string;
+          replacements: number;
+          bytes: number;
+          sha256: string;
+          additions: number;
+          deletions: number;
+          diff: string;
+          changed: boolean;
+        }>(target.project.hostAlias, config, {
+          action: "edit",
+          root: target.project.root,
+          path: args.path,
+          oldText,
+          newText,
+          replaceAll: parseBool(args.replace_all, false),
+          expectedReplacements: args.expected_replacements,
+          maxWriteBytes: config.maxWriteBytes
+        });
+        result = {
+          path: remote.path,
+          replacements: remote.replacements,
+          bytes: remote.bytes,
+          sha256: remote.sha256,
+          diff: { additions: remote.additions, deletions: remote.deletions, diff: remote.diff, changed: remote.changed }
+        };
+      } else {
+        const resolved = guard.resolve(workspace, args.path, { forWrite: true });
+        assertWriteToolAllowed(config, resolved.relPath);
+        result = await editTextFile(config, guard, workspace, args.path, oldText, newText, {
+          replaceAll: parseBool(args.replace_all, false),
+          expectedReplacements: args.expected_replacements
+        });
+      }
       if (result.diff.changed) invalidateWorkspaceAnalysis(workspace.id);
       const text = `# Edit File\n\nPath: ${result.path}\nReplacements: ${result.replacements}\nBytes: ${result.bytes}\nSHA-256: ${result.sha256}\nDiff stats: +${result.diff.additions} -${result.diff.deletions}${diffBlock(result.diff.diff)}`;
       return textResult(text, {
@@ -2487,8 +2755,32 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
-      const result = applyWorkspacePatch(config, guard, workspace, String(args.patch ?? ""));
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
+      const patch = String(args.patch ?? "");
+      const result = target.kind === "remote"
+        ? await (async () => {
+            const remotePaths = patchTouchedPaths(patch);
+            if (!remotePaths.length) throw new CodexFlowError("Patch does not contain any writable file paths.");
+            for (const remotePath of remotePaths) assertWriteToolAllowed(config, remotePath);
+            if (patchHasSymlinkMode(patch)) throw new CodexFlowError("Symlink patches are blocked from apply_patch.");
+            assertRemoteWriteContent("apply_patch", [patch]);
+            return await runRemoteWorkspaceOperation<{
+              paths: string[];
+              stdout: string;
+              stderr: string;
+              additions: number;
+              deletions: number;
+              changed: boolean;
+              diff: string;
+            }>(target.project.hostAlias, config, {
+              action: "apply_patch",
+              root: target.project.root,
+              patch,
+              maxWriteBytes: config.maxWriteBytes
+            });
+          })()
+        : applyWorkspacePatch(config, guard, workspace, patch);
       if (result.changed) invalidateWorkspaceAnalysis(workspace.id);
       const text = [
         "# Apply Patch",
@@ -2535,12 +2827,27 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
-      const result = await runBash(config, guard, workspace, String(args.command ?? ""), {
-        cwd: args.cwd,
-        timeoutMs: args.timeout_ms,
-        sessionId: args.session_id
-      });
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
+      const command = String(args.command ?? "");
+      const timeoutMs = Math.max(1_000, Math.min(args.timeout_ms ?? 30_000, 180_000));
+      const result = target.kind === "remote"
+        ? await (async () => {
+            const bashSessionId = assertRemoteBash(config, command, args.session_id);
+            const remote = await runRemoteWorkspaceOperation<Awaited<ReturnType<typeof runBash>>>(target.project.hostAlias, config, {
+              action: "bash",
+              root: target.project.root,
+              command,
+              cwd: args.cwd,
+              timeoutMs
+            }, timeoutMs + 15_000);
+            return { ...remote, ...(bashSessionId ? { bashSessionId } : {}) };
+          })()
+        : await runBash(config, guard, workspace, command, {
+            cwd: args.cwd,
+            timeoutMs,
+            sessionId: args.session_id
+          });
       const text = bashTextResult(config, result);
       return textResult(text, { workspace_id: workspace.id, root: workspace.root, ...result, bash_session_id: result.bashSessionId ?? null });
     }
@@ -2648,9 +2955,16 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
       const scopedPath = typeof args.path === "string" ? args.path : undefined;
-      const status = gitStatus(config, workspace, guard, scopedPath);
+      const status = target.kind === "remote"
+        ? (await runRemoteWorkspaceOperation<{ text: string }>(target.project.hostAlias, config, {
+            action: "git_status",
+            root: target.project.root,
+            path: scopedPath
+          })).text
+        : gitStatus(config, workspace, guard, scopedPath);
       const statusError = looksLikeGitError(status) ? status : "";
       const changedFiles = statusError ? [] : changedStatusLines(status);
       return textResult(status, {
@@ -2686,8 +3000,17 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
-      const rawDiff = normalizeGitOutput(gitDiff(config, guard, workspace, args.path, parseBool(args.staged, false)));
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
+      const staged = parseBool(args.staged, false);
+      const rawDiff = normalizeGitOutput(target.kind === "remote"
+        ? (await runRemoteWorkspaceOperation<{ text: string }>(target.project.hostAlias, config, {
+            action: "git_diff",
+            root: target.project.root,
+            path: args.path,
+            staged
+          })).text
+        : gitDiff(config, guard, workspace, args.path, staged));
       const diffError = rawDiff && looksLikeGitError(rawDiff) ? rawDiff : "";
       const stats = diffError ? { additions: 0, deletions: 0, changed: false } : diffStats(rawDiff);
       const includeDiff = parseBool(args.include_diff, true);
@@ -3042,19 +3365,36 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
       const scopedPath = typeof args.path === "string" ? args.path : undefined;
       const staged = parseBool(args.staged, false);
-      const normalizedScopedPath = scopedPath?.trim() ? guard.resolve(workspace, scopedPath).relPath : undefined;
-      const status = normalizeGitOutput(gitDiffStatus(config, guard, workspace, normalizedScopedPath, staged));
+      const normalizedScopedPath = scopedPath?.trim()
+        ? target.kind === "remote" ? scopedPath.trim() : guard.resolve(workspace, scopedPath).relPath
+        : undefined;
+      const status = normalizeGitOutput(target.kind === "remote"
+        ? (await runRemoteWorkspaceOperation<{ text: string }>(target.project.hostAlias, config, {
+            action: "git_status",
+            root: target.project.root,
+            path: normalizedScopedPath,
+            staged
+          })).text
+        : gitDiffStatus(config, guard, workspace, normalizedScopedPath, staged));
       const includeDiff = parseBool(args.include_diff, true);
-      const rawDiff = normalizeGitOutput(gitDiff(config, guard, workspace, normalizedScopedPath, staged));
+      const rawDiff = normalizeGitOutput(target.kind === "remote"
+        ? (await runRemoteWorkspaceOperation<{ text: string }>(target.project.hostAlias, config, {
+            action: "git_diff",
+            root: target.project.root,
+            path: normalizedScopedPath,
+            staged
+          })).text
+        : gitDiff(config, guard, workspace, normalizedScopedPath, staged));
       const statusError = looksLikeGitError(status) ? status : "";
       const diffError = rawDiff && looksLikeGitError(rawDiff) ? rawDiff : "";
       const diff = diffError ? "" : rawDiff;
       const stats = diffStats(diff);
       const changedFiles = statusError ? [] : changedStatusLines(status);
-      const untrackedFingerprint = statusError ? "" : await untrackedReviewFingerprint(config, guard, workspace, changedFiles);
+      const untrackedFingerprint = statusError || target.kind === "remote" ? "" : await untrackedReviewFingerprint(config, guard, workspace, changedFiles);
       const since = args.since === "workspace" ? "workspace" : "last_shown";
       const markReviewed = parseBool(args.mark_reviewed, true);
       const checkpointKey = reviewCheckpointKey(workspace, { path: normalizedScopedPath, staged });
@@ -3066,7 +3406,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       const responseStats = checkpointHit ? { additions: 0, deletions: 0, changed: false } : stats;
       const changedPaths = statusError ? [] : changedPathsFromStatus(changedFiles);
       let analysis: Record<string, unknown> | undefined;
-      if (config.analysisEnabled && changedPaths.length && !checkpointHit) {
+      if (target.kind === "local" && config.analysisEnabled && changedPaths.length && !checkpointHit) {
         try {
           const impact = await reviewWorkspaceChanges(config, guard, workspace, { changedPaths });
           analysis = {

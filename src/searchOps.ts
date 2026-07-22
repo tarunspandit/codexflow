@@ -24,7 +24,7 @@ export interface SearchResult {
   text: string;
   matches: Array<{ path: string; line: number; text: string }>;
   truncated: boolean;
-  used: "ripgrep" | "node";
+  used: "ripgrep" | "node" | "remote-node";
   analysis?: StructuredSearchResult;
 }
 

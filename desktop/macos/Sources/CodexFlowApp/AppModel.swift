@@ -554,7 +554,36 @@ final class AppModel: ObservableObject {
         remoteBusyAlias = alias
         defer { remoteBusyAlias = nil }
         do {
-            let payload = try JSONEncoder().encode(RemoteConnectionCommand(action: action, alias: alias))
+            let payload = try JSONEncoder().encode(RemoteConnectionCommand(action: action, alias: alias, root: nil, projectId: nil))
+            let response: RemoteConnectionsResponse = try await request(runtime: runtime, path: "/admin/remotes", method: "POST", body: payload)
+            remotes = response
+            notice = response.message
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func saveRemoteProject(alias: String, root: String) async {
+        let trimmed = root.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, remoteBusyAlias == nil, !trimmed.isEmpty else { return }
+        remoteBusyAlias = alias
+        defer { remoteBusyAlias = nil }
+        do {
+            let payload = try JSONEncoder().encode(RemoteConnectionCommand(action: "save_project", alias: alias, root: trimmed, projectId: nil))
+            let response: RemoteConnectionsResponse = try await request(runtime: runtime, path: "/admin/remotes", method: "POST", body: payload)
+            remotes = response
+            notice = response.message
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func removeRemoteProject(_ project: RemoteProjectOverview) async {
+        guard fixture == nil, let runtime = selectedRuntime, runtime.isAlive, remoteBusyAlias == nil else { return }
+        remoteBusyAlias = project.id
+        defer { remoteBusyAlias = nil }
+        do {
+            let payload = try JSONEncoder().encode(RemoteConnectionCommand(action: "remove_project", alias: nil, root: nil, projectId: project.id))
             let response: RemoteConnectionsResponse = try await request(runtime: runtime, path: "/admin/remotes", method: "POST", body: payload)
             remotes = response
             notice = response.message

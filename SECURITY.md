@@ -49,6 +49,9 @@ Review changes against these failure modes before release:
 | A web request introduces an arbitrary SSH destination | Host administration accepts only concrete aliases already present in the computer's SSH config; wildcard-only and unknown aliases are rejected. |
 | An approved SSH alias is silently rerouted | Approval is tied to the resolved alias, host, user, and port fingerprint and becomes invalid when any of them changes. Verification is non-interactive, bounded, and requires an already trusted host key. |
 | SSH administration exposes private keys | CodexFlow never returns or stores identity-file paths or key material; the owner-only approval record contains only alias trust metadata and a one-way destination fingerprint. |
+| A remote project path escapes its saved folder | The remote helper canonicalizes the saved root on every call, rejects absolute/parent-relative tool paths, checks the closest existing parent for writes, blocks symlink traversal outside the root, and applies the same blocked-glob and byte limits as local tools. |
+| A stale approval keeps routing after SSH config changes | Every project call resolves the concrete alias again and requires the saved host and project fingerprints to match before the helper starts. Disconnecting a host also removes its saved projects. |
+| Remote shell input becomes an SSH command injection | Tool requests travel as JSON on SSH stdin; only a static CodexFlow-owned Node launcher is placed in the remote command. Bash commands are independently checked by the configured off/safe/full policy before transport. |
 | A displayed chat identifier can be replayed against MCP | The app exposes a one-way display fingerprint, never the random transport identifier used by the MCP endpoint. |
 | Remote MCP tool runs Codex/OpenCode/Pi directly | Agent execution remains a user-started CLI/watch process on the local machine. |
 | Autonomous loop drives ChatGPT Web or bypasses approvals | `loop-handoff` only runs local terminal commands over `.ai-bridge` files; it does not resume browser sessions, approve prompts, or expose a remote MCP executor. |
@@ -67,6 +70,7 @@ The main risks are:
 - sharing the authenticated browser-fallback URL, which initially carries the same CodexFlow URL token used for local authentication
 - trusting a downloaded `cloudflared` binary without understanding where it came from
 - approving an SSH alias whose OpenSSH configuration, proxy command, or destination you do not control
+- saving a remote project owned by another user or enabling full Bash/workspace writes on an untrusted remote checkout
 
 ## Safer Defaults
 

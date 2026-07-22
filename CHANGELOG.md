@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.36.0 (2026-07-22)
+
+- Added saved remote projects on approved OpenSSH hosts. Canonical remote folders now appear beside local projects in the ordinary ChatGPT picker and bind to the same private per-chat route contract.
+- Added asynchronous CodexFlow-owned remote execution for bounded tree, read, search, write, edit, patch, safe/full Bash, Git status/diff, and `show_changes` operations without installing, starting, or invoking Codex on the host or blocking unrelated chats.
+- Enforced host approval and destination fingerprints on every routed call, plus remote root containment, symlink escape rejection, blocked globs, read/write/output limits, secret-aware writes, non-interactive SSH, and bounded operation timeouts.
+- Rebuilt the native Hosts workspace around usage: approve a host, save or remove remote project folders, see availability/config-change state, and make those projects immediately selectable from web chats.
+- Added direct helper and end-to-end HTTP/MCP regression coverage proving that a saved remote folder appears in `list_projects`, binds with `select_project`, and executes file, search, shell, and Git work on the intended host route.
+- Kept the parity claim honest: remote persistent terminals, environments, worktrees, handoff, repository analysis, and remote workspace skill discovery remain unfinished.
+
 ## 0.35.0 (2026-07-22)
 
 - Added a first-class native Hosts workspace that discovers concrete aliases from the local OpenSSH config, resolves them through OpenSSH, and makes verification or revocation explicit without invoking the Codex CLI.

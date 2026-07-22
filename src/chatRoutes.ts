@@ -10,13 +10,16 @@ export interface ChatRouteRecord {
   routeId: string;
   workspaceId: string;
   root: string;
+  location: "local" | "remote";
+  remoteHostAlias?: string;
+  remoteHostFingerprint?: string;
   environmentConfigPath?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 interface ChatRouteFile {
-  version: 1;
+  version: 1 | 2;
   defaultRoot: string;
   updatedAt: string;
   routes: ChatRouteRecord[];
@@ -37,9 +40,15 @@ export function chatRouteFilePath(defaultRoot: string): string {
 function validRecord(value: unknown): value is ChatRouteRecord {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Partial<ChatRouteRecord>;
+  const location = record.location === undefined ? "local" : record.location;
   return isChatRouteId(record.routeId) &&
     typeof record.workspaceId === "string" && Boolean(record.workspaceId) &&
     typeof record.root === "string" && path.isAbsolute(record.root) &&
+    (location === "local" || location === "remote") &&
+    (location === "local" || (
+      typeof record.remoteHostAlias === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(record.remoteHostAlias) &&
+      typeof record.remoteHostFingerprint === "string" && /^[a-f0-9]{64}$/.test(record.remoteHostFingerprint)
+    )) &&
     (record.environmentConfigPath === undefined || (typeof record.environmentConfigPath === "string" && path.isAbsolute(record.environmentConfigPath))) &&
     typeof record.createdAt === "string" && Boolean(record.createdAt) &&
     typeof record.updatedAt === "string" && Boolean(record.updatedAt);
@@ -76,7 +85,32 @@ export class ChatRouteStore {
       routeId,
       workspaceId: workspace.id,
       root: workspace.root,
+      location: "local",
       ...(existing?.environmentConfigPath ? { environmentConfigPath: existing.environmentConfigPath } : {}),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now
+    };
+    this.routes.set(routeId, record);
+    this.persist();
+    return { ...record };
+  }
+
+  bindRemote(routeId: string, project: { id: string; root: string; hostAlias: string; hostFingerprint: string }): ChatRouteRecord {
+    if (!isChatRouteId(routeId)) {
+      throw new Error("Invalid CodexFlow route_id. Call list_projects to create a new private chat route.");
+    }
+    if (!path.posix.isAbsolute(project.root) || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(project.hostAlias) || !/^[a-f0-9]{64}$/.test(project.hostFingerprint)) {
+      throw new Error("Invalid approved remote project route.");
+    }
+    const now = new Date().toISOString();
+    const existing = this.routes.get(routeId);
+    const record: ChatRouteRecord = {
+      routeId,
+      workspaceId: project.id,
+      root: project.root,
+      location: "remote",
+      remoteHostAlias: project.hostAlias,
+      remoteHostFingerprint: project.hostFingerprint,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     };
@@ -110,9 +144,9 @@ export class ChatRouteStore {
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
     const payload = parsed as Partial<ChatRouteFile>;
-    if (payload.version !== 1 || payload.defaultRoot !== this.defaultRoot || !Array.isArray(payload.routes)) return;
+    if ((payload.version !== 1 && payload.version !== 2) || payload.defaultRoot !== this.defaultRoot || !Array.isArray(payload.routes)) return;
     for (const record of payload.routes.filter(validRecord).slice(-MAX_PERSISTED_ROUTES)) {
-      this.routes.set(record.routeId, { ...record });
+      this.routes.set(record.routeId, { ...record, location: record.location ?? "local" });
     }
   }
 
@@ -127,7 +161,7 @@ export class ChatRouteStore {
       for (const route of routes) this.routes.set(route.routeId, route);
     }
     const payload: ChatRouteFile = {
-      version: 1,
+      version: 2,
       defaultRoot: this.defaultRoot,
       updatedAt: new Date().toISOString(),
       routes

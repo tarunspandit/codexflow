@@ -21,7 +21,7 @@ The honest status is **strong local workflow parity, not literal Codex desktop p
 | Native management app | Available on macOS | Broker lifecycle, projects, environments, worktrees, changes, chats, connection, and policy are first-class SwiftUI views. |
 | Chat lifecycle | Available locally | Search, local rename, pin, archive, restore, and project-route resumption without storing prompts or tool contents. |
 | Scheduled/background agent tasks | Available through ChatGPT Scheduled | `prepare_scheduled_task` creates a durable local-project prompt for same-chat or standalone schedules. ChatGPT owns future model turns and run history; each run reacquires its CodexFlow route and can use a clean managed worktree. |
-| Remote/cloud/SSH environments | Partial | The native Hosts workspace discovers concrete aliases from OpenSSH config, ignores pattern-only entries, requires bounded non-interactive host-key verification, stores owner-only approval fingerprints, and invalidates approval when routing changes. Remote project selection, file/shell routing, and handoff are not yet available. |
+| Remote/cloud/SSH environments | Partial | The native Hosts workspace approves concrete OpenSSH aliases and saves canonical project folders. The ordinary chat picker routes bounded tree/read/search/write/edit/patch, Bash, Git status/diff, and change review through a CodexFlow-owned SSH helper. Every call revalidates host identity, root containment, blocked paths, limits, and policy. Persistent terminals, environments, worktrees, handoff, repository analysis, and remote workspace-skill discovery are not yet available. |
 | Computer Use and browser control | Not yet | CodexFlow does not capture or operate arbitrary desktop applications, Chrome, or an embedded browser. |
 | Rich native diff/review workspace | Partial | The Mac app now provides staged/unstaged file lanes, bounded color-coded diffs, stats, and explicit file-level stage, unstage, and discard. Inline comments and per-hunk actions are not yet available. |
 | Multi-agent orchestration | Partial | Parallel chats and worktrees are independent, but CodexFlow itself does not run a model task queue or spawn model agents. |
@@ -37,7 +37,7 @@ Managed worktrees also honor `.worktreeinclude` for selected gitignored setup fi
 
 Literal parity still requires capabilities outside the current local MCP surface:
 
-1. Complete remote execution after the shipped SSH trust lifecycle: saved remote projects, explicit run-location selection, file/shell routing, worktree handoff, and remote lifecycle policy.
+1. Complete the shipped remote-project execution slice with persistent terminals, environment actions, managed worktrees, local/remote handoff, repository analysis, remote workspace-skill discovery, and richer remote lifecycle policy.
 2. Computer Use and browser-control permissions, capture, confirmation, and audit UX.
 3. Inline review comments, per-hunk stage/revert, and richer native plan/task progress inside the coding workspace.
 4. Equivalent native clients beyond macOS.

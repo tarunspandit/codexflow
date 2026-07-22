@@ -39,7 +39,13 @@ import {
 import { persistentTerminals } from "./terminalOps.js";
 import { gitDiff, gitDiffStatus, gitStatus } from "./gitOps.js";
 import { runGitWorkflow } from "./gitWorkflow.js";
-import { disconnectRemoteConnection, listRemoteConnections, verifyRemoteConnection } from "./remoteConnections.js";
+import {
+  disconnectRemoteConnection,
+  listRemoteConnections,
+  removeRemoteProject,
+  saveRemoteProject,
+  verifyRemoteConnection
+} from "./remoteConnections.js";
 
 const TUNNELS = ["cloudflare", "ngrok", "cloudflare-named", "tailscale", "none"] as const;
 const MODES = ["agent", "handoff", "pro"] as const;
@@ -114,10 +120,21 @@ const AdminChangesCommand = z.object({
   includeStaged: z.boolean().optional()
 }).strict();
 
-const AdminRemoteCommand = z.object({
-  action: z.enum(["verify", "disconnect"]),
-  alias: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
-}).strict();
+const AdminRemoteCommand = z.discriminatedUnion("action", [
+  z.object({
+    action: z.enum(["verify", "disconnect"]),
+    alias: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
+  }).strict(),
+  z.object({
+    action: z.literal("save_project"),
+    alias: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/),
+    root: z.string().trim().min(1).max(4096)
+  }).strict(),
+  z.object({
+    action: z.literal("remove_project"),
+    projectId: z.string().regex(/^rws_[a-f0-9]{24}$/)
+  }).strict()
+]);
 
 interface DesktopChangedFile {
   path: string;
@@ -944,9 +961,21 @@ async function main(): Promise<void> {
       return;
     }
     try {
-      const result = parsed.data.action === "verify"
-        ? verifyRemoteConnection(parsed.data.alias)
-        : disconnectRemoteConnection(parsed.data.alias);
+      let result;
+      switch (parsed.data.action) {
+        case "verify":
+          result = verifyRemoteConnection(parsed.data.alias);
+          break;
+        case "disconnect":
+          result = disconnectRemoteConnection(parsed.data.alias);
+          break;
+        case "save_project":
+          result = saveRemoteProject(parsed.data.alias, parsed.data.root);
+          break;
+        case "remove_project":
+          result = removeRemoteProject(parsed.data.projectId);
+          break;
+      }
       res.json(redactStructured(result));
     } catch (error) {
       jsonError(res, 400, "remote_action_failed", error instanceof Error ? error.message : String(error));

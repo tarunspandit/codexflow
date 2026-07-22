@@ -342,14 +342,29 @@ struct RemoteHostOverview: Decodable, Identifiable, Hashable {
     let home: String?
     let hasNode: Bool?
     let hasGit: Bool?
+    let projectCount: Int
 
     var id: String { alias }
+}
+
+struct RemoteProjectOverview: Decodable, Identifiable, Hashable {
+    let id: String
+    let hostAlias: String
+    let root: String
+    let name: String
+    let status: String
+    let available: Bool
+    let createdAt: String
+    let updatedAt: String
+    let gitRoot: String?
+    let gitRelativePath: String?
 }
 
 struct RemoteConnectionsResponse: Decodable {
     let ok: Bool
     let configPath: String
     let hosts: [RemoteHostOverview]
+    let projects: [RemoteProjectOverview]
     let approved: Int
     let discovered: Int
     let message: String?
@@ -358,7 +373,9 @@ struct RemoteConnectionsResponse: Decodable {
 
 struct RemoteConnectionCommand: Encodable {
     let action: String
-    let alias: String
+    let alias: String?
+    let root: String?
+    let projectId: String?
 }
 
 struct WorktreeCommand: Encodable {

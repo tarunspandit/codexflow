@@ -1238,7 +1238,7 @@ struct HostsView: View {
                     SectionHeading(
                         eyebrow: "Execution, where the code lives",
                         title: "Hosts",
-                        detail: "Approve trusted SSH machines before remote project routing is enabled. Hosts are discovered from your SSH config and stay unapproved until this Mac verifies them."
+                        detail: "Approve an SSH host once, save the folders you work in, then choose local and remote projects from the same chat picker."
                     )
                     Spacer()
                     Button {
@@ -1320,8 +1320,12 @@ private struct HostMetric: View {
 private struct RemoteHostCard: View {
     @EnvironmentObject private var model: AppModel
     let host: RemoteHostOverview
+    @State private var projectPath = ""
 
     private var busy: Bool { model.remoteBusyAlias != nil }
+    private var projects: [RemoteProjectOverview] {
+        (model.remotes?.projects ?? []).filter { $0.hostAlias == host.alias }
+    }
     private var statusColor: Color {
         switch host.status {
         case "approved": FlowColor.success
@@ -1333,47 +1337,103 @@ private struct RemoteHostCard: View {
 
     var body: some View {
         PaperCard(padding: 17) {
-            HStack(spacing: 15) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12).fill(statusColor.opacity(0.1))
-                    Image(systemName: host.approved ? "server.rack" : "network")
-                        .font(.system(size: 19, weight: .medium)).foregroundStyle(statusColor)
-                }
-                .frame(width: 48, height: 48)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 8) {
-                        Text(host.alias).font(FlowType.title(14)).foregroundStyle(FlowColor.ink)
-                        HStack(spacing: 5) {
-                            StateDot(color: statusColor)
-                            Text(host.status.replacingOccurrences(of: "_", with: " ").uppercased())
-                        }
-                        .font(FlowType.label(8)).tracking(0.8).foregroundStyle(statusColor)
-                        .padding(.horizontal, 7).frame(minHeight: 21).background(statusColor.opacity(0.09)).clipShape(Capsule())
+            VStack(alignment: .leading, spacing: 15) {
+                HStack(spacing: 15) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12).fill(statusColor.opacity(0.1))
+                        Image(systemName: host.approved ? "server.rack" : "network")
+                            .font(.system(size: 19, weight: .medium)).foregroundStyle(statusColor)
                     }
-                    Text(host.hostname.isEmpty ? "OpenSSH could not resolve this alias" : "\(host.user)@\(host.hostname):\(String(host.port))")
-                        .font(FlowType.mono(10)).foregroundStyle(FlowColor.inkMuted).lineLimit(1)
-                }
+                    .frame(width: 48, height: 48)
 
-                Spacer()
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(spacing: 8) {
+                            Text(host.alias).font(FlowType.title(14)).foregroundStyle(FlowColor.ink)
+                            HStack(spacing: 5) {
+                                StateDot(color: statusColor)
+                                Text(host.status.replacingOccurrences(of: "_", with: " ").uppercased())
+                            }
+                            .font(FlowType.label(8)).tracking(0.8).foregroundStyle(statusColor)
+                            .padding(.horizontal, 7).frame(minHeight: 21).background(statusColor.opacity(0.09)).clipShape(Capsule())
+                        }
+                        Text(host.hostname.isEmpty ? "OpenSSH could not resolve this alias" : "\(host.user)@\(host.hostname):\(String(host.port))")
+                            .font(FlowType.mono(10)).foregroundStyle(FlowColor.inkMuted).lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    if host.approved {
+                        InfoPair(label: "PROJECTS", value: String(host.projectCount))
+                        InfoPair(label: "NODE", value: host.hasNode == true ? "Ready" : "Missing")
+                        InfoPair(label: "GIT", value: host.hasGit == true ? "Ready" : "Missing")
+                        Button("Disconnect") {
+                            Task { await model.mutateRemote(alias: host.alias, action: "disconnect") }
+                        }
+                        .buttonStyle(FlowButtonStyle(kind: .danger))
+                        .disabled(busy)
+                    } else {
+                        Text(host.status == "config_changed" ? "SSH routing changed. Verify again before use." : "Uses your existing SSH key and known-host trust.")
+                            .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted).frame(maxWidth: 210, alignment: .trailing)
+                        Button(model.remoteBusyAlias == host.alias ? "Verifying…" : "Verify host") {
+                            Task { await model.mutateRemote(alias: host.alias, action: "verify") }
+                        }
+                        .buttonStyle(FlowButtonStyle(kind: .primary))
+                        .disabled(busy || host.status == "unresolved")
+                    }
+                }
 
                 if host.approved {
-                    InfoPair(label: "PLATFORM", value: host.platform ?? "Remote")
-                    InfoPair(label: "NODE", value: host.hasNode == true ? "Ready" : "Missing")
-                    InfoPair(label: "GIT", value: host.hasGit == true ? "Ready" : "Missing")
-                    Button("Disconnect") {
-                        Task { await model.mutateRemote(alias: host.alias, action: "disconnect") }
+                    Divider().overlay(FlowColor.line)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("REMOTE PROJECTS").font(FlowType.label(8)).tracking(1).foregroundStyle(FlowColor.inkMuted)
+                            Spacer()
+                            Text("AVAILABLE IN EVERY CHAT PICKER").font(FlowType.label(8)).tracking(0.8).foregroundStyle(FlowColor.success)
+                        }
+                        ForEach(projects) { project in
+                            HStack(spacing: 10) {
+                                Image(systemName: project.available ? "folder.fill" : "exclamationmark.triangle.fill")
+                                    .foregroundStyle(project.available ? FlowColor.signal : FlowColor.warning)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(project.name).font(FlowType.body(11)).foregroundStyle(FlowColor.ink)
+                                    Text(project.root).font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted).lineLimit(1).truncationMode(.middle)
+                                }
+                                Spacer()
+                                Button {
+                                    Task { await model.removeRemoteProject(project) }
+                                } label: {
+                                    Image(systemName: "xmark")
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(FlowColor.inkMuted)
+                                .disabled(busy)
+                            }
+                            .padding(.horizontal, 12).frame(minHeight: 45)
+                            .background(FlowColor.paperMuted.opacity(0.55)).clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        HStack(spacing: 9) {
+                            TextField(
+                                "",
+                                text: $projectPath,
+                                prompt: Text("Remote folder, for example ~/src/product").foregroundStyle(FlowColor.inkMuted.opacity(0.72))
+                            )
+                                .textFieldStyle(.plain)
+                                .font(FlowType.mono(10))
+                                .foregroundStyle(FlowColor.ink)
+                                .tint(FlowColor.signal)
+                                .padding(.horizontal, 12).frame(height: 38)
+                                .background(FlowColor.paperMuted.opacity(0.55)).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            Button(model.remoteBusyAlias == host.alias ? "Saving…" : "Add project") {
+                                let root = projectPath
+                                Task {
+                                    await model.saveRemoteProject(alias: host.alias, root: root)
+                                    if model.remoteBusyAlias == nil { projectPath = "" }
+                                }
+                            }
+                            .buttonStyle(FlowButtonStyle(kind: .primary))
+                            .disabled(busy || host.hasNode != true || projectPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
                     }
-                    .buttonStyle(FlowButtonStyle(kind: .danger))
-                    .disabled(busy)
-                } else {
-                    Text(host.status == "config_changed" ? "SSH routing changed. Verify again before use." : "Uses your existing SSH key and known-host trust.")
-                        .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted).frame(maxWidth: 210, alignment: .trailing)
-                    Button(model.remoteBusyAlias == host.alias ? "Verifying…" : "Verify host") {
-                        Task { await model.mutateRemote(alias: host.alias, action: "verify") }
-                    }
-                    .buttonStyle(FlowButtonStyle(kind: .primary))
-                    .disabled(busy || host.status == "unresolved")
                 }
             }
         }

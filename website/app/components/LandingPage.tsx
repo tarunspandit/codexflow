@@ -68,7 +68,7 @@ const content = {
       ["Review", "The diff belongs on your machine.", "Separates staged and unstaged files in the native app, renders bounded color-coded diffs, and keeps stage, unstage, and discard actions explicit.", "NATIVE"],
       ["Adapt", "Your project environment travels too.", "Uses the same checked-in Codex environment format for setup, cleanup, named actions, skills, plugins, and MCP inventory—without running Codex.", "INTEROPERABLE"],
       ["Schedule", "Recurring work keeps its project.", "Prepares durable ChatGPT Scheduled runs that reacquire a private route and use a clean managed worktree without adding another model backend.", "CHATGPT NATIVE"],
-      ["Trust", "Remote access starts with the host.", "Discovers named OpenSSH hosts, requires local verification, and invalidates approval when an alias changes. Remote project execution remains in development.", "SECURE FOUNDATION"],
+      ["Remote", "The same picker reaches another machine.", "Approve a named OpenSSH host, save its project folder, then route bounded file, search, edit, Bash, and Git review tools without invoking Codex there.", "PROJECT ROUTING LIVE"],
     ],
     safetyKicker: "Power with edges",
     safetyTitle: "Local access should feel serious.",
@@ -81,7 +81,7 @@ const content = {
       ["Guarded writes and terminal", "Safe defaults stay active until you deliberately widen them."],
       ["Conflict-aware worktrees", "Handoffs fingerprint both checkouts before any destination state is replaced."],
       ["Trusted environment boundary", "Project setup and action scripts run only when workspace writes and shell execution are enabled."],
-      ["Explicit SSH host trust", "Wildcard hosts are ignored; existing host-key trust and local verification are required before CodexFlow saves approval."],
+      ["Contained SSH project routing", "Concrete aliases and existing host-key trust are required; every call rechecks the destination, canonical project root, blocked paths, symlinks, and policy."],
     ],
     faqKicker: "Straight answers",
     faqTitle: "Before you connect.",
@@ -159,13 +159,13 @@ const content = {
       ["审查", "Diff 应该留在你的电脑。", "在原生应用中分开 staged 与 unstaged 文件，呈现受限的彩色 diff，并让 stage、unstage、discard 始终是明确操作。", "原生"],
       ["适配", "项目环境也会随行。", "使用与 Codex 相同的项目环境格式提供 setup、cleanup、actions、skills、plugins 和 MCP 清单，但不运行 Codex。", "可互操作"],
       ["定时", "重复任务始终回到正确项目。", "为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。", "CHATGPT 原生"],
-      ["信任", "远程访问从 host 开始。", "发现命名 OpenSSH hosts，要求本机验证，并在 alias 指向变化时撤销批准。远程项目执行仍在开发中。", "安全基础"],
+      ["远程", "同一个 picker，也能连接另一台机器。", "批准命名 OpenSSH host、保存项目目录，然后路由受限的文件、搜索、编辑、Bash 与 Git review 工具；远程端不会调用 Codex。", "项目路由已上线"],
     ],
     safetyKicker: "能力必须有边界",
     safetyTitle: "本地访问应该被认真对待。",
     safetyBody: "这条连接之所以有用，正因为它的限制是明确的。公网路由需要生成的 token，每个文件操作都经过 root 检查，secrets 会被隐藏，危险能力始终需要主动开启。",
     safetyLink: "阅读安全模型",
-    guards: [["Token 保护的公网 URL", "未经身份验证的请求无法进入工具面。"], ["工作区 root 强制执行", "路径与 symlink 检查让所有操作始终在范围内。"], ["Secret 感知输出", "凭据和常见 secret 模式会被拦截或隐藏。"], ["受保护写入与终端", "安全默认值一直生效，直到你明确扩大权限。"], ["冲突感知 Worktrees", "交接前会验证两个 checkout，避免覆盖独立改动。"], ["可信环境边界", "项目 setup 与 action 脚本仅在 workspace 写入和 shell 执行均启用时运行。"], ["明确 SSH host 信任", "忽略 wildcard hosts；保存批准前必须已有 host-key 信任并在本机完成验证。"]],
+    guards: [["Token 保护的公网 URL", "未经身份验证的请求无法进入工具面。"], ["工作区 root 强制执行", "路径与 symlink 检查让所有操作始终在范围内。"], ["Secret 感知输出", "凭据和常见 secret 模式会被拦截或隐藏。"], ["受保护写入与终端", "安全默认值一直生效，直到你明确扩大权限。"], ["冲突感知 Worktrees", "交接前会验证两个 checkout，避免覆盖独立改动。"], ["可信环境边界", "项目 setup 与 action 脚本仅在 workspace 写入和 shell 执行均启用时运行。"], ["受限 SSH 项目路由", "只接受具体 alias 与既有 host-key trust；每次调用都会重新检查目标、项目 root、blocked paths、symlink 与策略。"]],
     faqKicker: "直接回答",
     faqTitle: "连接之前。",
     faqs: [["CodexFlow 会运行 Codex CLI 吗？", "不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。"], ["需要手动注册每个项目吗？", "不需要。运行 codexflow 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。"], ["多个聊天可以同时工作吗？", "可以。一个 broker 和 tunnel 能服务多个对话。每个聊天都有独立私有路由，跨工具连接和 broker 重启后仍保持项目绑定。"], ["定时任务能使用本地项目吗？", "可以。ChatGPT Scheduled 负责模型运行与 cadence；CodexFlow 让每次运行重新获得项目、环境和可选的干净 worktree。电脑与 broker 需要保持运行。"], ["这是额度或模型代理吗？", "不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。"], ["安装需要什么？", "需要 Node.js 20 或更高版本；原生应用需要 macOS 14 或更高版本；并需要 ChatGPT Apps / Developer Mode 访问。启动器会自动安装和打开应用，无需单独设置桌面端。"]],
@@ -218,7 +218,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
               <div className="instrument-readout"><p><span className="live-dot" aria-hidden="true" />{c.brokerReady}</p><dl>{c.readout.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>
             </div>
           </div>
-          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.35.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.36.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
         </section>
 
         <section className="system section-pad" id="system">
