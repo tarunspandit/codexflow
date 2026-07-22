@@ -1,0 +1,89 @@
+<Application x:Class="CodexFlow.Windows.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Application.Resources>
+    <FontFamily x:Key="FlowFont">pack://application:,,,/Fonts/#Geologica</FontFamily>
+    <SolidColorBrush x:Key="Ground" Color="#08090B" />
+    <SolidColorBrush x:Key="GroundRaised" Color="#111419" />
+    <SolidColorBrush x:Key="Paper" Color="#F3EEE8" />
+    <SolidColorBrush x:Key="PaperBright" Color="#FBF8F4" />
+    <SolidColorBrush x:Key="Ink" Color="#16191D" />
+    <SolidColorBrush x:Key="InkMuted" Color="#66645F" />
+    <SolidColorBrush x:Key="Line" Color="#D7CEC4" />
+    <SolidColorBrush x:Key="Signal" Color="#6EADD7" />
+    <SolidColorBrush x:Key="SignalBright" Color="#9BD2F3" />
+    <SolidColorBrush x:Key="SignalWash" Color="#DCECF7" />
+    <SolidColorBrush x:Key="Success" Color="#3D8A68" />
+    <SolidColorBrush x:Key="Warning" Color="#B67638" />
+    <SolidColorBrush x:Key="Danger" Color="#B85A54" />
+
+    <Style TargetType="Window">
+      <Setter Property="FontFamily" Value="{StaticResource FlowFont}" />
+      <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+    </Style>
+    <Style x:Key="FlowButton" TargetType="Button">
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="Background" Value="{StaticResource PaperBright}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="16,10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Opacity" Value="0.82" /></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Opacity" Value="0.66" /></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Chrome" Property="Opacity" Value="0.42" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource FlowButton}">
+      <Setter Property="Background" Value="{StaticResource SignalBright}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Signal}" />
+    </Style>
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource FlowButton}">
+      <Setter Property="Foreground" Value="{StaticResource Danger}" />
+      <Setter Property="Background" Value="#FFF3F1" />
+      <Setter Property="BorderBrush" Value="#E2B6B2" />
+    </Style>
+    <Style x:Key="NavButton" TargetType="Button">
+      <Setter Property="Foreground" Value="#A8FFFFFF" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="16,12" />
+      <Setter Property="Margin" Value="8,2" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="NavChrome" Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+              <ContentPresenter />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavChrome" Property="Background" Value="#12FFFFFF" /></Trigger>
+              <Trigger Property="Tag" Value="selected"><Setter TargetName="NavChrome" Property="Background" Value="#18FFFFFF" /><Setter Property="Foreground" Value="White" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="FlowTextBox" TargetType="TextBox">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+  </Application.Resources>
+</Application>

@@ -38,13 +38,13 @@ npm install -g @tarunspandit/codexflow
 codexflow
 ```
 
-CodexFlow 会自动发现本机 Codex 使用过的项目，启动 broker 和 tunnel，并在 macOS 14 或更新版本安装、打开原生桌面应用。
+CodexFlow 会自动发现本机 Codex 使用过的项目，启动 broker 和 tunnel，并在 macOS 14+ 或 Windows 10/11 安装、打开原生桌面应用。
 
 `npx codexflow@latest` 仍然可用，但普通用户更容易理解全局安装。
 
 ## 原生桌面应用是什么？
 
-它是 CodexFlow 的主要本地控制界面。在 macOS 14 或更新版本，第一次运行 `codexflow` 会自动安装并打开它。即使 broker 尚未运行，也可以使用：
+它是 CodexFlow 的主要本地控制界面。在 macOS 14+ 或 Windows 10/11，第一次运行 `codexflow` 会自动安装并打开它；Windows 构建自包含，不需要额外安装 .NET。即使 broker 尚未运行，也可以使用：
 
 ```bash
 codexflow app

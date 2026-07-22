@@ -181,6 +181,7 @@ export class BrowserUseManager {
   private commands = new Map<string, BrowserCommand>();
   private activity: Array<{ at: string; route_display: string; origin: string; operation: string; outcome: string }> = [];
   private lastNativePollAt = 0;
+  private nativeEngine = process.platform === "win32" ? "WebView2" : "WebKit";
 
   private prune(): void {
     const now = Date.now();
@@ -210,10 +211,13 @@ export class BrowserUseManager {
     return [...new Set([...persistent, ...once])].slice(0, 300);
   }
 
-  overview(takeCommands = false): Record<string, unknown> {
+  overview(takeCommands = false, nativeEngine?: string): Record<string, unknown> {
     this.prune();
     const now = Date.now();
-    if (takeCommands) this.lastNativePollAt = now;
+    if (takeCommands) {
+      this.lastNativePollAt = now;
+      if (nativeEngine === "WebKit" || nativeEngine === "WebView2") this.nativeEngine = nativeEngine;
+    }
     const commands = takeCommands ? [...this.commands.values()].flatMap((command) => {
       if (command.leaseUntil > now) return [];
       command.leaseUntil = now + 5_000;
@@ -221,7 +225,7 @@ export class BrowserUseManager {
     }).slice(0, 10) : [];
     return {
       ok: true,
-      status: { available: true, profile: "ephemeral", engine: "WebKit", native_connected: now - this.lastNativePollAt < 3_000 },
+      status: { available: true, profile: "ephemeral", engine: this.nativeEngine, native_connected: now - this.lastNativePollAt < 3_000 },
       always_allowed: readStore().alwaysAllowed.map((entry) => ({ origin: entry.origin, approved_at: entry.approvedAt })),
       host_requests: [...this.hostRequests.values()].map(({ routeId: _routeId, ...request }) => request),
       action_requests: [...this.actionRequests.values()].filter((request) => !request.approved).map(({ routeId: _routeId, fingerprint: _fingerprint, approved: _approved, ...request }) => request),
@@ -237,7 +241,7 @@ export class BrowserUseManager {
       .map(({ routeId: _route, createdAt: _created, updatedAt: _updated, ...session }) => session);
     const comments = [...this.comments.values()].filter((comment) => comment.routeId === routeId)
       .map(({ routeId: _route, ...comment }) => comment);
-    return { profile: "ephemeral", engine: "WebKit", allowed_origins: this.allowedOrigins(routeId), sessions, comments };
+    return { profile: "ephemeral", engine: this.nativeEngine, allowed_origins: this.allowedOrigins(routeId), sessions, comments };
   }
 
   requestHost(routeId: string, rawUrl: string, reason: string): Record<string, unknown> {

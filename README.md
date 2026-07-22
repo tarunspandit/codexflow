@@ -88,7 +88,8 @@ It connects your own ChatGPT session to your own local repo through the official
 ## Native Desktop App
 
 On macOS 14 or newer, the first `codexflow` launch installs the bundled native
-app into `~/Applications` and opens it automatically. Press `o` in the CodexFlow
+app into `~/Applications`. On Windows 10/11, it retrieves the matching verified,
+self-contained native app into `%LOCALAPPDATA%\CodexFlow`. Both open automatically. Press `o` in the CodexFlow
 terminal to bring it forward, or open it directly at any time—even before the
 broker is running:
 
@@ -106,8 +107,8 @@ conversation. The native app makes the broker legible and controllable:
 - **Changes** separates staged and unstaged files, renders bounded color-coded diffs, stages/unstages/reverts individual hunks, and keeps line-anchored review notes visible to `show_changes` in the web chat.
 - **Tasks** shows every real project-routed web conversation with its bounded plan, current focus, blockers, review state, completion progress, and nested Active/Done ChatGPT Work agents, plus local search, rename, pin, archive, and restore controls; background MCP discovery connections are deliberately hidden.
 - **Hosts** discovers concrete aliases from `~/.ssh/config`, requires bounded local OpenSSH verification, saves canonical remote project folders, and revokes routing automatically if an alias resolves to a different destination.
-- **Computer** grants one routed chat bounded, code-signing-bound access to an approved native app.
-- **Browser** provides visible, origin-scoped website control in an ephemeral WebKit profile.
+- **Computer** grants one routed chat bounded, target-identity-bound access to an approved native app through macOS Accessibility or Windows UI Automation.
+- **Browser** provides visible, origin-scoped website control in an ephemeral WebKit or WebView2 profile.
 - **Connection** provides the private Server URL without displaying its credential.
 - **Policy** shows the effective boundary and edits protected next-launch defaults.
 
@@ -215,13 +216,13 @@ The default prompt verifies changes, calls `show_changes`, leaves the worktree a
 
 ## Native Computer Use
 
-When structured project tools are not enough, a web chat can request one exact running macOS app through `computer_use`. Open the native **Computer** workspace to allow it once or persist access, then approve each press or text/key action locally. Observations are fresh, route-bound window captures plus bounded accessibility elements; actions never use arbitrary model-supplied coordinates.
+When structured project tools are not enough, a web chat can request one exact running macOS or Windows app through `computer_use`. Open the native **Computer** workspace to allow it once or persist access, then approve each press or text/key action locally. Observations are fresh, route-bound window captures plus bounded Accessibility/UI Automation elements; actions never use arbitrary model-supplied coordinates.
 
-Approvals are tied to the app’s validated code-signing identity, and a replaced binary must be approved again. Terminal apps, ChatGPT/CodexFlow, System Settings, browser apps, secure fields, and secret-looking text are blocked from this generic app-control path.
+Approvals are tied to the app’s validated code-signing identity on macOS or publisher/binary identity on Windows, and an identity change must be approved again. Terminal apps, ChatGPT/CodexFlow, system settings, browser apps, secure fields, and secret-looking text are blocked from this generic app-control path.
 
 ## Native Browser Use
 
-Website work uses the separate `browser_use` boundary. A routed chat requests one exact HTTP(S) origin; the native **Browser** workspace lets you deny it, allow it for that chat for ten minutes, or persist the origin until revocation. Approved pages open in visible WebKit tabs backed by a non-persistent profile, never in Safari, Chrome, or your personal browser session.
+Website work uses the separate `browser_use` boundary. A routed chat requests one exact HTTP(S) origin; the native **Browser** workspace lets you deny it, allow it for that chat for ten minutes, or persist the origin until revocation. Approved pages open in visible WebKit tabs on macOS or WebView2 tabs on Windows, backed by a non-persistent profile and never your personal browser session.
 
 The chat receives a fresh screenshot and bounded semantic DOM targets rather than cookies or arbitrary coordinates. Clicks, text entry, and consequential keys require a local confirmation sealed to one route, tab, snapshot, element, operation, and value. Cross-origin navigation, popup windows, downloads, browser permission prompts, authentication/account-security/payment pages, password values, embedded URL credentials, and secret-looking input fail closed.
 

@@ -48,7 +48,7 @@ const content = {
     metricLabels: ["broker", "chats", "projects"],
     companionKicker: "The native desktop app",
     companionTitle: <>Your machine.<br />One clear surface.</>,
-    companionBody: "CodexFlow opens as a native app on your Mac. Supervise routed web tasks, nested Active/Done agents, plans, blockers, environments, worktrees, diffs, SSH hosts, Computer Use, and website-origin approvals from one surface.",
+    companionBody: "CodexFlow opens as a native app on your Mac or Windows PC. Supervise routed web tasks, nested Active/Done agents, plans, blockers, environments, worktrees, diffs, SSH hosts, Computer Use, and website-origin approvals from one surface.",
     companionLive: "Live on this computer",
     companionViews: ["Now", "Projects", "Environments", "Worktrees", "Changes", "Tasks", "Hosts", "Computer", "Browser", "Connection", "Policy"],
     companionMetrics: [["Projects", "Discovered"], ["Environments", "Shared"], ["Chat routes", "Independent"], ["Terminal", "Route-persistent"]],
@@ -70,8 +70,8 @@ const content = {
       ["Adapt", "Your project environment travels too.", "Uses the same checked-in Codex environment format for setup, cleanup, named actions, skills, plugins, and MCP inventory—without running Codex.", "INTEROPERABLE"],
       ["Schedule", "Recurring work keeps its project.", "Prepares durable ChatGPT Scheduled runs that reacquire a private route and use a clean managed worktree without adding another model backend.", "CHATGPT NATIVE"],
       ["Remote", "The same picker reaches another machine.", "Approve a named OpenSSH host, then keep isolated terminals, Codex environments, project skills, repository analysis, managed worktrees, guarded handoff, file edits, Bash, and Git review on that route—without invoking Codex there.", "REMOTE WORKSPACE LIVE"],
-      ["Operate", "Visual work still asks first.", "Request one signed native app from chat, approve it on the Mac, inspect a fresh window snapshot, and confirm each sensitive element-targeted action locally.", "COMPUTER USE / CONSENTED"],
-      ["Browse", "Review and debug the rendered page together.", "Approve one website origin, inspect its semantic DOM, capture bounded console, resource, and source diagnostics, then leave exact-element comments for the web chat. Redirects, downloads, credentials, payload bodies, and sensitive actions stay out or ask locally.", "WEBKIT / ROUTE PRIVATE"],
+      ["Operate", "Visual work still asks first.", "Request one identity-bound native app from chat, approve it on this computer, inspect a fresh app-only window snapshot, and confirm each sensitive element-targeted action locally.", "COMPUTER USE / CONSENTED"],
+      ["Browse", "Review and debug the rendered page together.", "Approve one website origin, inspect its semantic DOM, capture bounded console, resource, and source diagnostics, then leave exact-element comments for the web chat. Redirects, downloads, credentials, payload bodies, and sensitive actions stay out or ask locally.", "WEBKIT + WEBVIEW2 / ROUTE PRIVATE"],
     ],
     safetyKicker: "Power with edges",
     safetyTitle: "Local access should feel serious.",
@@ -86,7 +86,7 @@ const content = {
       ["Trusted environment boundary", "Project setup and action scripts run only when workspace writes and shell execution are enabled."],
       ["Contained SSH project routing", "Concrete aliases and existing host-key trust are required; every call rechecks the destination, canonical project root, blocked paths, symlinks, and policy."],
       ["Code-signing-bound app control", "Computer Use grants bind to the target binary identity; terminal, browser, ChatGPT, system-settings, secure-field, and secret-input paths are refused."],
-      ["Ephemeral browser isolation", "Each tab has a non-persistent WebKit profile. Actions bind to fresh snapshots; exact-element comments and query-free console/resource/source diagnostics stay bounded and private to their chat route."],
+      ["Ephemeral browser isolation", "Each tab has a non-persistent WebKit or WebView2 profile. Actions bind to fresh snapshots; exact-element comments and query-free console/resource/source diagnostics stay bounded and private to their chat route."],
     ],
     faqKicker: "Straight answers",
     faqTitle: "Before you connect.",
@@ -97,7 +97,7 @@ const content = {
       ["Can one task use subagents?", "Yes, when ChatGPT Work provides them. ChatGPT owns the child threads and model usage; CodexFlow gives each actual child an isolated project route, collects bounded status and results, and shows Active/Done state in the native app."],
       ["Can scheduled tasks use my local project?", "Yes. ChatGPT Scheduled owns the model turn and cadence; CodexFlow prepares each run to reacquire the project, environment, and an optional clean worktree. Keep the computer and broker running."],
       ["Is this a quota or model proxy?", "No. Requests still use your own ChatGPT account and its normal product limits. CodexFlow does not pool accounts, resell access, or bypass quotas."],
-      ["What does installation require?", "Node.js 20 or newer, macOS 14 or newer for the native app, and ChatGPT Apps / Developer Mode access. The launcher installs and opens the app automatically; no separate desktop setup is required."],
+      ["What does installation require?", "Node.js 20 or newer, macOS 14+ or Windows 10/11, and ChatGPT Apps / Developer Mode access. The launcher installs the self-contained native app automatically; no separate desktop runtime or setup wizard is required."],
     ],
     finalKicker: "Your projects are already here",
     finalTitle: "Meet them in the conversation.",
@@ -145,7 +145,7 @@ const content = {
     metricLabels: ["broker", "对话", "项目"],
     companionKicker: "原生桌面应用",
     companionTitle: <>你的电脑。<br />一个清晰界面。</>,
-    companionBody: "CodexFlow 会在 Mac 上打开原生应用。统一监督 web 任务、嵌套 Active / Done agents、计划、阻塞、环境、worktrees、diff、SSH hosts、Computer Use 与网站 origin 审批。",
+    companionBody: "CodexFlow 会在 Mac 或 Windows PC 上打开原生应用。统一监督 web 任务、嵌套 Active / Done agents、计划、阻塞、环境、worktrees、diff、SSH hosts、Computer Use 与网站 origin 审批。",
     companionLive: "正在此电脑上运行",
     companionViews: ["当前", "项目", "环境", "Worktrees", "改动", "任务", "Hosts", "Computer", "Browser", "连接", "策略"],
     companionMetrics: [["项目", "自动发现"], ["环境", "项目共享"], ["聊天路由", "各自独立"], ["终端", "随路由持久"]],
@@ -167,17 +167,17 @@ const content = {
       ["适配", "项目环境也会随行。", "使用与 Codex 相同的项目环境格式提供 setup、cleanup、actions、skills、plugins 和 MCP 清单，但不运行 Codex。", "可互操作"],
       ["定时", "重复任务始终回到正确项目。", "为 ChatGPT Scheduled 准备稳定运行：重新获得私有 route，并使用干净的受管 worktree，不增加第二个模型后端。", "CHATGPT 原生"],
       ["远程", "同一个 picker，也能连接另一台机器。", "批准命名 OpenSSH host 后，即可在独立路由中使用持久终端、Codex 环境、项目 skills、仓库分析、文件编辑、Bash 与 Git review；远程端不会调用 Codex。", "远程工作区已上线"],
-      ["操作", "视觉操作仍然先征求同意。", "从聊天请求一个已签名的原生应用，在 Mac 上批准，查看最新窗口快照，并在本机确认每个敏感的元素级操作。", "COMPUTER USE / 已授权"],
-      ["浏览", "和 Web chat 一起审查与调试真实页面。", "批准一个网站 origin 后，可检查语义 DOM、受限 console/resource/source diagnostics，并选择准确元素留下仅该 route 可见的评论。跨 origin 跳转、下载、凭据、payload body 与敏感操作会被拒绝或要求本机确认。", "WEBKIT / ROUTE 隔离"],
+      ["操作", "视觉操作仍然先征求同意。", "从聊天请求一个绑定身份的原生应用，在当前电脑上批准，查看仅限目标应用的最新窗口快照，并在本机确认每个敏感的元素级操作。", "COMPUTER USE / 已授权"],
+      ["浏览", "和 Web chat 一起审查与调试真实页面。", "批准一个网站 origin 后，可检查语义 DOM、受限 console/resource/source diagnostics，并选择准确元素留下仅该 route 可见的评论。跨 origin 跳转、下载、凭据、payload body 与敏感操作会被拒绝或要求本机确认。", "WEBKIT + WEBVIEW2 / ROUTE 隔离"],
     ],
     safetyKicker: "能力必须有边界",
     safetyTitle: "本地访问应该被认真对待。",
     safetyBody: "这条连接之所以有用，正因为它的限制是明确的。公网路由需要生成的 token，每个文件操作都经过 root 检查，secrets 会被隐藏，危险能力始终需要主动开启。",
     safetyLink: "阅读安全模型",
-    guards: [["Token 保护的公网 URL", "未经身份验证的请求无法进入工具面。"], ["工作区 root 强制执行", "路径与 symlink 检查让所有操作始终在范围内。"], ["Secret 感知输出", "凭据和常见 secret 模式会被拦截或隐藏。"], ["受保护写入与终端", "安全默认值一直生效，直到你明确扩大权限。"], ["冲突感知 Worktrees", "交接前会验证两个 checkout，避免覆盖独立改动。"], ["可信环境边界", "项目 setup 与 action 脚本仅在 workspace 写入和 shell 执行均启用时运行。"], ["受限 SSH 项目路由", "只接受具体 alias 与既有 host-key trust；每次调用都会重新检查目标、项目 root、blocked paths、symlink 与策略。"], ["绑定代码签名的应用控制", "Computer Use 权限绑定目标二进制身份；终端、浏览器、ChatGPT、系统设置、安全输入框和 secret 输入都会被拒绝。"], ["临时浏览器隔离", "每个 tab 使用非持久 WebKit profile；重要操作绑定最新快照，准确元素评论与移除 query 的 console/resource/source diagnostics 仅对所属 route 可见。"]],
+    guards: [["Token 保护的公网 URL", "未经身份验证的请求无法进入工具面。"], ["工作区 root 强制执行", "路径与 symlink 检查让所有操作始终在范围内。"], ["Secret 感知输出", "凭据和常见 secret 模式会被拦截或隐藏。"], ["受保护写入与终端", "安全默认值一直生效，直到你明确扩大权限。"], ["冲突感知 Worktrees", "交接前会验证两个 checkout，避免覆盖独立改动。"], ["可信环境边界", "项目 setup 与 action 脚本仅在 workspace 写入和 shell 执行均启用时运行。"], ["受限 SSH 项目路由", "只接受具体 alias 与既有 host-key trust；每次调用都会重新检查目标、项目 root、blocked paths、symlink 与策略。"], ["绑定身份的应用控制", "Computer Use 权限绑定目标二进制身份；终端、浏览器、ChatGPT、系统设置、安全输入框和 secret 输入都会被拒绝。"], ["临时浏览器隔离", "每个 tab 使用非持久 WebKit 或 WebView2 profile；重要操作绑定最新快照，准确元素评论与移除 query 的 console/resource/source diagnostics 仅对所属 route 可见。"]],
     faqKicker: "直接回答",
     faqTitle: "连接之前。",
-    faqs: [["CodexFlow 会运行 Codex CLI 吗？", "不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。"], ["需要手动注册每个项目吗？", "不需要。运行 codexflow 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。"], ["多个聊天可以同时工作吗？", "可以。一个 broker 和 tunnel 能服务多个对话。每个聊天都有独立私有路由，跨工具连接和 broker 重启后仍保持项目绑定。"], ["一个任务可以使用 subagents 吗？", "可以，但需要 ChatGPT Work 提供。ChatGPT 负责 child threads 与模型用量；CodexFlow 为每个真实 child 分配隔离项目 route、收集受限状态与结果，并在原生应用显示 Active / Done。"], ["定时任务能使用本地项目吗？", "可以。ChatGPT Scheduled 负责模型运行与 cadence；CodexFlow 让每次运行重新获得项目、环境和可选的干净 worktree。电脑与 broker 需要保持运行。"], ["这是额度或模型代理吗？", "不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。"], ["安装需要什么？", "需要 Node.js 20 或更高版本；原生应用需要 macOS 14 或更高版本；并需要 ChatGPT Apps / Developer Mode 访问。启动器会自动安装和打开应用，无需单独设置桌面端。"]],
+    faqs: [["CodexFlow 会运行 Codex CLI 吗？", "不会。ChatGPT 提供模型与对话，CodexFlow 通过 MCP 提供本地项目上下文和工具后端。它不会启动、恢复或伪装成 Codex session。"], ["需要手动注册每个项目吗？", "不需要。运行 codexflow 会自动发现最近项目文件夹和配置 roots。每个对话为自己选择一个项目。"], ["多个聊天可以同时工作吗？", "可以。一个 broker 和 tunnel 能服务多个对话。每个聊天都有独立私有路由，跨工具连接和 broker 重启后仍保持项目绑定。"], ["一个任务可以使用 subagents 吗？", "可以，但需要 ChatGPT Work 提供。ChatGPT 负责 child threads 与模型用量；CodexFlow 为每个真实 child 分配隔离项目 route、收集受限状态与结果，并在原生应用显示 Active / Done。"], ["定时任务能使用本地项目吗？", "可以。ChatGPT Scheduled 负责模型运行与 cadence；CodexFlow 让每次运行重新获得项目、环境和可选的干净 worktree。电脑与 broker 需要保持运行。"], ["这是额度或模型代理吗？", "不是。请求仍使用你自己的 ChatGPT 账号和正常产品限制。CodexFlow 不合并账号、不转售访问，也不绕过额度。"], ["安装需要什么？", "需要 Node.js 20 或更高版本、macOS 14+ 或 Windows 10/11，并需要 ChatGPT Apps / Developer Mode 访问。启动器会自动安装自包含原生应用，无需额外桌面运行时或设置向导。"]],
     finalKicker: "项目已经在你的电脑里",
     finalTitle: "现在，在对话中与它们相遇。",
     finalBody: "安装一次，从任何目录运行；原生应用会打开，每个聊天在开始时选择自己的工作区。",
@@ -227,7 +227,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
               <div className="instrument-readout"><p><span className="live-dot" aria-hidden="true" />{c.brokerReady}</p><dl>{c.readout.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div>
             </div>
           </div>
-          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.45.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
+          <div className="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.46.0</span><span>LOCAL MACHINE → CHATGPT</span><span>SCROLL TO ENTER</span></div>
         </section>
 
         <section className="system section-pad" id="system">

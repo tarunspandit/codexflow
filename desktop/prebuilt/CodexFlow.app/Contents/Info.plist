@@ -10,8 +10,8 @@
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>CodexFlow</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.45.0</string>
-  <key>CFBundleVersion</key><string>0450</string>
+  <key>CFBundleShortVersionString</key><string>0.46.0</string>
+  <key>CFBundleVersion</key><string>0460</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
   <key>NSHighResolutionCapable</key><true/>

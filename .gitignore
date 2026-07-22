@@ -10,6 +10,9 @@ dist/
 .worktrees/
 output/
 desktop/.build/
+desktop/windows/**/bin/
+desktop/windows/**/obj/
+desktop/windows/dist/
 CODEXPRO_MCP_REPORT.md
 *.local.md
 *.local.json

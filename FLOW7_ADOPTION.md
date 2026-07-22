@@ -170,3 +170,12 @@ and keep the rendered page visually primary. The native and model-facing paths
 share the same bounded, query-free, secret-aware contract. Real WebKit capture,
 route isolation, accessibility structure, and production-size visual QA pass;
 the complete release record remains in `PRODUCT_BUILD_STATE.md`.
+
+The 0.46.0 Windows client carries the same Endorsed expression into native WPF
+rather than imitating the macOS chrome: Ground remains the operational rail,
+daylight Paper remains the working surface, Signal identifies consent and live
+state, and Geologica preserves the family voice. The information architecture
+and approval hierarchy are shared, while Windows-native UI Automation,
+`PrintWindow`, and WebView2 make the interaction honest to that platform. The
+public site now describes both clients without turning platform parity into a
+new visual motif.

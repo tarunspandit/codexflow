@@ -123,6 +123,10 @@ try {
   assert.equal((await fetch(`${base}/admin/browser`)).status, 401);
   const beforeNative = await (await fetch(`${base}/admin/browser?${auth}`)).json();
   assert.equal(beforeNative.status.native_connected, false);
+  const windowsNative = await (await fetch(`${base}/admin/browser?take=1&engine=WebView2&${auth}`)).json();
+  assert.equal(windowsNative.status.engine, 'WebView2');
+  const macNative = await (await fetch(`${base}/admin/browser?take=1&engine=WebKit&${auth}`)).json();
+  assert.equal(macNative.status.engine, 'WebKit');
   const pumpPromise = nativePump();
 
   const { client, common } = await selectedClient(base, auth, 'browser-use-smoke');

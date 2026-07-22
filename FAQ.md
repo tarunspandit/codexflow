@@ -44,7 +44,7 @@ codexflow connects ChatGPT to a user-approved local repository over MCP. Reposit
 
 ## What is the native desktop app?
 
-On macOS 14 or newer, `codexflow` installs and opens a bundled native app. Press
+On macOS 14 or newer, `codexflow` installs and opens the bundled native app. On Windows 10/11, it downloads the matching verified self-contained app on first launch. Press
 `o` in the running terminal or use this command at any time:
 
 ```bash
