@@ -93,10 +93,11 @@ The 0.31.0 source and public-site release is complete. The 0.32.0 parity release
 - The native app builds for `x86_64 arm64`, passes strict signature/plist/resource checks, launches in fixture mode, and refreshes a deliberately corrupted same-version installation.
 - A real private temporary broker was authenticated, stopped, started, policy-edited, restarted, and checked through the signed GUI; unauthorized HTTP remained 401 and the native log contained no credential.
 - npm dry-run packaging contains the complete signed 0.32.0 app and required resources in a 4.5 MB tarball; the website audit is clean and the root audit reports two moderate transitive `@hono/node-server` advisories with no high-severity finding.
-- The public website passes lint, build, and English/Chinese rendered-output tests locally. GitHub Pages and the Flow7-hosted product site still serve the previous release until 0.32.0 deployment completes.
+- The public website passes lint, build, and English/Chinese rendered-output tests locally. GitHub Pages and the Flow7-hosted product site both publicly serve 0.32.0.
 - The Flow7 adoption checklist and Full Product Completion Contract were re-read after implementation; every local gate passes.
 - The existing public URLs remain `https://tarunspandit.github.io/codexflow/` and `https://codexflow.tarunspandit.chatgpt.site/`; both were verified after the 0.30.4 source release.
 - Pull request 14 was squash-merged to `main` at commit `9e95eb0`; the corresponding GitHub Pages deployment completed successfully.
+- Pull request 16 was squash-merged to `main` at commit `9c22565`; release `v0.32.0`, GitHub Pages, and Sites version 8 are live.
 - The permanent `https://codexflow.flow7.org` tunnel is reachable and correctly returns `401` for unauthenticated root and MCP requests.
 - The stale `CodexFlow Local` ChatGPT connector was uninstalled, leaving `CodexFlow` as the current connector.
 
@@ -111,4 +112,4 @@ The 0.31.0 source and public-site release is complete. The 0.32.0 parity release
 
 ## Completion record
 
-Every required ledger row remains verified. The full 0.32.0 local release matrix passes, including build, complete smoke, stress, native bundle/signature checks, package dry-run, website lint/build/render tests, dependency audits, environment/worktree interoperability, and concurrent-route regression coverage. Source and public-site deployment are the current release actions; npm publication and the account-authenticated ChatGPT acceptance pass remain external checks.
+Every required ledger row remains verified. The full 0.32.0 local release matrix passes, including build, complete smoke, stress, native bundle/signature checks, package dry-run, website lint/build/render tests, dependency audits, environment/worktree interoperability, and concurrent-route regression coverage. Source, release, GitHub Pages, the Flow7-hosted site, and the permanent tunnel are live; npm publication and the account-authenticated ChatGPT acceptance pass remain external checks.
