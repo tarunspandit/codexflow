@@ -175,6 +175,20 @@ await fs.mkdir(path.join(tmp, 'test'), { recursive: true });
 await fs.writeFile(path.join(tmp, 'test', 'auth.test.ts'), "import { authenticate } from '../src/auth.js';\nvoid authenticate('test');\n", 'utf8');
 await fs.writeFile(path.join(tmp, 'é.ts'), 'export const accent = 1;\n', 'utf8');
 await fs.writeFile(path.join(tmp, '旧名.ts'), 'export const renamed = true;\n', 'utf8');
+await fs.mkdir(path.join(tmp, '.codex', 'environments'), { recursive: true });
+await fs.writeFile(path.join(tmp, '.codex', 'environments', 'smoke.toml'), [
+  'version = 1',
+  'name = "Smoke local"',
+  '',
+  '[setup]',
+  'script = ""',
+  '',
+  '[[actions]]',
+  'name = "Echo"',
+  'icon = "test"',
+  'command = "printf local-environment-action"',
+  ''
+].join('\n'), 'utf8');
 const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-outside-'));
 await fs.writeFile(path.join(outside, 'secret.txt'), 'do-not-read', 'utf8');
 const danglingSymlinks = [];
@@ -197,7 +211,7 @@ try {
   symlinkEscapePath = 'secret-link-dir/secret.txt';
   await fs.symlink(outside, path.join(tmp, 'secret-link-dir'), 'junction');
 }
-for (const args of [['init'], ['config', 'core.quotePath', 'true'], ['add', 'demo.txt', 'other.txt', 'AGENTS.md', 'package.json', 'src/auth.ts', 'test/auth.test.ts', 'é.ts', '旧名.ts']]) {
+for (const args of [['init'], ['config', 'core.quotePath', 'true'], ['add', 'demo.txt', 'other.txt', 'AGENTS.md', 'package.json', 'src/auth.ts', 'test/auth.test.ts', 'é.ts', '旧名.ts', '.codex/environments/smoke.toml']]) {
   const result = spawnSync('git', args, { cwd: tmp, encoding: 'utf8' });
   if (result.status !== 0) {
     throw new Error(`git ${args.join(' ')} failed: ${result.stderr || result.stdout}`);
@@ -221,13 +235,13 @@ await client.request('initialize', {
 client.notify('notifications/initialized');
 const tools = await client.request('tools/list', {});
 const toolNames = tools.tools.map((tool) => tool.name);
-for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inventory', 'list_projects', 'select_project', 'list_workspaces', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'inspect_workspace', 'tree', 'search', 'load_skill', 'read', 'write', 'edit', 'apply_patch', 'bash', 'terminal', 'git_status', 'git_diff', 'git_workflow', 'worktree', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
+for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inventory', 'list_projects', 'select_project', 'list_workspaces', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'inspect_workspace', 'tree', 'search', 'load_skill', 'read', 'write', 'edit', 'apply_patch', 'bash', 'terminal', 'git_status', 'git_diff', 'git_workflow', 'local_environment', 'worktree', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
   if (!toolNames.includes(expected)) throw new Error(`missing tool: ${expected}`);
 }
 const toolCardUri = 'ui://widget/codexflow-tool-card-v12.html';
 const projectPickerUri = 'ui://widget/codexflow-project-picker-v3.html';
 const toolsByName = new Map(tools.tools.map((tool) => [tool.name, tool]));
-for (const routeAwareTool of ['list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'read', 'tree', 'bash']) {
+for (const routeAwareTool of ['list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'read', 'tree', 'bash', 'local_environment']) {
   if (!toolsByName.get(routeAwareTool)?.inputSchema?.properties?.route_id) {
     throw new Error(`${routeAwareTool} did not advertise private route_id input`);
   }
@@ -283,6 +297,70 @@ const routedRead = await client.request('tools/call', { name: 'read', arguments:
 if (!routedRead.structuredContent.text?.includes('routed-to-second-project')) {
   throw new Error(`workspace-less read was not routed to the selected project: ${JSON.stringify(routedRead.structuredContent)}`);
 }
+const defaultProjectReal = await fs.realpath(tmp);
+const defaultChoice = projectList.structuredContent.projects.find((project) => project.root === defaultProjectReal);
+if (!defaultChoice) throw new Error('project picker did not include the default smoke project');
+await client.request('tools/call', { name: 'select_project', arguments: { route_id: pickerRouteId, project_id: defaultChoice.project_id, include_tree: false } });
+const environments = await client.request('tools/call', { name: 'local_environment', arguments: { route_id: pickerRouteId, action: 'list' } });
+if (environments.isError || environments.structuredContent.count !== 1 || environments.structuredContent.environments?.[0]?.name !== 'Smoke local') {
+  throw new Error(`local_environment did not discover Codex-compatible TOML: ${JSON.stringify(environments)}`);
+}
+const selectedEnvironment = await client.request('tools/call', {
+  name: 'local_environment',
+  arguments: { route_id: pickerRouteId, action: 'select', config_path: 'Smoke local' }
+});
+if (selectedEnvironment.isError || !selectedEnvironment.structuredContent.selected_config_path?.endsWith('/.codex/environments/smoke.toml')) {
+  throw new Error(`local_environment selection was not persisted: ${JSON.stringify(selectedEnvironment)}`);
+}
+const environmentAction = await client.request('tools/call', {
+  name: 'local_environment',
+  arguments: { route_id: pickerRouteId, action: 'run', action_name: 'Echo', background: false }
+});
+if (environmentAction.isError || !environmentAction.structuredContent.output?.includes('local-environment-action')) {
+  throw new Error(`local_environment action did not run in the route terminal: ${JSON.stringify(environmentAction)}`);
+}
+await fs.chmod(unreadableCodexSessionPath, 0o600);
+const parkedSymlinkNames = [...new Set([...danglingSymlinks, symlinkEscapePath.split('/')[0]])];
+try {
+  const skillLink = await fs.lstat(path.join(tmp, 'skills'));
+  if (skillLink.isSymbolicLink()) parkedSymlinkNames.push('skills');
+} catch {
+  // Windows smoke may not have permission to create this fixture symlink.
+}
+for (const name of parkedSymlinkNames) {
+  await fs.rename(path.join(tmp, name), path.join(outside, `.park-${name}`));
+}
+const createdEnvironmentWorktree = await client.request('tools/call', {
+  name: 'worktree',
+  arguments: { route_id: pickerRouteId, action: 'create', include_changes: false }
+});
+if (createdEnvironmentWorktree.isError || createdEnvironmentWorktree.structuredContent.worktree?.environmentName !== 'Smoke local') {
+  throw new Error(`route-selected environment was not applied to a managed worktree: ${JSON.stringify(createdEnvironmentWorktree)}`);
+}
+const worktreeEnvironmentAction = await client.request('tools/call', {
+  name: 'local_environment',
+  arguments: { route_id: pickerRouteId, action: 'run', action_name: 'Echo', background: false }
+});
+if (worktreeEnvironmentAction.isError || !worktreeEnvironmentAction.structuredContent.output?.includes('local-environment-action')) {
+  throw new Error(`source-project environment did not remain usable after routing into a worktree: ${JSON.stringify(worktreeEnvironmentAction)}`);
+}
+const removedEnvironmentWorktree = await client.request('tools/call', {
+  name: 'worktree',
+  arguments: { route_id: pickerRouteId, action: 'remove', worktree_id: createdEnvironmentWorktree.structuredContent.worktree.id }
+});
+if (removedEnvironmentWorktree.isError || !removedEnvironmentWorktree.structuredContent.removed) {
+  throw new Error(`environment worktree was not removed: ${JSON.stringify(removedEnvironmentWorktree)}`);
+}
+await fs.chmod(unreadableCodexSessionPath, 0o000);
+for (const name of parkedSymlinkNames) {
+  await fs.rename(path.join(outside, `.park-${name}`), path.join(tmp, name));
+}
+await client.request('tools/call', { name: 'select_project', arguments: { route_id: pickerRouteId, project_id: secondChoice.project_id, include_tree: false } });
+const switchedEnvironment = await client.request('tools/call', { name: 'local_environment', arguments: { route_id: pickerRouteId, action: 'list' } });
+if (switchedEnvironment.isError || switchedEnvironment.structuredContent.selected_config_path !== null) {
+  throw new Error(`explicit project switch retained a stale environment selection: ${JSON.stringify(switchedEnvironment)}`);
+}
+await client.request('tools/call', { name: 'select_project', arguments: { route_id: pickerRouteId, project_id: defaultChoice.project_id, include_tree: false } });
 await client.request('tools/call', { name: 'open_workspace', arguments: { root: tmp, include_tree: false } });
 const cardClient = new McpStdioClient('node', ['dist/stdio.js', '--root', tmp, '--allow-root', tmp, '--bash', 'safe', '--tool-mode', 'full'], {
   cwd: path.resolve('.'),
@@ -936,7 +1014,7 @@ await handoffWriteClient.request('initialize', {
 handoffWriteClient.notify('notifications/initialized');
 const handoffWriteTools = await handoffWriteClient.request('tools/list', {});
 const handoffWriteToolNames = handoffWriteTools.tools.map((tool) => tool.name);
-for (const hiddenWriteTool of ['write', 'edit', 'apply_patch']) {
+for (const hiddenWriteTool of ['write', 'edit', 'apply_patch', 'git_workflow', 'local_environment', 'worktree']) {
   if (handoffWriteToolNames.includes(hiddenWriteTool)) {
     throw new Error(`--write handoff should not advertise ${hiddenWriteTool} tool; got ${handoffWriteToolNames.join(', ')}`);
   }
@@ -949,7 +1027,7 @@ const handoffSelfTest = await handoffWriteClient.request('tools/call', { name: '
 if (handoffSelfTest.structuredContent.status === 'fail') {
   throw new Error(`codexflow_self_test failed under --write handoff: ${JSON.stringify(handoffSelfTest.structuredContent)}`);
 }
-for (const hiddenWriteTool of ['write', 'edit', 'apply_patch']) {
+for (const hiddenWriteTool of ['write', 'edit', 'apply_patch', 'git_workflow', 'local_environment', 'worktree']) {
   if (handoffSelfTest.structuredContent.expected_tools?.includes?.(hiddenWriteTool) || handoffSelfTest.structuredContent.registered_tools?.includes?.(hiddenWriteTool)) {
     throw new Error(`codexflow_self_test exposed ${hiddenWriteTool} under --write handoff: ${JSON.stringify(handoffSelfTest.structuredContent)}`);
   }
@@ -968,8 +1046,10 @@ await noBashClient.request('initialize', {
 noBashClient.notify('notifications/initialized');
 const noBashTools = await noBashClient.request('tools/list', {});
 const noBashToolNames = noBashTools.tools.map((tool) => tool.name);
-if (noBashToolNames.includes('bash')) {
-  throw new Error(`--bash off should not advertise bash tool; got ${noBashToolNames.join(', ')}`);
+for (const hidden of ['bash', 'terminal', 'local_environment']) {
+  if (noBashToolNames.includes(hidden)) {
+    throw new Error(`--bash off should not advertise ${hidden} tool; got ${noBashToolNames.join(', ')}`);
+  }
 }
 const noBashConfig = await noBashClient.request('tools/call', { name: 'server_config', arguments: {} });
 if (noBashConfig.structuredContent.bashMode !== 'off') {
@@ -989,7 +1069,7 @@ await disabledWriteClient.request('initialize', {
 disabledWriteClient.notify('notifications/initialized');
 const disabledWriteTools = await disabledWriteClient.request('tools/list', {});
 const disabledWriteToolNames = disabledWriteTools.tools.map((tool) => tool.name);
-for (const hiddenWriteTool of ['write', 'edit', 'apply_patch']) {
+for (const hiddenWriteTool of ['write', 'edit', 'apply_patch', 'git_workflow', 'local_environment', 'worktree']) {
   if (disabledWriteToolNames.includes(hiddenWriteTool)) {
     throw new Error(`--write off should not advertise ${hiddenWriteTool} tool; got ${disabledWriteToolNames.join(', ')}`);
   }
@@ -1002,7 +1082,7 @@ const disabledSelfTest = await disabledWriteClient.request('tools/call', { name:
 if (disabledSelfTest.structuredContent.status === 'fail') {
   throw new Error(`codexflow_self_test failed under --write off: ${JSON.stringify(disabledSelfTest.structuredContent)}`);
 }
-for (const hiddenWriteTool of ['write', 'edit', 'apply_patch']) {
+for (const hiddenWriteTool of ['write', 'edit', 'apply_patch', 'git_workflow', 'local_environment', 'worktree']) {
   if (disabledSelfTest.structuredContent.expected_tools?.includes?.(hiddenWriteTool) || disabledSelfTest.structuredContent.registered_tools?.includes?.(hiddenWriteTool)) {
     throw new Error(`codexflow_self_test exposed ${hiddenWriteTool} under --write off: ${JSON.stringify(disabledSelfTest.structuredContent)}`);
   }

@@ -244,11 +244,15 @@ class TerminalRegistry {
     routeId: string,
     workspace: Workspace,
     command: string,
-    options: { cwd?: string; timeoutMs?: number; wait?: boolean; bashSessionId?: string } = {}
+    options: { cwd?: string; timeoutMs?: number; wait?: boolean; bashSessionId?: string; trustedProjectCommand?: boolean } = {}
   ): Promise<TerminalCommandResult> {
     if (!command.trim()) throw new CodexFlowError("command is required.");
     assertBashSession(config, options.bashSessionId);
-    assertBashCommandAllowed(config, command);
+    if (options.trustedProjectCommand) {
+      if (config.bashMode === "off") throw new CodexFlowError("Bash is disabled for this CodexFlow server.");
+    } else {
+      assertBashCommandAllowed(config, command);
+    }
     const session = this.session(config, routeId, workspace);
     await session.ready;
     if (session.closed) throw new CodexFlowError("The persistent terminal exited before it became ready.");
@@ -256,7 +260,8 @@ class TerminalRegistry {
     const commandId = `cmd_${randomBytes(8).toString("hex")}`;
     const beginMarker = `__CODEXFLOW_BEGIN_${commandId}__`;
     const endMarker = `__CODEXFLOW_END_${commandId}__`;
-    const timeoutMs = Math.max(1_000, Math.min(options.timeoutMs ?? 30_000, 180_000));
+    const maxTimeoutMs = options.trustedProjectCommand ? 600_000 : 180_000;
+    const timeoutMs = Math.max(1_000, Math.min(options.timeoutMs ?? 30_000, maxTimeoutMs));
     const cwd = options.cwd ? guard.resolve(workspace, options.cwd).absPath : undefined;
     let resolveCommand!: (result: TerminalCommandResult) => void;
     const completed = new Promise<TerminalCommandResult>((resolve) => { resolveCommand = resolve; });

@@ -36,6 +36,9 @@ test("renders the complete English launch page", async () => {
   assert.match(html, /The native desktop app/);
   assert.match(html, /Everything in motion/);
   assert.match(html, /Start and stop the broker/);
+  assert.match(html, /shared local environments/i);
+  assert.match(html, /Environments/);
+  assert.match(html, /CODEXFLOW \/ 0\.32\.0/);
   assert.match(html, /representative native-app preview/i);
   assert.match(html, /Content-free telemetry/);
   assert.match(html, /public website cannot see your projects or chats/i);
@@ -54,6 +57,8 @@ test("renders the Chinese edition", async () => {
   assert.match(html, /任意对话。/);
   assert.match(html, /每个聊天/);
   assert.match(html, /原生桌面应用/);
+  assert.match(html, /共享本地环境/);
+  assert.match(html, /CODEXFLOW \/ 0\.32\.0/);
   assert.match(html, /一切运行，一目了然/);
   assert.match(html, /示意预览/);
   assert.match(html, /不包含内容的遥测/);

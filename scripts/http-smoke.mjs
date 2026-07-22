@@ -202,6 +202,20 @@ await fs.mkdir(alternateProject, { recursive: true });
 await fs.writeFile(path.join(alternateProject, 'package.json'), '{"name":"alternate-project"}\n', 'utf8');
 await fs.writeFile(path.join(alternateProject, 'routing.txt'), 'alternate-chat-binding\n', 'utf8');
 await fs.writeFile(path.join(root, 'routing.txt'), 'default-chat-binding\n', 'utf8');
+await fs.mkdir(path.join(root, '.codex', 'environments'), { recursive: true });
+await fs.writeFile(path.join(root, '.codex', 'environments', 'http.toml'), [
+  'version = 1',
+  'name = "HTTP environment"',
+  '',
+  '[setup]',
+  'script = ""',
+  '',
+  '[[actions]]',
+  'name = "Verify"',
+  'icon = "test"',
+  'command = "printf http-environment"',
+  ''
+].join('\n'), 'utf8');
 const profileHome = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-http-profile-home-'));
 await fs.mkdir(path.join(root, '.codex', 'skills', 'http-smoke-skill'), { recursive: true });
 await fs.writeFile(path.join(root, '.codex', 'skills', 'http-smoke-skill', 'SKILL.md'), [
@@ -386,9 +400,26 @@ try {
     overviewBeforeJson.summary?.active_sessions !== 0 ||
     overviewBeforeJson.summary?.pending_sessions !== 0 ||
     overviewBeforeJson.summary?.open_connections !== 0 ||
+    overviewBeforeJson.summary?.local_environments !== 1 ||
+    overviewBeforeJson.environments?.[0]?.name !== 'HTTP environment' ||
     overviewBeforeJson.broker?.auth_enabled !== true
   ) {
     throw new Error(`local companion overview was incomplete: ${overviewBefore.status} ${JSON.stringify(overviewBeforeJson)}`);
+  }
+
+  const environmentsBefore = await fetch(`${baseUrl}/admin/environments?codexflow_token=${encodeURIComponent(token)}`);
+  const environmentsBeforeJson = await environmentsBefore.json();
+  if (environmentsBefore.status !== 200 || environmentsBeforeJson.environments?.[0]?.name !== 'HTTP environment') {
+    throw new Error(`admin environments did not expose the shared Codex config: ${environmentsBefore.status} ${JSON.stringify(environmentsBeforeJson)}`);
+  }
+  const disabledEnvironmentAction = await fetch(`${baseUrl}/admin/environments?codexflow_token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'run', configPath: 'HTTP environment', actionName: 'Verify' })
+  });
+  const disabledEnvironmentActionJson = await disabledEnvironmentAction.json();
+  if (disabledEnvironmentAction.status !== 403 || disabledEnvironmentActionJson.error?.code !== 'environments_disabled') {
+    throw new Error(`handoff mode did not reject local environment execution: ${disabledEnvironmentAction.status} ${JSON.stringify(disabledEnvironmentActionJson)}`);
   }
   const overviewText = JSON.stringify(overviewBeforeJson);
   for (const leaked of [token, runtimeQuerySecret, runtimeAccessSecret, runtimeLocalAuthSecret, runtimeCloudflareSecret]) {

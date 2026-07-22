@@ -22,11 +22,20 @@ import {
 import { redactSensitiveText, redactStructured } from "./redact.js";
 import { createCodexFlowServer } from "./server.js";
 import { discoverProjects } from "./projectCatalog.js";
-import { WorkspaceManager, workspaceIdForRoot, type Workspace } from "./guard.js";
+import { PathGuard, WorkspaceManager, workspaceIdForRoot, type Workspace } from "./guard.js";
 import { RuntimeMonitor, type RuntimeSessionHandle } from "./runtimeMonitor.js";
 import { CODEXFLOW_VERSION } from "./version.js";
 import { renderLocalAppPage } from "./localAppPage.js";
 import { createManagedWorktree, listManagedWorktrees, removeManagedWorktree } from "./worktreeOps.js";
+import {
+  environmentAction,
+  environmentTerminalCommand,
+  listLocalEnvironments,
+  localEnvironmentSummary,
+  resolveLocalEnvironment,
+  runLocalEnvironmentCommand
+} from "./localEnvironmentOps.js";
+import { persistentTerminals } from "./terminalOps.js";
 
 const TUNNELS = ["cloudflare", "ngrok", "cloudflare-named", "tailscale", "none"] as const;
 const MODES = ["agent", "handoff", "pro"] as const;
@@ -70,7 +79,17 @@ const AdminWorktreeCommand = z.object({
   action: z.enum(["create", "remove"]),
   worktreeId: z.string().regex(/^wt_[a-f0-9]{16}$/).optional(),
   baseRef: z.string().trim().max(256).optional(),
-  includeChanges: z.boolean().optional()
+  includeChanges: z.boolean().optional(),
+  environmentConfigPath: z.string().trim().max(4096).optional(),
+  setupTimeoutMs: z.number().int().min(1000).max(600000).optional()
+}).strict();
+
+const AdminEnvironmentCommand = z.object({
+  action: z.enum(["run", "setup", "cleanup", "stop"]),
+  configPath: z.string().trim().max(4096).optional(),
+  actionName: z.string().trim().max(120).optional(),
+  background: z.boolean().optional(),
+  timeoutMs: z.number().int().min(1000).max(600000).optional()
 }).strict();
 
 const AdminChatCommand = z.object({
@@ -306,6 +325,12 @@ async function applicationOverview(
   } catch {
     // A non-Git project simply has no managed worktrees.
   }
+  let environments: ReturnType<typeof localEnvironmentSummary>[] = [];
+  try {
+    environments = listLocalEnvironments(config, workspaces.defaultWorkspace()).map(localEnvironmentSummary);
+  } catch {
+    // Invalid environment files are surfaced by the dedicated endpoint.
+  }
   const runtimeEndpoint = endpointBase(runtime.endpoint);
   const localBase = endpointBase(runtime.localBase) || `http://${config.host}:${config.port}`;
   const endpoint = runtimeEndpoint || `${localBase}/mcp`;
@@ -346,6 +371,7 @@ async function applicationOverview(
     sessions: monitored.sessions,
     activity: monitored.activity,
     worktrees,
+    environments,
     summary: {
       projects: projects.length,
       active_sessions: monitored.active_sessions,
@@ -353,7 +379,8 @@ async function applicationOverview(
       open_connections: monitored.open_connections,
       recent_sessions: monitored.recent_sessions,
       activity_events: monitored.activity.length,
-      managed_worktrees: worktrees.length
+      managed_worktrees: worktrees.length,
+      local_environments: environments.length
     },
     saved_profile: {
       exists: Boolean(profile.profilePath),
@@ -467,6 +494,7 @@ async function main(): Promise<void> {
     path.join(path.dirname(config.managedWorktreeRoot), "chat-metadata.json")
   );
   const workspaces = new WorkspaceManager(config);
+  const guard = new PathGuard(config);
   const logRequests = process.env.CODEXFLOW_LOG_REQUESTS === "1";
 
   app.disable("x-powered-by");
@@ -732,6 +760,84 @@ async function main(): Promise<void> {
     jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/profile.");
   });
 
+  app.get("/admin/environments", (_req, res) => {
+    try {
+      const workspace = workspaces.defaultWorkspace();
+      const environments = listLocalEnvironments(config, workspace).map(localEnvironmentSummary);
+      res.json({ ok: true, root: workspace.root, environments });
+    } catch (error) {
+      jsonError(res, 400, "environments_unavailable", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.post("/admin/environments", adminRateLimit, adminBodyLimit, express.json({ limit: "32kb" }), async (req, res) => {
+    if (config.writeMode !== "workspace" || config.bashMode === "off") {
+      jsonError(res, 403, "environments_disabled", "Local environment actions require workspace write access and bash mode.");
+      return;
+    }
+    const parsed = AdminEnvironmentCommand.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      jsonError(res, 400, "invalid_environment_command", "Invalid local environment command.", parsed.error.flatten());
+      return;
+    }
+    const workspace = workspaces.defaultWorkspace();
+    const terminalRoute = `desktop_${workspace.id}`;
+    try {
+      if (parsed.data.action === "stop") {
+        const stopped = persistentTerminals.stop(terminalRoute);
+        res.json({ ok: true, stopped, message: stopped ? "Environment action stopped." : "No environment action was running." });
+        return;
+      }
+      const environment = resolveLocalEnvironment(config, workspace, parsed.data.configPath);
+      if (parsed.data.action === "run") {
+        if (!parsed.data.actionName) {
+          jsonError(res, 400, "action_name_required", "actionName is required for run.");
+          return;
+        }
+        const action = environmentAction(environment, parsed.data.actionName);
+        const terminal = await persistentTerminals.run(
+          config,
+          guard,
+          terminalRoute,
+          workspace,
+          environmentTerminalCommand(action.command, workspace.root, workspace.root),
+          {
+            timeoutMs: parsed.data.timeoutMs,
+            wait: parsed.data.background === false,
+            trustedProjectCommand: true
+          }
+        );
+        res.json({
+          ok: true,
+          message: terminal.completed ? `${action.name} finished.` : `${action.name} is running in the project terminal.`,
+          environment: localEnvironmentSummary(environment),
+          action: action.name,
+          terminal
+        });
+        return;
+      }
+      const result = await runLocalEnvironmentCommand(config, environment, {
+        kind: parsed.data.action,
+        cwd: workspace.root,
+        sourceWorkspacePath: workspace.root,
+        worktreePath: workspace.root,
+        timeoutMs: parsed.data.timeoutMs
+      });
+      res.json({
+        ok: true,
+        message: `${environment.name} ${parsed.data.action} finished.`,
+        environment: localEnvironmentSummary(environment),
+        result
+      });
+    } catch (error) {
+      jsonError(res, 400, "environment_action_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.all("/admin/environments", (_req, res) => {
+    jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/environments.");
+  });
+
   app.get("/admin/worktrees", (_req, res) => {
     try {
       res.json({ ok: true, worktrees: listManagedWorktrees(config, workspaces.defaultWorkspace()) });
@@ -740,7 +846,7 @@ async function main(): Promise<void> {
     }
   });
 
-  app.post("/admin/worktrees", adminRateLimit, adminBodyLimit, express.json({ limit: "32kb" }), (req, res) => {
+  app.post("/admin/worktrees", adminRateLimit, adminBodyLimit, express.json({ limit: "32kb" }), async (req, res) => {
     if (config.writeMode !== "workspace") {
       jsonError(res, 403, "worktrees_disabled", "Managed worktrees require workspace write mode.");
       return;
@@ -753,9 +859,14 @@ async function main(): Promise<void> {
     try {
       const workspace = workspaces.defaultWorkspace();
       if (parsed.data.action === "create") {
-        const created = createManagedWorktree(config, workspace, {
+        const environment = parsed.data.environmentConfigPath
+          ? resolveLocalEnvironment(config, workspace, parsed.data.environmentConfigPath)
+          : undefined;
+        const created = await createManagedWorktree(config, workspace, {
           baseRef: parsed.data.baseRef,
-          includeChanges: parsed.data.includeChanges
+          includeChanges: parsed.data.includeChanges,
+          environment,
+          setupTimeoutMs: parsed.data.setupTimeoutMs
         });
         res.json({
           ok: true,
@@ -769,7 +880,7 @@ async function main(): Promise<void> {
         jsonError(res, 400, "worktree_id_required", "worktreeId is required for remove.");
         return;
       }
-      const removed = removeManagedWorktree(config, workspace, parsed.data.worktreeId);
+      const removed = await removeManagedWorktree(config, workspace, parsed.data.worktreeId);
       res.json({
         ok: true,
         message: removed.snapshotPath ? "Managed worktree removed and its tracked changes were snapshotted." : "Managed worktree removed.",
@@ -919,7 +1030,7 @@ async function main(): Promise<void> {
       });
       return;
     }
-    if (req.path === "/admin/profile" || req.path === "/admin/worktrees" || req.path === "/admin/chats") {
+    if (req.path === "/admin/profile" || req.path === "/admin/environments" || req.path === "/admin/worktrees" || req.path === "/admin/chats") {
       jsonError(
         res,
         status,

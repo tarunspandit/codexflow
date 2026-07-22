@@ -1,6 +1,6 @@
 {
   "name": "@tarunspandit/codexflow",
-  "version": "0.31.0",
+  "version": "0.32.0",
   "description": "Independent one-command local coding backend that gives ChatGPT project, file, git, terminal, skill, and plugin access.",
   "type": "module",
   "license": "MIT",
@@ -42,6 +42,7 @@
     "CONTRIBUTING.md",
     "FAQ.md",
     "FAQ_ZH.md",
+    "CODEX_DESKTOP_PARITY.md",
     "CHANGELOG.md",
     "CHATGPT_PROMPT.md",
     "CODEX_PROMPT.md",
@@ -86,6 +87,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "minimatch": "^10.0.1",
+    "smol-toml": "^1.7.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

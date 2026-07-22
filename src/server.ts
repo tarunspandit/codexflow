@@ -16,9 +16,18 @@ import {
   createManagedWorktree,
   handoffManagedWorktree,
   listManagedWorktrees,
+  managedWorktreePaths,
   removeManagedWorktree
 } from "./worktreeOps.js";
 import { persistentTerminals } from "./terminalOps.js";
+import {
+  environmentAction,
+  environmentTerminalCommand,
+  listLocalEnvironments,
+  localEnvironmentSummary,
+  resolveLocalEnvironment,
+  runLocalEnvironmentCommand
+} from "./localEnvironmentOps.js";
 import { readAiBridgeContext, readCodexContext, workspaceSummary } from "./workspaceOps.js";
 import { buildProContext, exportProContext } from "./proContext.js";
 import { codexflowInventory, loadSkill } from "./capabilitiesOps.js";
@@ -561,6 +570,7 @@ const STANDARD_TOOL_NAMES = [
   "search",
   "terminal",
   "git_workflow",
+  "local_environment",
   "worktree",
   "read_handoff",
   "wait_for_handoff",
@@ -592,6 +602,7 @@ const FULL_TOOL_NAMES = [
   "git_status",
   "git_diff",
   "git_workflow",
+  "local_environment",
   "worktree",
   "show_changes",
   "read_handoff",
@@ -611,6 +622,7 @@ const CONNECTION_TEST_HIDDEN_TOOLS = new Set<string>([
   "bash",
   "terminal",
   "git_workflow",
+  "local_environment",
   "worktree",
   "export_pro_context",
   "handoff_to_agent",
@@ -632,11 +644,13 @@ function toolNamesForMode(config: CodexFlowConfig): string[] {
         ? [...MINIMAL_TOOL_NAMES]
         : [...STANDARD_TOOL_NAMES];
   if (config.bashMode === "off") {
-    const bashIndex = names.indexOf("bash");
-    if (bashIndex !== -1) names.splice(bashIndex, 1);
+    for (const commandTool of ["bash", "terminal", "local_environment"]) {
+      const commandIndex = names.indexOf(commandTool);
+      if (commandIndex !== -1) names.splice(commandIndex, 1);
+    }
   }
   if (config.writeMode !== "workspace") {
-    for (const writeTool of ["write", "edit", "apply_patch", "git_workflow", "worktree"]) {
+    for (const writeTool of ["write", "edit", "apply_patch", "git_workflow", "local_environment", "worktree"]) {
       const toolIndex = names.indexOf(writeTool);
       if (toolIndex !== -1) names.splice(toolIndex, 1);
     }
@@ -677,8 +691,9 @@ function shouldRegisterTool(config: CodexFlowConfig, name: string): boolean {
   if (config.connectionTest && CONNECTION_TEST_HIDDEN_TOOLS.has(name)) return false;
   if (name === "bash" && config.bashMode === "off") return false;
   if (name === "terminal" && config.bashMode === "off") return false;
+  if (name === "local_environment" && config.bashMode === "off") return false;
   if ((name === "write" || name === "edit" || name === "apply_patch") && config.writeMode !== "workspace") return false;
-  if ((name === "git_workflow" || name === "worktree") && config.writeMode !== "workspace") return false;
+  if ((name === "git_workflow" || name === "local_environment" || name === "worktree") && config.writeMode !== "workspace") return false;
   if (name === "codex_sessions") return config.codexSessions !== "off";
   if (name === "read_codex_session") return config.codexSessions === "read";
   if (name === "inspect_workspace" && !config.analysisEnabled) return false;
@@ -734,7 +749,7 @@ function serverInstructions(config: CodexFlowConfig): string {
     editInstruction,
     bashInstruction,
     config.writeMode === "workspace"
-      ? "6a. Use worktree to isolate parallel tasks. Creating or handing off a worktree moves this private chat route to that checkout while preserving project scope."
+      ? "6a. Use local_environment to discover the project's shared .codex/environments configuration and run named actions. Use worktree to isolate parallel tasks; a selected local environment automatically sets up a new worktree. Creating or handing off a worktree moves this private chat route to that checkout while preserving project scope."
       : "",
     "7. Keep tool calls minimal. Prefer one targeted search plus show_changes instead of repeated broad inspection calls.",
     config.codexSessions !== "off"
@@ -1821,6 +1836,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       const selected = matches[0];
       if (!selected) throw new CodexFlowError("Project not found in the synchronized catalog. Call list_projects with refresh=true.");
       bindWorkspace(selected.workspace, routeId);
+      routeStore.selectEnvironment(routeId, undefined);
       const [summary, inventory] = await Promise.all([
         workspaceSummary(config, guard, selected.workspace, {
           includeTree: parseBool(args.include_tree, true),
@@ -1975,6 +1991,8 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       const workspace = requestedRoot
         ? workspaces.openWorkspace(requestedRoot)
         : workspaces.activeWorkspace() ?? workspaces.defaultWorkspace();
+      const routeId = invocationRouteId();
+      if (requestedRoot && routeId) routeStore.selectEnvironment(routeId, undefined);
       const summary = await workspaceSummary(config, guard, workspace, {
         includeTree: args.include_tree !== false,
         maxDepth: limitInt(args.max_depth, 3, 1, 8),
@@ -2668,6 +2686,125 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
   registerCodexTool(
     config,
     server,
+    "local_environment",
+    {
+      title: "Local Environment",
+      description: "Discover and select the same version 1 .codex/environments/*.toml files used by Codex Desktop. Run their platform-aware setup, cleanup, or named toolbar actions in this route's project terminal.",
+      inputSchema: {
+        workspace_id: z.string().optional().describe("Workspace id bound to this private route."),
+        action: z.enum(["list", "select", "run", "setup", "cleanup"]),
+        config_path: z.string().optional().describe("Absolute config path, environment name, or TOML filename. Required when more than one environment exists."),
+        action_name: z.string().max(120).optional().describe("Named local environment action for action=run."),
+        background: z.boolean().optional().describe("Run a named action in the persistent terminal without waiting. Default: false."),
+        timeout_ms: z.number().int().min(1000).max(600000).optional().describe("Timeout for setup, cleanup, or a foreground action. Default: 600000 for setup/cleanup and 30000 for actions."),
+        session_id: z.string().optional().describe(config.requireBashSession && config.bashSessionId ? `Required bash session id for this server: ${config.bashSessionId}.` : "Optional configured bash session guard.")
+      },
+      annotations: BASH_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Using local environment...",
+        "openai/toolInvocation/invoked": "Local environment updated"
+      }
+    },
+    async (args) => {
+      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const paths = managedWorktreePaths(config, workspace);
+      const environmentWorkspace = paths.worktreeId
+        ? workspaceManager.openWorkspace(paths.sourceWorkspacePath)
+        : workspace;
+      const routeId = invocationRouteId();
+      const selectedConfigPath = routeId ? routeStore.get(routeId)?.environmentConfigPath : undefined;
+      if (args.action === "list") {
+        const environments = listLocalEnvironments(config, environmentWorkspace);
+        const summaries = environments.map(localEnvironmentSummary);
+        const rows = summaries.length
+          ? summaries.map((environment) => {
+              const selected = environment.config_path === selectedConfigPath ? "  selected" : "";
+              const actions = (environment.actions as Array<{ name: string }>).map((action) => action.name).join(", ") || "none";
+              return `- ${environment.name}${selected}\n  ${environment.config_path}\n  Actions: ${actions}`;
+            }).join("\n")
+          : "- No local environments found.";
+        return textResult(`# Local Environments\n\n${rows}`, {
+          workspace_id: workspace.id,
+          root: workspace.root,
+          selected_config_path: selectedConfigPath ?? null,
+          environments: summaries,
+          count: summaries.length
+        });
+      }
+
+      const selector = args.config_path ?? selectedConfigPath;
+      const environment = resolveLocalEnvironment(config, environmentWorkspace, selector);
+      if (args.action === "select") {
+        if (!routeId) throw new CodexFlowError("Selecting a local environment requires the private route_id returned by list_projects or select_project.");
+        routeStore.selectEnvironment(routeId, environment.configPath);
+        return textResult(`# Local Environment Selected\n\n${environment.name}\n\n${environment.configPath}\n\nNew managed worktrees on this route will run its setup script automatically.`, {
+          workspace_id: workspace.id,
+          root: workspace.root,
+          selected_config_path: environment.configPath,
+          environment: localEnvironmentSummary(environment)
+        });
+      }
+
+      if (args.action === "run") {
+        if (!routeId) throw new CodexFlowError("Running a local environment action requires a private route_id.");
+        if (!args.action_name) throw new CodexFlowError("action_name is required for action=run.");
+        const action = environmentAction(environment, args.action_name);
+        const result = await persistentTerminals.run(
+          config,
+          guard,
+          routeId,
+          workspace,
+          environmentTerminalCommand(action.command, paths.sourceWorkspacePath, paths.worktreePath),
+          {
+            timeoutMs: args.timeout_ms,
+            wait: !parseBool(args.background, false),
+            bashSessionId: args.session_id,
+            trustedProjectCommand: true
+          }
+        );
+        return textResult([
+          "# Local Environment Action",
+          "",
+          `Environment: ${environment.name}`,
+          `Action: ${action.name}`,
+          `State: ${result.completed ? "completed" : "running"}`,
+          result.completed ? `Exit: ${result.exitCode ?? "unknown"}` : "Use terminal action=read to follow output.",
+          result.output ? `\n## Output\n\n${result.output}` : ""
+        ].filter(Boolean).join("\n"), {
+          workspace_id: workspace.id,
+          root: workspace.root,
+          environment: localEnvironmentSummary(environment),
+          action: action.name,
+          ...result
+        });
+      }
+
+      const result = await runLocalEnvironmentCommand(config, environment, {
+        kind: args.action,
+        cwd: workspace.root,
+        sourceWorkspacePath: paths.sourceWorkspacePath,
+        worktreePath: paths.worktreePath,
+        timeoutMs: args.timeout_ms
+      });
+      return textResult([
+        `# Local Environment ${args.action === "setup" ? "Setup" : "Cleanup"}`,
+        "",
+        `Environment: ${environment.name}`,
+        `Exit: ${result.exitCode ?? "unknown"}`,
+        `Duration: ${result.durationMs} ms`,
+        result.stdout ? `\n## Output\n\n${result.stdout}` : ""
+      ].filter(Boolean).join("\n"), {
+        workspace_id: workspace.id,
+        root: workspace.root,
+        ...result
+      });
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
     "worktree",
     {
       title: "Managed Worktree",
@@ -2679,6 +2816,8 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         destination: z.enum(["worktree", "local"]).optional().describe("Handoff destination."),
         base_ref: z.string().optional().describe("Commit-ish used to create a detached worktree. Default: HEAD."),
         include_changes: z.boolean().optional().describe("Copy current tracked and untracked project changes into a new worktree. Default: true."),
+        environment_config_path: z.string().optional().describe("Selected .codex/environments TOML path, environment name, or filename. When omitted, use this route's selected environment if any."),
+        setup_timeout_ms: z.number().int().min(1000).max(600000).optional().describe("Local environment setup timeout. Default: 600000."),
         transfer_changes: z.boolean().optional().describe("Apply current tracked and untracked project changes to the handoff destination. Default: true.")
       },
       annotations: LOCAL_WRITE_ANNOTATIONS,
@@ -2703,11 +2842,17 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         });
       }
       if (args.action === "create") {
-        const created = createManagedWorktree(config, workspace, {
+        const routeId = invocationRouteId();
+        const environmentSelector = args.environment_config_path ?? (routeId ? routeStore.get(routeId)?.environmentConfigPath : undefined);
+        const environment = environmentSelector ? resolveLocalEnvironment(config, workspace, environmentSelector) : undefined;
+        const created = await createManagedWorktree(config, workspace, {
           baseRef: args.base_ref,
-          includeChanges: args.include_changes
+          includeChanges: args.include_changes,
+          environment,
+          setupTimeoutMs: args.setup_timeout_ms
         });
         const destination = workspaces.openWorkspace(created.worktree.projectRoot);
+        if (routeId && environment) routeStore.selectEnvironment(routeId, environment.configPath);
         return textResult([
           "# Worktree Created",
           "",
@@ -2716,6 +2861,8 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
           `Base: ${created.worktree.baseRef}`,
           `Tracked changes applied: ${created.patchApplied}`,
           `Untracked files copied: ${created.untrackedCopied}`,
+          `Ignored setup files copied: ${created.ignoredFilesCopied}`,
+          environment ? `Environment: ${environment.name} (setup complete)` : "Environment: none",
           "This private chat route now uses the managed worktree."
         ].join("\n"), {
           workspace_id: destination.id,
@@ -2723,6 +2870,8 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
           worktree: created.worktree,
           patch_applied: created.patchApplied,
           untracked_copied: created.untrackedCopied,
+          ignored_files_copied: created.ignoredFilesCopied,
+          setup: created.setup ?? null,
           route_switched: true
         });
       }
@@ -2754,7 +2903,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
       if (args.action === "remove") {
         if (!args.worktree_id) throw new CodexFlowError("worktree_id is required for remove.");
-        const removed = removeManagedWorktree(config, workspace, args.worktree_id);
+        const removed = await removeManagedWorktree(config, workspace, args.worktree_id);
         const destination = workspaces.openWorkspace(removed.localRoot);
         return textResult([
           "# Worktree Removed",

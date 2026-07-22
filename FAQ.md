@@ -323,6 +323,10 @@ The same hostname and CodexFlow token are reused for that workspace.
 
 Run one CodexFlow process. Open two ChatGPT conversations and choose a different project in each picker. Both chats share the same broker and tunnel while keeping independent private route IDs. Those route-to-project bindings are stored locally with owner-only permissions so a resumed chat stays on its project after a broker restart.
 
+## Does CodexFlow use the same local environments as Codex?
+
+Yes. CodexFlow reads version-1 `.codex/environments/*.toml` files directly, including platform-specific setup/cleanup scripts and named actions. Managed worktrees can run the selected setup and copy gitignored files matched by `.worktreeinclude`. The format is shared, but CodexFlow executes it through its own guarded local broker and never launches the Codex CLI.
+
 ## Where are the current docs?
 
 Use the [CodexFlow website](https://tarunspandit.github.io/codexflow/), the [GitHub repository](https://github.com/tarunspandit/codexflow), or the documentation shipped in the npm package.

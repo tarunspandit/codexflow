@@ -100,9 +100,10 @@ fake browser chrome or a wall of disconnected feature cards.
 ### Native desktop app
 
 Translate the same system into daylight for dense operational use. Organize the
-application around **Now / Projects / Chats / Connection / Policy**. Lead with
-real broker state and independent chat routing; keep next-launch settings
-secondary. The app owns broker discovery, workspace choice, lifecycle controls,
+application around **Now / Projects / Environments / Worktrees / Chats /
+Connection / Policy**. Lead with real broker state and independent chat routing;
+keep next-launch settings secondary. The app owns broker discovery, workspace
+choice, shared local-environment actions, worktree lifecycle, broker lifecycle,
 and explicit credential copying while the existing broker remains the only
 execution authority. Raw paths and policy values remain visible because this is
 a private native surface. Use dark Luminous Orbit material only for the rail,

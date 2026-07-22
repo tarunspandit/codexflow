@@ -22,7 +22,7 @@
     "generated_at": "2026-07-15T08:31:14.000Z",
     "broker": {
       "state": "ready",
-      "version": "0.31.0",
+      "version": "0.32.0",
       "started_at": "2026-07-15T06:09:00.000Z",
       "uptime_ms": 8534000,
       "default_root": "/Users/demo/Work/atlas-studio",
@@ -49,6 +49,22 @@
       {"id":"project-signal","name":"signal-docs","root":"/Users/demo/Work/signal-docs","sources":["codex_recent"],"last_active_at":"2026-07-14T19:10:00.000Z","is_default":false},
       {"id":"project-still","name":"still-life","root":"/Users/demo/Work/still-life","sources":["nested_marker"],"last_active_at":null,"is_default":false}
     ],
+    "environments": [
+      {
+        "config_path": "/Users/demo/Work/atlas-studio/.codex/environments/local.toml",
+        "source_root": "/Users/demo/Work/atlas-studio",
+        "inherited": false,
+        "version": 1,
+        "name": "Atlas local",
+        "platform": "darwin",
+        "has_setup": true,
+        "has_cleanup": true,
+        "actions": [
+          {"name":"Run","icon":"run","platform":"all"},
+          {"name":"Test","icon":"test","platform":"all"}
+        ]
+      }
+    ],
     "sessions": [
       {"id":"chat-7bc91f2a","state":"active","created_at":"2026-07-15T08:05:03.000Z","last_seen_at":"2026-07-15T08:31:08.000Z","closed_at":null,"project":{"id":"project-atlas","name":"atlas-studio","root":"/Users/demo/Work/atlas-studio"},"tool_calls":18,"errors":0,"last_tool":"apply_patch","last_tool_status":"ok"},
       {"id":"chat-e3290cd1","state":"active","created_at":"2026-07-15T08:12:22.000Z","last_seen_at":"2026-07-15T08:30:41.000Z","closed_at":null,"project":{"id":"project-orbit","name":"orbit-api","root":"/Users/demo/Work/orbit-api"},"tool_calls":9,"errors":1,"last_tool":"bash","last_tool_status":"ok"}
@@ -59,7 +75,7 @@
       {"id":"evt-3","session_id":"chat-7bc91f2a","tool":"show_changes","status":"ok","duration_ms":33,"at":"2026-07-15T08:29:55.000Z","project":{"id":"project-atlas","name":"atlas-studio","root":"/Users/demo/Work/atlas-studio"}},
       {"id":"evt-4","session_id":"chat-e3290cd1","tool":"search","status":"error","duration_ms":11,"at":"2026-07-15T08:29:17.000Z","project":{"id":"project-orbit","name":"orbit-api","root":"/Users/demo/Work/orbit-api"}}
     ],
-    "summary": {"projects":4,"active_sessions":2,"pending_sessions":0,"open_connections":4,"recent_sessions":2,"activity_events":4},
+    "summary": {"projects":4,"active_sessions":2,"pending_sessions":0,"open_connections":4,"recent_sessions":2,"activity_events":4,"managed_worktrees":0,"local_environments":1},
     "saved_profile": {"exists":true,"tunnel":"cloudflare","hostname":null,"mode":"agent","updated_at":"2026-07-15T06:08:50.000Z"}
   },
   "profile": {

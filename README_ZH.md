@@ -92,6 +92,9 @@ ChatGPT Web 可以操作：
   write   在工作区内写文件
   edit    精确替换文本
   bash    运行安全验证命令
+  terminal 维持每个聊天自己的交互式/后台进程
+  local_environment 使用共享的本地环境配置和 actions
+  worktree 创建隔离 checkout 并安全交接改动
   show_changes 查看当前改动摘要
 
 本地执行器仍然有价值：
@@ -118,6 +121,8 @@ codexflow app
 
 - **当前**：连接健康、项目数量、活跃聊天和最近活动。
 - **项目**：CodexFlow 自动发现的文件夹。
+- **环境**：读取与 Codex 桌面应用相同的 `.codex/environments/*.toml`，执行 setup、cleanup 和命名 actions。
+- **Worktrees**：创建、检查、显示和安全删除隔离 checkout。
 - **聊天**：真正使用工具的当前与最近关闭对话各自路由到哪个项目；后台 discovery 与组件请求不会伪装成聊天。
 - **连接**：只在明确操作时复制私有 Server URL，并管理 broker 的启动、停止和重启。
 - **策略**：本次进程真正生效的写入、终端、工具、history、认证和 allowed-root 边界。
@@ -125,6 +130,12 @@ codexflow app
 应用可在 broker 离线时选择工作区并启动它，也可在多个近期或活跃的 workspace runtime 之间切换。旧的 token 保护浏览器页面只保留为紧急恢复和诊断入口；它会优先打开桌面应用，不再复制完整产品界面。
 
 会话遥测只存在于进程内存中，有数量上限，并会在会话关闭后很快过期。它只保存不可操作的显示指纹、已选项目、工具名称、结果和耗时；不会保存 prompts、工具 arguments、文件内容、命令输出、tokens 或可用的 MCP transport IDs。
+
+### 共享本地环境
+
+CodexFlow 直接读取项目中 version-1 `.codex/environments/*.toml`。setup、cleanup、平台专用脚本和命名 actions 都可在 ChatGPT 或原生应用中使用。创建受管 worktree 时，选定环境会自动运行 setup，并提供 `CODEX_SOURCE_TREE_PATH` 与 `CODEX_WORKTREE_PATH`。需要复制到 worktree 的 gitignored 本地文件可写入 `.worktreeinclude`。
+
+这些脚本属于受信任的项目代码，只会在 workspace 写入和 shell 执行都启用时运行。CodexFlow 共享的是格式和项目配置，不会启动 Codex CLI。
 
 ## 其他启动方式
 
@@ -375,6 +386,7 @@ codexflow 是本地开发桥，不是操作系统级沙箱。
 - 常见敏感路径会被拒绝：`.env`、私钥、`.git`、`node_modules`、生成目录、缓存目录。
 - symlink 逃逸会被阻止。
 - safe bash 只允许常见检查、搜索、git、lint、test、typecheck、build 等命令。
+- 本地环境脚本被视为受信任的项目代码，必须显式启用 workspace 写入与 shell 执行。
 - `codexflow --no-bash` 会完全关闭 ChatGPT 可调用的 bash 工具。
 - `execute-handoff` 和 `watch-handoff` 是本地 CLI 命令，不是远程 MCP 工具。
 

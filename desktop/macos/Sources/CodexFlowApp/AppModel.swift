@@ -17,6 +17,7 @@ final class AppModel: ObservableObject {
     @Published var showingPolicyEditor = false
     @Published var showingRuntimePicker = false
     @Published private(set) var worktreeBusy = false
+    @Published private(set) var environmentBusyAction: String?
 
     private let fileManager = FileManager.default
     private let session: URLSession
@@ -404,12 +405,19 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func createManagedWorktree() async {
+    func createManagedWorktree(environmentConfigPath: String? = nil) async {
         guard fixture == nil, let runtime = selectedRuntime, !worktreeBusy else { return }
         worktreeBusy = true
         defer { worktreeBusy = false }
         do {
-            let command = WorktreeCommand(action: "create", worktreeId: nil, baseRef: nil, includeChanges: true)
+            let command = WorktreeCommand(
+                action: "create",
+                worktreeId: nil,
+                baseRef: nil,
+                includeChanges: true,
+                environmentConfigPath: environmentConfigPath,
+                setupTimeoutMs: environmentConfigPath == nil ? nil : 600_000
+            )
             let payload = try JSONEncoder().encode(command)
             let response: WorktreeMutationResponse = try await request(runtime: runtime, path: "/admin/worktrees", method: "POST", body: payload)
             notice = response.message
@@ -424,11 +432,52 @@ final class AppModel: ObservableObject {
         worktreeBusy = true
         defer { worktreeBusy = false }
         do {
-            let command = WorktreeCommand(action: "remove", worktreeId: id, baseRef: nil, includeChanges: nil)
+            let command = WorktreeCommand(
+                action: "remove",
+                worktreeId: id,
+                baseRef: nil,
+                includeChanges: nil,
+                environmentConfigPath: nil,
+                setupTimeoutMs: nil
+            )
             let payload = try JSONEncoder().encode(command)
             let response: WorktreeMutationResponse = try await request(runtime: runtime, path: "/admin/worktrees", method: "POST", body: payload)
             notice = response.message
             await refresh(forceProjectRefresh: false)
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func runEnvironment(_ environment: LocalEnvironmentOverview, action: String, actionName: String? = nil) async {
+        guard fixture == nil, let runtime = selectedRuntime, environmentBusyAction == nil else { return }
+        let operationID = "\(environment.configPath):\(action):\(actionName ?? "")"
+        environmentBusyAction = operationID
+        defer { environmentBusyAction = nil }
+        do {
+            let command = EnvironmentCommand(
+                action: action,
+                configPath: environment.configPath,
+                actionName: actionName,
+                background: action == "run" ? true : false,
+                timeoutMs: action == "run" ? 180_000 : 600_000
+            )
+            let payload = try JSONEncoder().encode(command)
+            let response: EnvironmentMutationResponse = try await request(runtime: runtime, path: "/admin/environments", method: "POST", body: payload)
+            notice = response.message
+            await refresh(forceProjectRefresh: false)
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func stopEnvironmentAction() async {
+        guard fixture == nil, let runtime = selectedRuntime else { return }
+        do {
+            let command = EnvironmentCommand(action: "stop", configPath: nil, actionName: nil, background: nil, timeoutMs: nil)
+            let payload = try JSONEncoder().encode(command)
+            let response: EnvironmentMutationResponse = try await request(runtime: runtime, path: "/admin/environments", method: "POST", body: payload)
+            notice = response.message
         } catch {
             notice = error.localizedDescription
         }

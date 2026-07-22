@@ -2,10 +2,17 @@ import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { minimatch } from "minimatch";
 import type { CodexFlowConfig } from "./config.js";
 import { CodexFlowError, isSubpath, type Workspace } from "./guard.js";
 import { profileIdForRoot } from "./profileStore.js";
 import { redactSensitiveText } from "./redact.js";
+import {
+  resolveLocalEnvironment,
+  runLocalEnvironmentCommand,
+  type LocalEnvironment,
+  type LocalEnvironmentCommandResult
+} from "./localEnvironmentOps.js";
 
 export interface ManagedWorktree {
   id: string;
@@ -20,6 +27,9 @@ export interface ManagedWorktree {
   exists: boolean;
   branch?: string;
   dirty: boolean;
+  environmentConfigPath?: string;
+  environmentName?: string;
+  setupCompletedAt?: string;
 }
 
 interface WorktreeManifest extends Omit<ManagedWorktree, "exists" | "branch" | "dirty"> {
@@ -31,6 +41,12 @@ interface WorktreeManifest extends Omit<ManagedWorktree, "exists" | "branch" | "
 interface RepoContext {
   repositoryRoot: string;
   projectRelativePath: string;
+}
+
+export interface ManagedWorktreePaths {
+  sourceWorkspacePath: string;
+  worktreePath: string;
+  worktreeId?: string;
 }
 
 function run(
@@ -176,6 +192,18 @@ function manifestForWorkspace(config: CodexFlowConfig, workspaceRoot: string): W
   return undefined;
 }
 
+export function managedWorktreePaths(config: CodexFlowConfig, workspace: Workspace): ManagedWorktreePaths {
+  const manifest = manifestForWorkspace(config, workspace.root);
+  if (!manifest) {
+    return { sourceWorkspacePath: workspace.root, worktreePath: workspace.root };
+  }
+  return {
+    sourceWorkspacePath: manifest.localRoot,
+    worktreePath: manifest.projectRoot,
+    worktreeId: manifest.id
+  };
+}
+
 function pathspec(relativeProject: string): string[] {
   return relativeProject === "." ? ["."] : [relativeProject];
 }
@@ -244,6 +272,89 @@ function copyUntracked(
   return copied;
 }
 
+function worktreeIncludePatterns(repositoryRoot: string): string[] {
+  const includeFile = path.join(repositoryRoot, ".worktreeinclude");
+  let raw = "";
+  try {
+    const stat = fs.lstatSync(includeFile);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 256 * 1024) return ["**/AGENTS.override.md"];
+    raw = fs.readFileSync(includeFile, "utf8");
+  } catch {
+    // AGENTS.override.md is copied even when .worktreeinclude is absent.
+  }
+  return [
+    ...raw.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#")),
+    "**/AGENTS.override.md"
+  ];
+}
+
+function includePatternMatches(name: string, pattern: string): boolean {
+  const negated = pattern.startsWith("!");
+  let normalized = negated ? pattern.slice(1) : pattern;
+  normalized = normalized.replace(/^\//, "");
+  if (normalized.endsWith("/")) normalized += "**";
+  if (!normalized) return false;
+  return minimatch(name, normalized, {
+    dot: true,
+    matchBase: !normalized.includes("/"),
+    nocase: process.platform === "win32"
+  });
+}
+
+function shouldCopyIncluded(name: string, patterns: string[]): boolean {
+  let included = false;
+  for (const pattern of patterns) {
+    if (!includePatternMatches(name, pattern)) continue;
+    included = !pattern.startsWith("!");
+  }
+  return included;
+}
+
+function gitPathspecForInclude(pattern: string): string | undefined {
+  if (pattern.startsWith("!")) return undefined;
+  let normalized = pattern.replace(/^\//, "");
+  if (normalized.endsWith("/")) normalized += "**";
+  if (!normalized) return undefined;
+  if (!normalized.includes("/")) normalized = `**/${normalized}`;
+  return `:(top,glob)${normalized}`;
+}
+
+function copyIncludedIgnoredFiles(
+  config: CodexFlowConfig,
+  sourceRepository: string,
+  destinationRepository: string
+): number {
+  const patterns = worktreeIncludePatterns(sourceRepository);
+  const pathspecs = patterns.map(gitPathspecForInclude).filter((value): value is string => Boolean(value));
+  if (!pathspecs.length) return 0;
+  const listed = spawnSync(
+    "git",
+    ["ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--", ...pathspecs],
+    {
+      cwd: sourceRepository,
+      encoding: "buffer",
+      maxBuffer: Math.max(config.maxOutputBytes, config.maxWriteBytes * 4),
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }
+    }
+  );
+  if (listed.error || listed.status !== 0) return 0;
+  const names = Buffer.from(listed.stdout ?? []).toString("utf8").split("\0").filter(Boolean).sort();
+  let copied = 0;
+  for (const name of names) {
+    if (!shouldCopyIncluded(name, patterns)) continue;
+    const source = path.resolve(sourceRepository, name);
+    const destination = path.resolve(destinationRepository, name);
+    if (!isSubpath(source, sourceRepository) || !isSubpath(destination, destinationRepository)) continue;
+    let stat: fs.Stats;
+    try { stat = fs.lstatSync(source); } catch { continue; }
+    if (!stat.isFile() || stat.isSymbolicLink() || fs.existsSync(destination)) continue;
+    fs.mkdirSync(path.dirname(destination), { recursive: true, mode: 0o700 });
+    fs.copyFileSync(source, destination);
+    copied += 1;
+  }
+  return copied;
+}
+
 function clearProjectChanges(config: CodexFlowConfig, repository: string, relativeProject: string): void {
   run(config, repository, ["restore", "--staged", "--worktree", "--", ...pathspec(relativeProject)]);
   for (const name of untrackedFiles(config, repository, relativeProject)) {
@@ -300,11 +411,17 @@ export function listManagedWorktrees(config: CodexFlowConfig, workspace: Workspa
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-export function createManagedWorktree(
+export async function createManagedWorktree(
   config: CodexFlowConfig,
   workspace: Workspace,
-  options: { baseRef?: string; includeChanges?: boolean } = {}
-): { worktree: ManagedWorktree; patchApplied: boolean; untrackedCopied: number } {
+  options: { baseRef?: string; includeChanges?: boolean; environment?: LocalEnvironment; setupTimeoutMs?: number } = {}
+): Promise<{
+  worktree: ManagedWorktree;
+  patchApplied: boolean;
+  untrackedCopied: number;
+  ignoredFilesCopied: number;
+  setup?: LocalEnvironmentCommandResult;
+}> {
   if (isSubpath(workspace.root, config.managedWorktreeRoot)) {
     throw new CodexFlowError("Create a new managed worktree from the local project, not from another managed worktree.");
   }
@@ -328,6 +445,21 @@ export function createManagedWorktree(
     const now = new Date().toISOString();
     const projectRoot = context.projectRelativePath === "." ? checkoutRoot : path.join(checkoutRoot, context.projectRelativePath);
     if (!fs.existsSync(projectRoot)) throw new CodexFlowError("The selected project path does not exist in the new worktree.");
+    const ignoredFilesCopied = copyIncludedIgnoredFiles(config, context.repositoryRoot, checkoutRoot);
+    let setup: LocalEnvironmentCommandResult | undefined;
+    if (options.environment) {
+      setup = await runLocalEnvironmentCommand(config, options.environment, {
+        kind: "setup",
+        cwd: projectRoot,
+        sourceWorkspacePath: workspace.root,
+        worktreePath: projectRoot,
+        timeoutMs: options.setupTimeoutMs
+      });
+      if (setup.timedOut || setup.exitCode !== 0) {
+        const detail = setup.stderr.trim() || setup.stdout.trim() || (setup.timedOut ? "Setup timed out." : `Setup exited with ${setup.exitCode}.`);
+        throw new CodexFlowError(`Local environment setup failed: ${detail}`);
+      }
+    }
     const manifest: WorktreeManifest = {
       version: 1,
       id,
@@ -339,6 +471,11 @@ export function createManagedWorktree(
       baseRef,
       createdAt: now,
       updatedAt: now,
+      ...(options.environment ? {
+        environmentConfigPath: options.environment.configPath,
+        environmentName: options.environment.name,
+        setupCompletedAt: new Date().toISOString()
+      } : {}),
       localState: transfer.state ?? workspaceState(config, context.repositoryRoot, context.projectRelativePath),
       worktreeState: transfer.state ?? workspaceState(config, checkoutRoot, context.projectRelativePath)
     };
@@ -346,7 +483,9 @@ export function createManagedWorktree(
     return {
       worktree: statusFor(config, manifest),
       patchApplied: transfer.patchApplied,
-      untrackedCopied: transfer.untrackedCopied
+      untrackedCopied: transfer.untrackedCopied,
+      ignoredFilesCopied,
+      ...(setup ? { setup } : {})
     };
   } catch (error) {
     run(config, context.repositoryRoot, ["worktree", "remove", "--force", checkoutRoot], { allowFailure: true });
@@ -393,17 +532,38 @@ export function handoffManagedWorktree(
   };
 }
 
-export function removeManagedWorktree(
+export async function removeManagedWorktree(
   config: CodexFlowConfig,
   workspace: Workspace,
   worktreeId: string
-): { worktreeId: string; localRoot: string; snapshotPath?: string; removed: boolean } {
+): Promise<{
+  worktreeId: string;
+  localRoot: string;
+  snapshotPath?: string;
+  cleanup?: LocalEnvironmentCommandResult;
+  removed: boolean;
+}> {
   const manifest = findManifest(config, worktreeId);
   if (workspace.root !== manifest.localRoot && workspace.root !== manifest.projectRoot) {
     throw new CodexFlowError("This managed worktree belongs to a different local project.");
   }
   let snapshotPath: string | undefined;
+  let cleanup: LocalEnvironmentCommandResult | undefined;
   if (fs.existsSync(manifest.checkoutRoot)) {
+    if (manifest.environmentConfigPath) {
+      const localWorkspace: Workspace = {
+        id: `local_${manifest.id}`,
+        root: manifest.localRoot,
+        openedAt: manifest.createdAt
+      };
+      const environment = resolveLocalEnvironment(config, localWorkspace, manifest.environmentConfigPath);
+      cleanup = await runLocalEnvironmentCommand(config, environment, {
+        kind: "cleanup",
+        cwd: manifest.projectRoot,
+        sourceWorkspacePath: manifest.localRoot,
+        worktreePath: manifest.projectRoot
+      });
+    }
     const patch = run(config, manifest.checkoutRoot, ["diff", "--binary", "HEAD", "--", ...pathspec(manifest.projectRelativePath)], { allowFailure: true }).stdout;
     if (patch) {
       const snapshotDir = path.join(repositoryStorageRoot(config, manifest.repositoryRoot), "snapshots", manifest.id);
@@ -414,5 +574,5 @@ export function removeManagedWorktree(
     run(config, manifest.repositoryRoot, ["worktree", "remove", "--force", manifest.checkoutRoot]);
   }
   fs.rmSync(manifestPath(config, manifest.repositoryRoot, manifest.id), { force: true });
-  return { worktreeId, localRoot: manifest.localRoot, snapshotPath, removed: true };
+  return { worktreeId, localRoot: manifest.localRoot, snapshotPath, ...(cleanup ? { cleanup } : {}), removed: true };
 }

@@ -45,7 +45,7 @@ Before announcing broadly:
 - Refresh actions after widget URI or metadata changes.
 - Confirm CSP stays enabled in Developer Mode.
 - Capture screenshots for:
-  - native desktop Now, Projects, Chats, Connection, and Policy views
+  - native desktop Now, Projects, Environments, Worktrees, Chats, Connection, and Policy views
   - native desktop offline, starting, live, degraded, error, and stopping states
   - native app connection screen and workspace picker
   - compact browser fallback at desktop and 320px widths
