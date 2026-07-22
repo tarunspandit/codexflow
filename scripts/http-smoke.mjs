@@ -643,6 +643,14 @@ try {
     return result.structuredContent.workspace_id;
   });
 
+  const routeTelemetryBaselineResponse = await fetch(`${baseUrl}/api/overview?codexflow_token=${encodeURIComponent(token)}`);
+  const routeTelemetryBaseline = await routeTelemetryBaselineResponse.json();
+  if (routeTelemetryBaselineResponse.status !== 200) {
+    throw new Error(`could not read route telemetry baseline: ${routeTelemetryBaselineResponse.status}`);
+  }
+  const baselineSessionIds = new Set(routeTelemetryBaseline.sessions?.map?.((session) => session.id) ?? []);
+  const baselineActiveSessions = routeTelemetryBaseline.summary?.active_sessions ?? 0;
+
   const bindingClients = Array.from({ length: 6 }, (_, index) => new Client({ name: `codexflow-binding-${index + 1}`, version: '0.0.0' }));
   const bindingTransports = bindingClients.map(() => new StreamableHTTPClientTransport(new URL(mcpUrl)));
   try {
@@ -660,6 +668,17 @@ try {
     }
     if (catalogA._meta?.['openai/widgetSessionId'] !== routeA || catalogB._meta?.['openai/widgetSessionId'] !== routeB) {
       throw new Error('list_projects did not bind its widget session to the private route id');
+    }
+    const catalogOnlyOverviewResponse = await fetch(`${baseUrl}/api/overview?codexflow_token=${encodeURIComponent(token)}`);
+    const catalogOnlyOverview = await catalogOnlyOverviewResponse.json();
+    const prematureRouteSessions = catalogOnlyOverview.sessions?.filter?.((session) => !baselineSessionIds.has(session.id)) ?? [];
+    if (
+      catalogOnlyOverviewResponse.status !== 200 ||
+      catalogOnlyOverview.summary?.active_sessions !== baselineActiveSessions ||
+      catalogOnlyOverview.summary?.pending_sessions !== 0 ||
+      prematureRouteSessions.length !== 0
+    ) {
+      throw new Error(`unbound project discovery appeared as a GUI chat: ${JSON.stringify(catalogOnlyOverview)}`);
     }
     const alternate = catalogA.structuredContent.projects.find((project) => project.name === 'alternate-project');
     const primary = catalogB.structuredContent.projects.find((project) => project.sources?.includes?.('default'));
@@ -699,16 +718,25 @@ try {
 
     const liveOverviewResponse = await fetch(`${baseUrl}/api/overview?codexflow_token=${encodeURIComponent(token)}`);
     const liveOverview = await liveOverviewResponse.json();
-    const routedRoots = new Set(liveOverview.sessions?.map?.((session) => session.project?.root).filter(Boolean));
+    const newRouteSessions = liveOverview.sessions?.filter?.((session) => !baselineSessionIds.has(session.id)) ?? [];
+    const routedRoots = new Set(newRouteSessions.map((session) => session.project?.root).filter(Boolean));
+    const alternateRoot = await fs.realpath(alternateProject);
+    const primaryRoot = await fs.realpath(root);
+    const alternateRouteSession = newRouteSessions.find((session) => session.project?.root === alternateRoot);
+    const primaryRouteSession = newRouteSessions.find((session) => session.project?.root === primaryRoot);
     if (
       liveOverviewResponse.status !== 200 ||
-      liveOverview.summary?.active_sessions < 2 ||
-      !routedRoots.has(await fs.realpath(alternateProject)) ||
-      !routedRoots.has(await fs.realpath(root)) ||
+      liveOverview.summary?.active_sessions !== baselineActiveSessions + 2 ||
+      newRouteSessions.length !== 2 ||
+      !routedRoots.has(alternateRoot) ||
+      !routedRoots.has(primaryRoot) ||
+      alternateRouteSession?.tool_calls !== 4 ||
+      alternateRouteSession?.errors !== 1 ||
+      primaryRouteSession?.tool_calls !== 3 ||
       !liveOverview.activity?.some?.((event) => event.tool === 'read') ||
       !liveOverview.sessions?.every?.((session) => /^chat-[0-9a-f]{8}$/.test(session.id))
     ) {
-      throw new Error(`live companion telemetry did not reflect independent project sessions: ${JSON.stringify(liveOverview)}`);
+      throw new Error(`live companion telemetry did not aggregate independent route chats: ${JSON.stringify(liveOverview)}`);
     }
     const liveOverviewText = JSON.stringify(liveOverview);
     for (const forbidden of [token, 'alternate-chat-binding', 'default-chat-binding', ...bindingTransports.map((transport) => transport.sessionId)]) {

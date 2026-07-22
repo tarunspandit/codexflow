@@ -10,11 +10,17 @@ codexflow does not unlock Developer Mode, unlock models, bypass account limits, 
 
 Account access and model tool support are separate. A Pro subscription can have Apps / Developer Mode, but ChatGPT's **Pro model variants do not expose Apps**. Use Extra High or another non-Pro model for CodexFlow. If the app is absent from the response, switch the model rather than restarting the broker.
 
+## Why is CodexFlow missing when I open another chat?
+
+CodexFlow is not limited to one conversation. ChatGPT's first app row is a ranked, non-exhaustive set of suggestions, so a recently used development app may not be visible there. In the new chat, use a supported non-Pro model, choose `+` → More, and search for `CodexFlow` by name.
+
+If search shows both `CodexFlow` and an older entry such as `CodexFlow Local`, keep the one connected to the current Server URL and remove the stale duplicate under Settings → Plugins. Multiple conversations can then use the same app and tunnel simultaneously; each selected project is isolated behind its own private route.
+
 ## What if the project picker fails to render?
 
 Reply with the exact project name. The picker is a small optional convenience; project discovery and routing do not depend on it. CodexFlow returns the same project list as text, and ChatGPT can call `select_project` directly by name or project ID.
 
-The native app may show one chat as “Choosing project” while this is happening. Background ChatGPT metadata and component-fetch transports are hidden and are never counted as active chats.
+The native app lists a conversation only after it selects a project. Unbound discovery, metadata, picker, and component-fetch transports remain hidden, and multiple transports belonging to the same private route are merged into one chat row.
 
 ## How is CodexFlow different from generic workspace bridges?
 

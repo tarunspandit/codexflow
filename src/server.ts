@@ -38,6 +38,7 @@ export interface CodexFlowRuntimeObserver {
     durationMs: number;
     at: number;
     workspace?: Workspace;
+    routeId?: string;
   }): void;
 }
 
@@ -366,6 +367,17 @@ function requestRouteId(args: any, extra?: CodexToolExtra): string | undefined {
   return candidates.find(isChatRouteId);
 }
 
+function resultRouteId(result: any): string | undefined {
+  const meta = result?._meta ?? {};
+  const candidates = [
+    result?.structuredContent?.route_id,
+    meta["codexflow/routeId"],
+    meta["openai/widgetSessionId"],
+    meta.widgetSessionId
+  ];
+  return candidates.find(isChatRouteId);
+}
+
 const ROUTE_ID_INPUT = z.string()
   .regex(/^route_[a-f0-9]{32}$/)
   .optional()
@@ -393,7 +405,13 @@ interface ServerRuntimeContext {
 
 const serverRuntimeContexts = new WeakMap<object, ServerRuntimeContext>();
 
-function notifyRuntimeToolCall(server: McpServer, name: string, status: "ok" | "error", started: number): void {
+function notifyRuntimeToolCall(
+  server: McpServer,
+  name: string,
+  status: "ok" | "error",
+  started: number,
+  routeId?: string
+): void {
   const context = serverRuntimeContexts.get(server as object);
   if (!context?.observer.onToolCall) return;
   const at = Date.now();
@@ -403,7 +421,8 @@ function notifyRuntimeToolCall(server: McpServer, name: string, status: "ok" | "
       status,
       durationMs: at - started,
       at,
-      workspace: context.activeWorkspace()
+      workspace: context.activeWorkspace(),
+      routeId
     });
   } catch {
     // Operational telemetry must never interrupt a tool response.
@@ -471,16 +490,17 @@ function registerToolCompat(
 ): void {
   const wrapped = async (args: any, extra?: CodexToolExtra) => {
     const started = Date.now();
+    const requestedRouteId = requestRouteId(args ?? {}, extra);
     try {
       const result = tagToolResult(await handler(args ?? {}, extra), name, options);
       const status = result?.isError ? "error" : "ok";
       logToolCall(name, status, started);
-      notifyRuntimeToolCall(server, name, status, started);
+      notifyRuntimeToolCall(server, name, status, started, requestedRouteId ?? resultRouteId(result));
       return result;
     } catch (error) {
       const result = tagToolResult(errorResult(error), name, options);
       logToolCall(name, "error", started);
-      notifyRuntimeToolCall(server, name, "error", started);
+      notifyRuntimeToolCall(server, name, "error", started, requestedRouteId);
       return result;
     }
   };

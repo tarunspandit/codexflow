@@ -37,6 +37,11 @@ Requirements:
 > Apps with supported models. If CodexFlow is absent from a reply, switch the
 > model—not the local broker.
 
+> **New chats:** the first app row under `+` is a ranked subset, not the complete
+> plugin catalog. Choose `+` → More and search for `CodexFlow`. The same app can
+> be active in multiple conversations at once; each conversation receives its
+> own private project route through the shared broker.
+
 Install the CLI:
 
 ```bash
@@ -289,6 +294,8 @@ codexflow doctor
 
 Common fixes:
 
+- CodexFlow is missing from a new chat's first app row: choose `+` → More and search for `CodexFlow`; the suggestion row is not the full plugin list.
+- Two CodexFlow entries appear: keep the entry connected to the current Server URL and remove the stale duplicate under ChatGPT Settings → Plugins.
 - Quick tunnel URL changed: rerun `codexflow` and update the ChatGPT app Server URL.
 - Stable URL does not respond: check the tunnel provider first, then the CodexFlow token.
 - ChatGPT cannot call tools in one model/chat: switch to a ChatGPT surface that supports Developer Mode app actions.
