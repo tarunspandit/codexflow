@@ -46,6 +46,7 @@ import {
 import { hasSecretValue, redactSensitiveText, redactStructured } from "./redact.js";
 import { inspectWorkspace, invalidateWorkspaceAnalysis, reviewWorkspaceChanges } from "./analysis/index.js";
 import { inspectRemoteWorkspace } from "./remoteAnalysisOps.js";
+import { listWorkspaceReviewComments } from "./reviewOps.js";
 import {
   createRemoteManagedWorktree,
   handoffRemoteManagedWorktree,
@@ -3700,11 +3701,14 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       const diff = diffError ? "" : rawDiff;
       const stats = diffStats(diff);
       const changedFiles = statusError ? [] : changedStatusLines(status);
+      const reviewComments = target.kind === "local"
+        ? listWorkspaceReviewComments(workspace, normalizedScopedPath, normalizedScopedPath ? staged : undefined)
+        : [];
       const untrackedFingerprint = statusError || target.kind === "remote" ? "" : await untrackedReviewFingerprint(config, guard, workspace, changedFiles);
       const since = args.since === "workspace" ? "workspace" : "last_shown";
       const markReviewed = parseBool(args.mark_reviewed, true);
       const checkpointKey = reviewCheckpointKey(workspace, { path: normalizedScopedPath, staged });
-      const fingerprint = reviewFingerprint(status, `${diff}\0${untrackedFingerprint}`);
+      const fingerprint = reviewFingerprint(status, `${diff}\0${untrackedFingerprint}\0${JSON.stringify(reviewComments.map((comment) => [comment.id, comment.updatedAt]))}`);
       const checkpointHit = includeDiff && since === "last_shown" && reviewCheckpoints.get(checkpointKey) === fingerprint;
       const checkpointWritten = markReviewed && includeDiff;
       if (checkpointWritten) reviewCheckpoints.set(checkpointKey, fingerprint);
@@ -3759,7 +3763,10 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       const analysisText = analysis
         ? `\n\n## Analysis\n\nAffected areas: ${(analysis.affected_areas as string[]).join(", ") || "none"}\nRisks: ${((analysis.risk_signals as Array<{ label?: string }>) ?? []).map((risk) => risk.label).filter(Boolean).join(", ") || "none"}\nRelated tests: ${((analysis.related_tests as Array<{ path?: string }>) ?? []).map((file) => file.path).filter(Boolean).join(", ") || "none"}`
         : "";
-      const text = `# Show Changes\n\nWorkspace: ${workspace.root}\n\n## Changed\n\n${changedText}\n\n## Diff stats\n\n+${responseStats.additions} -${responseStats.deletions}${diffText}${analysisText}`;
+      const reviewText = reviewComments.length
+        ? `\n\n## Native review notes\n\n${reviewComments.map((comment) => `- ${comment.path} (${comment.staged ? "staged" : "working"} diff line ${comment.line + 1}): ${previewText(comment.body, 4, 500)}`).join("\n")}`
+        : "";
+      const text = `# Show Changes\n\nWorkspace: ${workspace.root}\n\n## Changed\n\n${changedText}\n\n## Diff stats\n\n+${responseStats.additions} -${responseStats.deletions}${diffText}${analysisText}${reviewText}`;
       return textResult(text, {
         workspace_id: workspace.id,
         root: workspace.root,
@@ -3777,6 +3784,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         review_since: since,
         review_marked: checkpointWritten,
         review_checkpoint_hit: checkpointHit,
+        review_comments: reviewComments,
         ...(analysis ? { analysis } : {})
       });
     }

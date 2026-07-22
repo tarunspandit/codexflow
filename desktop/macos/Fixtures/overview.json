@@ -1,5 +1,5 @@
 {
-  "initial_section": "hosts",
+  "initial_section": "changes",
   "runtime": {
     "version": 1,
     "root": "/Users/demo/Work/atlas-studio",
@@ -23,7 +23,7 @@
     "generated_at": "2026-07-15T08:31:14.000Z",
     "broker": {
       "state": "ready",
-      "version": "0.38.0",
+      "version": "0.39.0",
       "started_at": "2026-07-15T06:09:00.000Z",
       "uptime_ms": 8534000,
       "default_root": "/Users/demo/Work/atlas-studio",
@@ -100,7 +100,13 @@
       "diff": "diff --git a/src/routes/workspaces.tsx b/src/routes/workspaces.tsx\nindex 9213f90..ef23a87 100644\n--- a/src/routes/workspaces.tsx\n+++ b/src/routes/workspaces.tsx\n@@ -18,7 +18,12 @@ export function WorkspaceRoute() {\n-  const projects = useProjects();\n+  const { projects, activeProject } = useProjects();\n+  const recent = projects.filter((project) => project.lastOpenedAt);\n \n   return (\n-    <WorkspaceGrid projects={projects} />\n+    <WorkspaceGrid\n+      activeProject={activeProject}\n+      projects={recent}\n+    />\n   );\n }",
       "additions": 7,
       "deletions": 2,
-      "truncated": false
+      "truncated": false,
+      "hunks": [
+        {"id":"hunk_a1b2c3d4e5f60718","header":"@@ -18,7 +18,12 @@ export function WorkspaceRoute() {","start_line":4,"end_line":19,"old_start":18,"old_count":7,"new_start":18,"new_count":12,"additions":7,"deletions":2,"actionable":true}
+      ],
+      "comments": [
+        {"id":"rc_a1b2c3d4e5f60718","path":"src/routes/workspaces.tsx","staged":false,"hunk_id":"hunk_a1b2c3d4e5f60718","line":6,"body":"Keep the active project visible when the recent list is empty.","created_at":"2026-07-15T08:31:00.000Z","updated_at":"2026-07-15T08:31:00.000Z","outdated":false}
+      ]
     },
     "message": null,
     "action": null

@@ -23,7 +23,7 @@ The honest status is **strong local workflow parity, not literal Codex desktop p
 | Scheduled/background agent tasks | Available through ChatGPT Scheduled | `prepare_scheduled_task` creates a durable local-project prompt for same-chat or standalone schedules. ChatGPT owns future model turns and run history; each run reacquires its CodexFlow route and can use a clean managed worktree. |
 | Remote/cloud/SSH environments | Available | The native Hosts workspace approves concrete OpenSSH aliases and saves canonical project folders. The ordinary chat picker routes bounded files, search, edits, patches, Bash, persistent per-chat terminals, Codex environment setup/actions, workspace skills, repository inspection, Git review, and managed Git worktrees through a CodexFlow-owned SSH helper. Remote worktree creation, source/worktree handoff, environment continuity, conflict refusal, dirty snapshots, removal, and picker registration share the private chat route. Every call revalidates host identity, root containment, blocked paths, limits, and policy. |
 | Computer Use and browser control | Not yet | CodexFlow does not capture or operate arbitrary desktop applications, Chrome, or an embedded browser. |
-| Rich native diff/review workspace | Partial | The Mac app now provides staged/unstaged file lanes, bounded color-coded diffs, stats, and explicit file-level stage, unstage, and discard. Inline comments and per-hunk actions are not yet available. |
+| Rich native diff/review workspace | Available | The Mac app provides staged/unstaged file lanes, bounded color-coded diffs, stats, file actions, content-derived per-hunk stage/unstage/revert, and line-anchored review notes. Stale hunk IDs fail closed; notes persist owner-only and are included in the web chat’s next `show_changes` review. |
 | Multi-agent orchestration | Partial | Parallel chats and worktrees are independent, but CodexFlow itself does not run a model task queue or spawn model agents. |
 | Cross-platform native desktop app | Partial | The broker is cross-platform; the first-class native GUI currently targets macOS 14 or newer. |
 
@@ -38,7 +38,7 @@ Managed worktrees also honor `.worktreeinclude` for selected gitignored setup fi
 Literal parity still requires capabilities outside the current local MCP surface:
 
 1. Computer Use and browser-control permissions, capture, confirmation, and audit UX.
-2. Inline review comments, per-hunk stage/revert, and richer native plan/task progress inside the coding workspace.
+2. Richer native plan/task progress and agent orchestration inside the coding workspace.
 3. Equivalent native clients beyond macOS.
 
 Those additions must preserve the product boundary: no Codex CLI execution, no quota proxying, and no hidden automation of the ChatGPT website.
