@@ -269,6 +269,7 @@ struct SessionOverview: Decodable, Identifiable, Hashable {
     let pinned: Bool?
     let archived: Bool?
     let task: TaskProgressOverview?
+    let agents: [AgentProgressOverview]
 }
 
 struct TaskProgressOverview: Decodable, Hashable {
@@ -284,6 +285,16 @@ struct TaskProgressStepOverview: Decodable, Identifiable, Hashable {
     let status: String
 
     var id: String { "\(title):\(status)" }
+}
+
+struct AgentProgressOverview: Decodable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    let role: String
+    let status: String
+    let detail: String?
+    let result: String?
+    let updatedAt: String
 }
 
 struct ActivityOverview: Decodable, Identifiable, Hashable {

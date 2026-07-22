@@ -1405,6 +1405,10 @@ async function main(): Promise<void> {
             monitorSession.selectProject(runtimeProject(event.workspace), event.routeId);
             runtimeMonitor.updateRouteTask(event.routeId, event.task);
           },
+          onAgentProgress: (event) => {
+            monitorSession.selectProject(runtimeProject(event.workspace), event.parentRouteId);
+            return runtimeMonitor.mutateRouteAgent(event.parentRouteId, event.sourceRouteId, event.command);
+          },
           onToolCall: (event) => {
             if (event.workspace) monitorSession.selectProject(runtimeProject(event.workspace), event.routeId);
             monitorSession.recordTool({

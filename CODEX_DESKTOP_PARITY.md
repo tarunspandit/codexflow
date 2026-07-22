@@ -4,7 +4,7 @@ Updated: 2026-07-23
 
 CodexFlow gives a ChatGPT web conversation a Codex-like local coding surface without starting, resuming, or delegating work to the Codex CLI. ChatGPT supplies the model and conversation; the local CodexFlow broker supplies bounded project, file, Git, worktree, terminal, environment, instruction, skill, and MCP context.
 
-The honest status is **strong local workflow parity, not literal Codex desktop parity**.
+The honest status is **functional workflow parity on the supported ChatGPT Work + macOS path, not literal cross-platform Codex desktop parity**. A live account-authenticated Work acceptance pass is still required before treating the subagent path as production-proven end to end.
 
 ## Capability matrix
 
@@ -26,7 +26,7 @@ The honest status is **strong local workflow parity, not literal Codex desktop p
 | Browser control | Available on macOS | A routed chat requests an exact origin and operates a visible, ephemeral WebKit tab through fresh screenshots and semantic DOM targets. Route-private or owner-persistent origin grants, cross-origin blocking, sealed action confirmations, password/secret refusal, and content-free activity are native. Personal browser profiles, downloads, authentication/account-security/payment pages, and arbitrary coordinates remain intentionally out of scope. |
 | Rich native diff/review workspace | Available | The Mac app provides staged/unstaged file lanes, bounded color-coded diffs, stats, file actions, content-derived per-hunk stage/unstage/revert, and line-anchored review notes. Stale hunk IDs fail closed; notes persist owner-only and are included in the web chat’s next `show_changes` review. |
 | Native task progress and supervision | Available | `task_progress` lets each project-routed web chat publish a bounded plan, focus, blocker, review state, and completion snapshot. The native Tasks workspace aggregates parallel routes and persists only that explicit owner-private snapshot. |
-| Multi-agent orchestration | Partial by product boundary | Parallel web chats, worktrees, task boards, handoff, and scheduled prompts are independent, but CodexFlow does not run a model queue, spawn hidden agents, proxy Codex, or automate the ChatGPT website. |
+| Multi-agent orchestration | Available when ChatGPT Work supplies subagents | ChatGPT owns spawning, steering, waiting, stopping, model usage, and child conversation threads. The parent calls `agent_progress` to allocate up to sixteen independent project routes, gives one route to each actual Work child, and collects bounded status/results. Children can use independent managed worktrees and may update only themselves. The native Tasks workspace mirrors nested Active/Done state and rolls child activity into the parent without exposing route credentials. CodexFlow never starts or proxies a model. |
 | Cross-platform native desktop app | Partial | The broker is cross-platform; the first-class native GUI currently targets macOS 14 or newer, while the Codex app is also available on Windows. |
 
 ## Shared environment contract
@@ -40,9 +40,9 @@ Managed worktrees also honor `.worktreeinclude` for selected gitignored setup fi
 Literal parity still requires capabilities outside the current local MCP surface:
 
 1. A Windows-native CodexFlow management and approval client equivalent to the macOS app.
-2. Model-agent spawning and direct in-app conversation control, if ever pursued, would require a separate explicit product and authorization boundary; the current web-first architecture intentionally leaves model execution and conversation ownership with ChatGPT.
+2. A live authenticated ChatGPT Work acceptance run proving that inherited CodexFlow tools reach two simultaneously spawned children, each child retains its allocated route/worktree, the parent can steer and consolidate, and native Active/Done state follows the hosted thread lifecycle.
 
-Those additions must preserve the product boundary: no Codex CLI execution, no quota proxying, and no hidden automation of the ChatGPT website.
+Those additions must preserve the product boundary: no Codex CLI execution, no quota proxying, and no hidden automation of the ChatGPT website. Direct model spawning inside the broker is not a missing feature in this architecture; ChatGPT is the model and conversation surface by design.
 
 ## Official comparison references
 
@@ -52,3 +52,4 @@ Those additions must preserve the product boundary: no Codex CLI execution, no q
 - [Codex scheduled tasks](https://learn.chatgpt.com/docs/automations)
 - [Codex remote connections](https://learn.chatgpt.com/docs/remote-connections)
 - [Codex Computer Use](https://learn.chatgpt.com/docs/computer-use)
+- [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)

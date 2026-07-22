@@ -134,6 +134,13 @@ export class ChatRouteStore {
     return { ...record };
   }
 
+  remove(routeId: string): boolean {
+    if (!isChatRouteId(routeId)) return false;
+    const removed = this.routes.delete(routeId);
+    if (removed) this.persist();
+    return removed;
+  }
+
   private load(): void {
     let parsed: unknown;
     try {

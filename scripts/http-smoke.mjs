@@ -626,7 +626,7 @@ try {
 
   const queryTools = await listTools(`${baseUrl}/mcp?codexflow_token=${encodeURIComponent(token)}`);
   const queryToolNames = toolNames(queryTools);
-  for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inventory', 'list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'tree', 'search', 'load_skill', 'git_status', 'git_diff', 'task_progress', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
+  for (const expected of ['server_config', 'codexflow_self_test', 'codexflow_inventory', 'list_projects', 'select_project', 'open_current_workspace', 'open_workspace', 'workspace_snapshot', 'tree', 'search', 'load_skill', 'git_status', 'git_diff', 'task_progress', 'agent_progress', 'show_changes', 'read_handoff', 'wait_for_handoff', 'codex_context', 'handoff_to_agent', 'handoff_to_codex', 'export_pro_context']) {
     if (!queryToolNames.includes(expected)) {
       throw new Error(`URL-token MCP tools/list missing ${expected}; got ${queryToolNames.join(', ')}`);
     }
@@ -836,11 +836,105 @@ try {
     if (!rejectedProgress.isError || !JSON.stringify(rejectedProgress.content).includes('appear to contain a credential')) {
       throw new Error(`task_progress did not refuse secret-looking persisted text: ${JSON.stringify(rejectedProgress)}`);
     }
+    const rejectedAgentRegistration = await bindingClients[4].callTool({
+      name: 'agent_progress',
+      arguments: {
+        route_id: routeA,
+        action: 'register',
+        name: 'Unsafe child',
+        role: `Inspect ${fakeSecret}`
+      }
+    });
+    if (!rejectedAgentRegistration.isError || !JSON.stringify(rejectedAgentRegistration.content).includes('appear to contain a credential')) {
+      throw new Error(`agent_progress registered secret-looking role text: ${JSON.stringify(rejectedAgentRegistration)}`);
+    }
+
+    const [registeredExplorer, registeredVerifier] = await Promise.all([
+      callTool(bindingClients[4], 'agent_progress', {
+        route_id: routeA,
+        action: 'register',
+        name: 'Explorer',
+        role: 'Map the alternate project surface',
+        status: 'working',
+        detail: 'Inspecting project entry points.'
+      }),
+      callTool(bindingClients[5], 'agent_progress', {
+        route_id: routeA,
+        action: 'register',
+        name: 'Verifier',
+        role: 'Run independent route checks'
+      })
+    ]);
+    const explorer = registeredExplorer.structuredContent.agent;
+    const verifier = registeredVerifier.structuredContent.agent;
+    for (const agent of [explorer, verifier]) {
+      if (!/^agt_[a-f0-9]{16}$/.test(agent?.id) || !/^route_[a-f0-9]{32}$/.test(agent?.child_route_id)) {
+        throw new Error(`agent_progress did not allocate a private child route: ${JSON.stringify(agent)}`);
+      }
+      if (agent.child_route_id === routeA || agent.child_route_id === routeB) {
+        throw new Error('agent_progress reused a parent route for a child');
+      }
+    }
+    if (explorer.child_route_id === verifier.child_route_id) throw new Error('parallel subagents received the same child route');
+    const [explorerRead, verifierRead] = await Promise.all([
+      callTool(bindingClients[0], 'read', { route_id: explorer.child_route_id, path: 'routing.txt' }),
+      callTool(bindingClients[1], 'read', { route_id: verifier.child_route_id, path: 'routing.txt' })
+    ]);
+    if (!explorerRead.structuredContent.text?.includes('alternate-chat-binding') || !verifierRead.structuredContent.text?.includes('alternate-chat-binding')) {
+      throw new Error('child routes did not inherit the parent project binding');
+    }
+    await callTool(bindingClients[0], 'agent_progress', {
+      route_id: explorer.child_route_id,
+      action: 'update',
+      coordination_route_id: routeA,
+      agent_id: explorer.id,
+      status: 'done',
+      detail: null,
+      result: 'Mapped the alternate project surface.'
+    });
+    const crossedAgentUpdate = await bindingClients[0].callTool({
+      name: 'agent_progress',
+      arguments: {
+        route_id: explorer.child_route_id,
+        action: 'update',
+        coordination_route_id: routeA,
+        agent_id: verifier.id,
+        status: 'failed'
+      }
+    });
+    if (!crossedAgentUpdate.isError || !JSON.stringify(crossedAgentUpdate.content).includes('only its own')) {
+      throw new Error(`a child route updated another subagent: ${JSON.stringify(crossedAgentUpdate)}`);
+    }
+    const secretAgentUpdate = await bindingClients[1].callTool({
+      name: 'agent_progress',
+      arguments: {
+        route_id: verifier.child_route_id,
+        action: 'update',
+        coordination_route_id: routeA,
+        agent_id: verifier.id,
+        detail: `Do not persist ${fakeSecret}`
+      }
+    });
+    if (!secretAgentUpdate.isError || !JSON.stringify(secretAgentUpdate.content).includes('appear to contain a credential')) {
+      throw new Error(`agent_progress did not refuse secret-looking persisted text: ${JSON.stringify(secretAgentUpdate)}`);
+    }
+    const listedAgents = await callTool(bindingClients[4], 'agent_progress', {
+      route_id: routeA,
+      action: 'list'
+    });
+    if (listedAgents.structuredContent.agents?.length !== 2 || listedAgents.structuredContent.agents?.[0]?.result !== 'Mapped the alternate project surface.') {
+      throw new Error(`parent could not inspect bounded subagent results: ${JSON.stringify(listedAgents)}`);
+    }
 
     const routeProfileId = createHash('sha256').update(await fs.realpath(root)).digest('hex').slice(0, 24);
     const routeFile = JSON.parse(await fs.readFile(path.join(profileHome, 'routes', `${routeProfileId}.json`), 'utf8'));
     const persistedRoutes = new Map(routeFile.routes?.map?.((route) => [route.routeId, route]));
-    if (persistedRoutes.get(routeA)?.workspaceId !== alternate.project_id || persistedRoutes.get(routeB)?.workspaceId !== primary.project_id) {
+    if (
+      persistedRoutes.get(routeA)?.workspaceId !== alternate.project_id ||
+      persistedRoutes.get(routeB)?.workspaceId !== primary.project_id ||
+      persistedRoutes.get(explorer.child_route_id)?.workspaceId !== alternate.project_id ||
+      persistedRoutes.get(verifier.child_route_id)?.workspaceId !== alternate.project_id
+    ) {
       throw new Error(`private chat routes were not durably persisted: ${JSON.stringify(routeFile)}`);
     }
 
@@ -858,18 +952,21 @@ try {
       newRouteSessions.length !== 2 ||
       !routedRoots.has(alternateRoot) ||
       !routedRoots.has(primaryRoot) ||
-      alternateRouteSession?.tool_calls !== 6 ||
-      alternateRouteSession?.errors !== 2 ||
+      alternateRouteSession?.tool_calls !== 15 ||
+      alternateRouteSession?.errors !== 5 ||
       primaryRouteSession?.tool_calls !== 3 ||
       !liveOverview.activity?.some?.((event) => event.tool === 'read') ||
       alternateRouteSession?.task?.title !== 'Prepare alternate release' ||
       alternateRouteSession?.task?.steps?.[1]?.status !== 'in_progress' ||
+      alternateRouteSession?.agents?.length !== 2 ||
+      alternateRouteSession?.agents?.[0]?.status !== 'done' ||
+      alternateRouteSession?.agents?.[0]?.result !== 'Mapped the alternate project surface.' ||
       !liveOverview.sessions?.every?.((session) => /^chat-[0-9a-f]{8}$/.test(session.id))
     ) {
       throw new Error(`live companion telemetry did not aggregate independent route chats: ${JSON.stringify(liveOverview)}`);
     }
     const liveOverviewText = JSON.stringify(liveOverview);
-    for (const forbidden of [token, fakeSecret, 'alternate-chat-binding', 'default-chat-binding', ...bindingTransports.map((transport) => transport.sessionId)]) {
+    for (const forbidden of [token, fakeSecret, routeA, routeB, explorer.child_route_id, verifier.child_route_id, 'alternate-chat-binding', 'default-chat-binding', ...bindingTransports.map((transport) => transport.sessionId)]) {
       if (forbidden && liveOverviewText.includes(forbidden)) {
         throw new Error(`live companion telemetry retained forbidden content: ${forbidden}`);
       }
@@ -893,6 +990,24 @@ try {
     const updatedChat = lifecycleOverview.sessions?.find?.((session) => session.id === alternateRouteSession.id);
     if (updatedChat?.title !== 'Alternate release work' || updatedChat?.pinned !== true || updatedChat?.archived !== true || updatedChat?.task?.status !== 'working') {
       throw new Error(`chat lifecycle state was not reflected in overview: ${JSON.stringify(updatedChat)}`);
+    }
+    const clearedAgents = await callTool(bindingClients[4], 'agent_progress', {
+      route_id: routeA,
+      action: 'clear'
+    });
+    if (clearedAgents.structuredContent.agents?.length !== 0) throw new Error(`parent did not clear subagent coordination: ${JSON.stringify(clearedAgents)}`);
+    const revokedChild = await bindingClients[0].callTool({
+      name: 'read',
+      arguments: { route_id: explorer.child_route_id, path: 'routing.txt' }
+    });
+    if (!revokedChild.isError || !JSON.stringify(revokedChild.content).includes('not bound to a project')) {
+      throw new Error(`cleared child route remained usable: ${JSON.stringify(revokedChild)}`);
+    }
+    const clearedOverview = await (await fetch(`${baseUrl}/api/overview?codexflow_token=${encodeURIComponent(token)}`)).json();
+    const clearedNewSessions = clearedOverview.sessions?.filter?.((session) => !baselineSessionIds.has(session.id)) ?? [];
+    const clearedParent = clearedOverview.sessions?.find?.((session) => session.id === alternateRouteSession.id);
+    if (clearedNewSessions.length !== 2 || clearedParent?.agents?.length !== 0) {
+      throw new Error(`cleared or revoked child route appeared as a top-level task: ${JSON.stringify(clearedOverview)}`);
     }
   } finally {
     await Promise.allSettled(bindingClients.map((client) => client.close()));
@@ -1119,7 +1234,7 @@ try {
   for (const expected of ['read', 'tree', 'search', 'load_skill']) {
     if (!names.includes(expected)) throw new Error(`connection-test missing ${expected}; got ${names.join(', ')}`);
   }
-  for (const hidden of ['codexflow', 'codexflow_self_test', 'write', 'edit', 'apply_patch', 'bash', 'export_pro_context', 'handoff_to_agent', 'handoff_to_codex']) {
+  for (const hidden of ['codexflow', 'codexflow_self_test', 'write', 'edit', 'apply_patch', 'bash', 'task_progress', 'agent_progress', 'export_pro_context', 'handoff_to_agent', 'handoff_to_codex']) {
     if (names.includes(hidden)) throw new Error(`connection-test exposed ${hidden}; got ${names.join(', ')}`);
   }
   for (const tool of tools) {

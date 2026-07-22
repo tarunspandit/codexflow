@@ -96,6 +96,7 @@ ChatGPT Web 可以操作：
   local_environment 使用共享的本地环境配置和 actions
   worktree 创建隔离 checkout 并安全交接改动
   task_progress 把受限的任务计划与进度同步到原生 Tasks 页面
+  agent_progress 为 ChatGPT Work 已实际创建的 subagents 分配独立 route，并同步受限状态与结果
   prepare_scheduled_task 为 ChatGPT Scheduled 准备可靠的本地项目运行提示
   show_changes 查看当前改动摘要
 
@@ -126,7 +127,7 @@ codexflow app
 - **环境**：读取与 Codex 桌面应用相同的 `.codex/environments/*.toml`，执行 setup、cleanup 和命名 actions。
 - **Worktrees**：创建、检查、显示和安全删除隔离 checkout。
 - **改动**：分开展示 staged 与 unstaged 文件，呈现有颜色和统计的受限 diff；可以逐 hunk stage、unstage 或 revert，并把逐行 review note 通过 `show_changes` 带回 web chat。
-- **任务**：集中查看每个项目 route 的受限计划、当前重点、阻塞、review 状态和完成进度；仍支持本地搜索、rename、pin、archive 与 restore，后台 discovery 不会伪装成任务。
+- **任务**：集中查看每个项目 route 的受限计划、当前重点、阻塞、review 状态、完成进度，以及嵌套的 Active / Done ChatGPT Work agents；仍支持本地搜索、rename、pin、archive 与 restore，后台 discovery 不会伪装成任务。
 - **Hosts**：从 `~/.ssh/config` 发现具体 aliases，在本机通过 OpenSSH 明确验证或撤销，并在 alias 改为其他目标时自动让批准失效。
 - **连接**：只在明确操作时复制私有 Server URL，并管理 broker 的启动、停止和重启。
 - **策略**：本次进程真正生效的写入、终端、工具、history、认证和 allowed-root 边界。
@@ -135,11 +136,17 @@ codexflow app
 
 远程项目通过 CodexFlow 自有的临时 Node helper 与非交互 OpenSSH 运行；远程 host 上不会安装或调用 Codex / Codex CLI。只有 SSH config 中具体、已在本机验证的 alias 才能获批。保存 canonical 项目目录后，它会与本地项目一起出现在普通 chat picker 中，并支持受限的 tree/read/search/write/edit/patch、Bash、持久终端、Codex 环境、workspace skills、repository analysis、Git review 与 managed worktrees。每次调用都会重新验证目标 fingerprint、项目 root、blocked paths、symlink、大小限制以及当前 write/Bash 策略。每个聊天的远程终端状态完全隔离；环境 setup/cleanup/actions 按远程 host 平台执行。远程 worktree 创建、source/worktree handoff、冲突拒绝、cleanup、dirty snapshot 与移除都沿用同一个私有 route。
 
-会话遥测只存在于进程内存中，有数量上限，并会在会话关闭后很快过期。它只保存不可操作的显示指纹、已选项目、工具名称、结果和耗时。明确设置的 rename、pin、archive、原生 review notes，以及 web chat 通过 `task_progress` 明确提交的受限标题、当前重点和最多十二个计划步骤，会保存在 owner-only metadata 文件中；不会保存 prompts、普通工具 arguments、文件内容、命令输出、tokens 或可用的 MCP transport IDs。
+会话遥测只存在于进程内存中，有数量上限，并会在会话关闭后很快过期。它只保存不可操作的显示指纹、已选项目、工具名称、结果和耗时。明确设置的 rename、pin、archive、原生 review notes、web chat 通过 `task_progress` 明确提交的受限标题、当前重点和最多十二个计划步骤，以及通过 `agent_progress` 提交的短角色、状态、细节与结果，会保存在 owner-only metadata 文件中；不会保存 prompts、普通工具 arguments、文件内容、命令输出、tokens、可用的 MCP transport IDs 或 child route IDs。
 
 ### 原生任务进度
 
-对于多步骤工作，CodexFlow 会提示 ChatGPT 在选定项目后、计划发生实质变化、遇到阻塞、进入 review 或完成时调用 `task_progress`。每次调用都会完整替换该私有 route 的受限进度快照。原生 **任务** 页面把多个独立 web chat 汇总为一个监督界面，但不会启动模型、生成隐藏 agent、抓取 ChatGPT 页面，也不会把对话所有权移出 web。
+对于多步骤工作，CodexFlow 会提示 ChatGPT 在选定项目后、计划发生实质变化、遇到阻塞、进入 review 或完成时调用 `task_progress`。每次调用都会完整替换该私有 route 的受限进度快照。原生 **任务** 页面把多个独立 web chat 汇总为一个监督界面。
+
+### Web subagent 协调
+
+当 ChatGPT Work 实际创建 subagents 时，parent 可调用 `agent_progress` 为每个 child 分配独立项目 route。每个 child 只使用自己的 route，可在写入前创建自己的 managed worktree，也只能更新自己的受限角色、状态、细节与结果。Parent 可查看共享 ledger、在 ChatGPT 中 steering、汇总结果，并撤销所有 child routes。原生 **任务** 页面会把这些记录显示为嵌套的 Active / Done lanes，并把 child 工具活动聚合到 parent task。
+
+CodexFlow 只协调 route 与本地状态。ChatGPT 负责 spawning、follow-up、waiting、stopping、模型用量与 conversation threads。CodexFlow 不发送模型请求、不抓取 ChatGPT、不调用 Codex CLI，也不会在模型界面没有实际创建 agent 时声称已经创建。
 
 ### 共享本地环境
 

@@ -22,6 +22,9 @@ and provenance.
 - ChatGPT owns conversation and model reasoning. CodexFlow owns bounded local
   files, repository analysis, git, optional terminal execution, instructions,
   skills, and handoff/context tools.
+- When ChatGPT Work creates subagents, CodexFlow gives each child an isolated,
+  revocable project route and stores only its bounded role, state, and result.
+  It never starts, impersonates, or proxies the model agent.
 - The native app observes and controls that existing broker. It introduces no
   second execution authority, hidden model, or chat composer.
 - Codex project metadata is an optional read-only discovery/history source.
@@ -35,13 +38,16 @@ and provenance.
 
 The SwiftUI macOS application is organized around real user jobs:
 
-1. **Now** — understand broker health, current workspace, active chats, and
+1. **Now** — understand broker health, current workspace, active tasks, and
    recent content-free activity.
-2. **Projects** — inspect the repositories automatically available to ChatGPT.
-3. **Chats** — see independent active and recently closed session routing.
-4. **Connection** — start, stop, restart, switch runtimes, and explicitly copy
-   the private Server URL.
-5. **Policy** — inspect effective boundaries and save next-launch defaults.
+2. **Projects / Environments / Worktrees** — choose where work happens, inspect
+   shared setup, and manage isolated checkouts.
+3. **Changes / Tasks** — review bounded diffs and supervise parent plans plus
+   nested Active/Done web agents.
+4. **Hosts / Computer / Browser** — approve remote machines, native apps, and
+   ephemeral website origins through explicit local boundaries.
+5. **Connection / Policy** — control runtime lifecycle, copy the private Server
+   URL, and inspect or save next-launch limits.
 
 It can launch while the broker is offline, choose a workspace with the native
 folder picker, start the existing Node broker, reconnect from private runtime
@@ -118,7 +124,8 @@ generic gradients, or ornamental cards.
 - The local HTTP shell uses a strict same-origin CSP, denies framing, suppresses
   referrers, disables unused browser capabilities, and never renders its token.
 - Runtime activity omits prompts, tool arguments, file contents, command output,
-  transport IDs, and credentials.
+  transport IDs, child route IDs, and credentials. Bounded agent roles, states,
+  and results are owner-only and deliberately reported through `agent_progress`.
 
 ## Adoption checklist and evidence
 
@@ -127,7 +134,7 @@ generic gradients, or ornamental cards.
 | Product understanding | Pass | `PRODUCT_BUILD_STATE.md`; broker remains sole execution authority; native-first surface hierarchy |
 | Foundations | Pass | `desktop/macos/Sources/CodexFlowApp/DesignSystem.swift`; bundled Geologica; Ground/Light/Signal/Ink and seven-point cadence |
 | Identity | Pass | custom application icon; Flow7 Tech public assets; restrained product-name treatment |
-| Layout and depth | Pass | native Now/Projects/Chats/Connection/Policy; spatial rail/work-surface composition; compact fallback |
+| Layout and depth | Pass | native Now/Projects/Environments/Worktrees/Changes/Tasks/Hosts/Computer/Browser/Connection/Policy; spatial rail/work-surface composition; compact fallback |
 | Interaction and motion | Pass | native lifecycle and workspace controls; loading/disabled/error/recovery states; reduced-motion behavior |
 | Content | Pass | repository-specific connection, routing, policy, recovery, and privacy copy; no generic AI claims |
 | Accessibility | Pass | semantic SwiftUI controls and labels; visible focus; 44px targets; contrast and narrow-width verification |
@@ -140,11 +147,13 @@ fixture and live-broker lifecycle smoke tests, root build/smoke/stress suites,
 package inspection, dependency audit, browser desktop/mobile visual checks,
 website lint/build/render checks, and a check of the deployed public source.
 
-That release evidence passed on 2026-07-15. The public GitHub Pages edition is
-live at `https://tarunspandit.github.io/codexflow/`, and the exact validated
-Sites build is live at `https://codexflow.tarunspandit.chatgpt.site/`.
+The 0.43.0 native Active/Done agent surface has passed signed universal build,
+launch, accessibility-tree, production-size visual, route-isolation, restart,
+secret-refusal, and credential-leakage checks. Public deployment evidence is
+recorded in `PRODUCT_BUILD_STATE.md` as each release target completes.
 
-The final platform-hosted golden path still requires a configured ChatGPT
-account and public tunnel: bind two conversations to different projects and
-verify each retains its own route. This external account prerequisite is not
-replaced with fabricated local success state.
+The final platform-hosted golden path still requires a configured ChatGPT Work
+account: spawn two children, give each its allocated route, verify independent
+project/worktree access, steer from the parent, and observe native Active/Done
+state. This external account prerequisite is not replaced with fabricated local
+success state.

@@ -35,11 +35,14 @@ test("renders the complete English launch page", async () => {
   assert.match(html, /Separate working memory\./);
   assert.match(html, /The native desktop app/);
   assert.match(html, /Everything in motion/);
-  assert.match(html, /Supervise routed web tasks, plans, blockers/);
-  assert.match(html, /live task progress/i);
+  assert.match(html, /Supervise routed web tasks, nested Active\/Done agents, plans, blockers/);
+  assert.match(html, /live task and subagent progress/i);
   assert.match(html, /Environments/);
   assert.match(html, /Changes/);
   assert.match(html, /Tasks/);
+  assert.match(html, /nested Active\/Done agents/i);
+  assert.match(html, /Every real child gets its own route/i);
+  assert.match(html, /CHATGPT WORK \/ ROUTE ISOLATED/i);
   assert.match(html, /Hosts/);
   assert.match(html, /Computer/);
   assert.match(html, /Browser/);
@@ -55,7 +58,7 @@ test("renders the complete English launch page", async () => {
   assert.match(html, /COMPUTER USE \/ CONSENTED/i);
   assert.match(html, /A clean web profile, not your personal one/i);
   assert.match(html, /WEBKIT \/ ORIGIN SCOPED/i);
-  assert.match(html, /CODEXFLOW \/ 0\.42\.0/);
+  assert.match(html, /CODEXFLOW \/ 0\.43\.0/);
   assert.match(html, /representative native-app preview/i);
   assert.match(html, /Bounded local progress/);
   assert.match(html, /public website cannot see your projects or chats/i);
@@ -74,8 +77,10 @@ test("renders the Chinese edition", async () => {
   assert.match(html, /任意对话。/);
   assert.match(html, /每个聊天/);
   assert.match(html, /原生桌面应用/);
-  assert.match(html, /实时任务进度/);
+  assert.match(html, /实时任务与 subagent 进度/);
   assert.match(html, /任务/);
+  assert.match(html, /Active \/ Done agents/i);
+  assert.match(html, /每个真实 child 都有自己的 route/i);
   assert.match(html, /staged 与 unstaged/i);
   assert.match(html, /逐 hunk/i);
   assert.match(html, /逐行 review note/i);
@@ -87,7 +92,7 @@ test("renders the Chinese edition", async () => {
   assert.match(html, /持久终端、Codex 环境、项目 skills、仓库分析/);
   assert.match(html, /视觉操作仍然先征求同意/);
   assert.match(html, /使用干净的 Web profile/);
-  assert.match(html, /CODEXFLOW \/ 0\.42\.0/);
+  assert.match(html, /CODEXFLOW \/ 0\.43\.0/);
   assert.match(html, /一切运行，一目了然/);
   assert.match(html, /示意预览/);
   assert.match(html, /受限的本地进度/);

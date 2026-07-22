@@ -104,7 +104,7 @@ conversation. The native app makes the broker legible and controllable:
 - **Environments** shows the project’s shared Codex environment definitions and runs setup, cleanup, or named actions.
 - **Worktrees** creates, reveals, audits, and safely removes isolated checkouts.
 - **Changes** separates staged and unstaged files, renders bounded color-coded diffs, stages/unstages/reverts individual hunks, and keeps line-anchored review notes visible to `show_changes` in the web chat.
-- **Tasks** shows every real project-routed web conversation with its bounded plan, current focus, blockers, review state, and completion progress, plus local search, rename, pin, archive, and restore controls; background MCP discovery connections are deliberately hidden.
+- **Tasks** shows every real project-routed web conversation with its bounded plan, current focus, blockers, review state, completion progress, and nested Active/Done ChatGPT Work agents, plus local search, rename, pin, archive, and restore controls; background MCP discovery connections are deliberately hidden.
 - **Hosts** discovers concrete aliases from `~/.ssh/config`, requires bounded local OpenSSH verification, saves canonical remote project folders, and revokes routing automatically if an alias resolves to a different destination.
 - **Computer** grants one routed chat bounded, code-signing-bound access to an approved native app.
 - **Browser** provides visible, origin-scoped website control in an ephemeral WebKit profile.
@@ -134,12 +134,13 @@ implicit; each managed pair remains on its approved host.
 Operational session telemetry stays in process memory, is bounded, and expires
 shortly after a chat closes. It contains only a non-actionable display
 fingerprint, selected project, tool name, outcome, and duration. Explicit local
-rename/pin/archive choices, native review notes, and the bounded title/detail/plan
-snapshot deliberately sent through `task_progress` are persisted in owner-only
+rename/pin/archive choices, native review notes, the bounded title/detail/plan
+snapshot deliberately sent through `task_progress`, and short agent roles,
+states, details, and results sent through `agent_progress` are persisted in owner-only
 metadata files. This lets the native Tasks workspace supervise parallel web work
 without becoming a second chat or model runtime. CodexFlow never stores prompts,
 general tool arguments, file contents, command output, tokens, or usable MCP
-transport IDs.
+transport or child-route IDs.
 
 ## Native task progress
 
@@ -148,8 +149,22 @@ after project selection and whenever the plan materially changes, becomes blocke
 enters review, or completes. Each call replaces one route’s bounded snapshot: a
 120-character task title, optional 280-character current focus, up to twelve plan
 steps, and explicit status. The native **Tasks** workspace aggregates those
-independent routes into one supervision surface. It does not spawn agents, send
-model requests, scrape ChatGPT, or move conversation ownership away from the web.
+independent routes into one supervision surface.
+
+## Web subagent coordination
+
+When ChatGPT Work actually spawns subagents, the parent uses `agent_progress` to
+allocate a separate project route for each child. Every child receives its own
+route, can create its own managed worktree before writing, and may update only
+its own bounded role, status, detail, and result. The parent can inspect the
+shared ledger, steer work in ChatGPT, consolidate results, and revoke all child
+routes. The native **Tasks** workspace presents those records as nested Active
+and Done lanes and rolls child tool activity up to the parent task.
+
+CodexFlow coordinates routes and local state only. ChatGPT owns spawning,
+follow-up, waiting, stopping, model usage, and conversation threads. CodexFlow
+does not send model requests, scrape ChatGPT, invoke the Codex CLI, or claim an
+agent exists unless the model surface actually created it.
 
 ## Repository Analysis
 

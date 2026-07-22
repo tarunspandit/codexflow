@@ -1316,7 +1316,8 @@ struct TasksView: View {
         return scoped.filter {
             $0.id.lowercased().contains(needle) ||
             ($0.title?.lowercased().contains(needle) ?? false) ||
-            ($0.project?.name.lowercased().contains(needle) ?? false)
+            ($0.project?.name.lowercased().contains(needle) ?? false) ||
+            $0.agents.contains { $0.name.lowercased().contains(needle) || $0.role.lowercased().contains(needle) }
         }
     }
 
@@ -1388,7 +1389,7 @@ private struct PrivacyStrip: View {
     var body: some View {
         HStack(spacing: 11) {
             Image(systemName: "eye.slash.fill").foregroundStyle(FlowColor.success)
-            Text("Only task titles, bounded plan steps, and operational outcomes reported through task_progress are stored. Prompts, file contents, command output, and credentials are not.")
+            Text("Only task titles, bounded plans, and short agent roles, states, and outcomes reported through task_progress or agent_progress are stored. Prompts, file contents, command output, and credentials are not.")
                 .font(FlowType.body(11)).foregroundStyle(FlowColor.inkMuted)
             Spacer()
             Text("BOUNDED LOCAL PROGRESS").font(FlowType.label(8)).tracking(1.1).foregroundStyle(FlowColor.success)
@@ -1447,6 +1448,10 @@ private struct SessionDetailCard: View {
                     FlowDivider()
                     TaskProgressBoard(task: task)
                 }
+                if !session.agents.isEmpty {
+                    FlowDivider()
+                    AgentProgressBoard(agents: session.agents)
+                }
             }
         }
     }
@@ -1504,6 +1509,90 @@ private struct TaskProgressBoard: View {
     }
 }
 
+private struct AgentProgressBoard: View {
+    let agents: [AgentProgressOverview]
+
+    private var active: [AgentProgressOverview] {
+        agents.filter { ["queued", "working", "waiting"].contains($0.status) }
+    }
+
+    private var done: [AgentProgressOverview] {
+        agents.filter { !["queued", "working", "waiting"].contains($0.status) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(spacing: 9) {
+                Image(systemName: "point.3.filled.connected.trianglepath.dotted")
+                    .foregroundStyle(FlowColor.signal)
+                Text("Agents").font(FlowType.title(13)).foregroundStyle(FlowColor.ink)
+                Text("ChatGPT Work coordinated")
+                    .font(FlowType.label(8)).tracking(0.7).foregroundStyle(FlowColor.inkMuted)
+                Spacer()
+                Text("\(active.count) active · \(done.count) done")
+                    .font(FlowType.mono(9)).foregroundStyle(FlowColor.inkMuted)
+            }
+            HStack(alignment: .top, spacing: 10) {
+                AgentProgressColumn(title: "ACTIVE", agents: active, emptyText: "No agents running")
+                AgentProgressColumn(title: "DONE", agents: done, emptyText: "No completed agents")
+            }
+        }
+    }
+}
+
+private struct AgentProgressColumn: View {
+    let title: String
+    let agents: [AgentProgressOverview]
+    let emptyText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(FlowType.label(8)).tracking(1.1).foregroundStyle(FlowColor.inkMuted)
+            if agents.isEmpty {
+                HStack(spacing: 7) {
+                    Image(systemName: "circle.dotted")
+                    Text(emptyText)
+                }
+                .font(FlowType.body(10))
+                .foregroundStyle(FlowColor.inkMuted)
+                .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+            } else {
+                ForEach(agents) { agent in
+                    HStack(alignment: .top, spacing: 9) {
+                        ZStack {
+                            Circle().fill(agent.status.agentStatusColor.opacity(0.12)).frame(width: 28, height: 28)
+                            Image(systemName: agent.status.agentStatusSymbol)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(agent.status.agentStatusColor)
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(agent.name).font(FlowType.title(10)).foregroundStyle(FlowColor.ink).lineLimit(1)
+                                StatusPill(label: agent.status.codexFlowTitle, color: agent.status.agentStatusColor)
+                                Spacer(minLength: 4)
+                                Text(Format.relative(agent.updatedAt)).font(FlowType.mono(8)).foregroundStyle(FlowColor.inkMuted)
+                            }
+                            Text(agent.role).font(FlowType.label(9)).foregroundStyle(FlowColor.inkMuted).lineLimit(1)
+                            if let summary = agent.result ?? agent.detail, !summary.isEmpty {
+                                Text(summary).font(FlowType.body(9)).foregroundStyle(FlowColor.inkMuted).lineLimit(2)
+                            }
+                        }
+                    }
+                    .padding(9)
+                    .background(FlowColor.paperMuted.opacity(0.55))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(FlowColor.paperMuted.opacity(0.28))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(FlowColor.line.opacity(0.75), lineWidth: 1))
+    }
+}
+
 private extension String {
     var taskStepSymbol: String {
         switch self {
@@ -1520,6 +1609,26 @@ private extension String {
         case "in_progress": FlowColor.signal
         case "blocked": FlowColor.warning
         default: FlowColor.inkMuted
+        }
+    }
+
+    var agentStatusSymbol: String {
+        switch self {
+        case "working": "arrow.triangle.2.circlepath"
+        case "waiting": "pause.fill"
+        case "done": "checkmark"
+        case "failed": "xmark"
+        case "stopped": "stop.fill"
+        default: "clock.fill"
+        }
+    }
+
+    var agentStatusColor: Color {
+        switch self {
+        case "done": FlowColor.success
+        case "waiting": FlowColor.warning
+        case "failed", "stopped": FlowColor.danger
+        default: FlowColor.signal
         }
     }
 }
