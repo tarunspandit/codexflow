@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-The 0.39.0 source and native-app release candidate are complete locally. The native Changes workspace now supports stable content-derived hunk actions and line-anchored review notes that are returned to the selected web chat through `show_changes`. Approved OpenSSH projects retain route-private terminals, environments, skills, analysis, and guarded managed worktrees. Literal Codex desktop parity is not claimed; Computer Use/browser control, richer native task progress/orchestration, and native clients beyond macOS remain tracked in `CODEX_DESKTOP_PARITY.md`. GitHub/public-site deployment, npm publication, and live ChatGPT scheduled/two-chat acceptance remain release checks.
+The 0.39.0 source, signed native app, GitHub release, GitHub Pages deployment, and Flow7-hosted site are live. The native Changes workspace supports stable content-derived hunk actions and line-anchored review notes that are returned to the selected web chat through `show_changes`. Approved OpenSSH projects retain route-private terminals, environments, skills, analysis, and guarded managed worktrees. Literal Codex desktop parity is not claimed; Computer Use/browser control, richer native task progress/orchestration, and native clients beyond macOS remain tracked in `CODEX_DESKTOP_PARITY.md`. npm publication and live ChatGPT scheduled/two-chat acceptance remain account-authenticated checks.
 
 ## Product truth
 
@@ -94,17 +94,17 @@ The 0.39.0 source and native-app release candidate are complete locally. The nat
 
 ## Verification evidence
 
-- Root TypeScript build and the complete smoke suite pass for the 0.39.0 release candidate; the final stress/package/site matrix follows before publication.
+- Root TypeScript build, complete smoke suite, stress suite, signed universal-app build/smoke, package dry-run, production audit, and bilingual website lint/build/render/audit pass for 0.39.0.
 - The dedicated project picker renders and selects a real project in an isolated browser harness without console errors; `list_projects` uses its cache-versioned resource while `select_project` is usable without an output template.
 - Runtime and HTTP regression tests confirm that multiple MCP transports sharing one private route aggregate into one GUI chat, simultaneous routes remain isolated, route-level calls/errors are accumulated correctly, and unbound discovery/picker transports stay hidden from chat telemetry.
 - The native app builds for `x86_64 arm64`, passes strict signature/plist/resource checks, launches in fixture mode, and refreshes a deliberately corrupted same-version installation.
 - A real private temporary broker was authenticated, stopped, started, policy-edited, restarted, and checked through the signed GUI; unauthorized HTTP remained 401 and the native log contained no credential.
 - The dedicated native-review regression proves two-hunk stage/unstage/revert, stale-ID refusal, untracked-file refusal, mode-0600 review-note persistence/deletion, and note visibility in `show_changes`.
 - The signed universal app was visually verified with the hunk toolbar, line comment composer, inline notes, and stale-note treatment rendered in fixture mode.
-- The 0.38.0 public website describes managed SSH worktrees and guarded handoff; lint, build, English/Chinese rendered-output tests, GitHub Pages, and the Flow7-hosted production deployment are verified.
+- The 0.39.0 public website describes managed SSH worktrees, guarded handoff, per-hunk review, and web-chat-visible line notes; English/Chinese output is verified on GitHub Pages and the Flow7-hosted production deployment.
 - Direct SSH-helper regression proves host/project trust invalidation, blocked-path rejection, bounded reads/writes, search/edit behavior, and genuinely concurrent remote operations. The HTTP/MCP regression proves the saved remote project appears in the ordinary picker, persists its private route, and provides isolated terminals, environment execution, workspace skills, repository inspection, file work, Bash, and Git at the intended root.
 - The Flow7 adoption checklist and Full Product Completion Contract were re-read after implementation; every local gate passes.
-- The existing public URLs remain `https://tarunspandit.github.io/codexflow/` and `https://codexflow.tarunspandit.chatgpt.site/`; both were verified serving the 0.38.0 managed-SSH-worktree copy.
+- The existing public URLs remain `https://tarunspandit.github.io/codexflow/` and `https://codexflow.tarunspandit.chatgpt.site/`; both were verified serving the 0.39.0 per-hunk review copy in English and Chinese.
 - Pull request 14 was squash-merged to `main` at commit `9e95eb0`; the corresponding GitHub Pages deployment completed successfully.
 - Pull request 16 was squash-merged to `main` at commit `9c22565`; release `v0.32.0`, GitHub Pages, and Sites version 8 are live.
 - Pull request 18 was squash-merged to `main` at commit `33a3148`; release `v0.33.0`, GitHub Pages, and Sites version 9 are live.
@@ -113,6 +113,7 @@ The 0.39.0 source and native-app release candidate are complete locally. The nat
 - Pull request 24 was squash-merged to `main` at commit `b1b8a31`; release `v0.36.0`, GitHub Pages, and Sites version 12 are live. Sites version 12 uses source commit `7102556` and deployment `appgdep_6a60d24d719881919d2db4aeaf4f4dd7` completed successfully.
 - Pull request 26 was squash-merged to `main` at commit `9b3cf6d`; release `v0.37.0`, GitHub Pages run `29930865790`, and Sites version 13 are live. Sites version 13 uses source commit `8801ea5`, version `appgprj_6a5722bc42d08191a6f1882cf084ae2b~appgver_9f186ec4b71c819193f553e2910d4fcb`, and deployment `appgdep_6a60da237c7c8191aa56b407cf26369d` completed successfully.
 - Pull request 28 was squash-merged to `main` at commit `a1c9a8a`; release `v0.38.0`, GitHub Pages run `29933107263`, and Sites version 14 are live. Sites version 14 uses source commit `be14bb1`, version `appgprj_6a5722bc42d08191a6f1882cf084ae2b~appgver_0dda6eb859348191a61bae5f2b3ff6ab`, and deployment `appgdep_6a60e0e8b11c81919273d80ab5ade865` completed successfully.
+- Pull request 30 was squash-merged to `main` at commit `966f8cc`; release `v0.39.0` and GitHub Pages run `29935794562` are live. Sites version 15 uses source commit `a394643`, version `appgprj_6a5722bc42d08191a6f1882cf084ae2b~appgver_b134765697448191a2b464adbae4958b`, and deployment `appgdep_6a60e8b0f8108191ac68e98f6e606518` completed successfully.
 - The permanent `https://codexflow.flow7.org` tunnel is reachable and correctly returns `401` for unauthenticated root and MCP requests.
 - The stale `CodexFlow Local` ChatGPT connector was uninstalled, leaving `CodexFlow` as the current connector.
 
@@ -122,9 +123,9 @@ The 0.39.0 source and native-app release candidate are complete locally. The nat
 
 ## Open blockers
 
-- npm registry publication requires a refreshed maintainer login (`npm whoami` returned E401 and the 0.38.0 publish attempt was rejected on 2026-07-23). This does not block source, desktop, GitHub release, GitHub Pages, Sites, or permanent-tunnel operation.
+- npm registry publication requires a refreshed maintainer login (`npm whoami` returned E401 during the 0.39.0 release on 2026-07-23). This does not block source, desktop, GitHub release, GitHub Pages, Sites, or permanent-tunnel operation.
 - The final live two-chat ChatGPT acceptance pass requires an authenticated ChatGPT browser session. The equivalent broker-level concurrent-route regression test passes.
 
 ## Completion record
 
-Every required ledger row remains verified. The 0.39.0 review slice adds guarded individual-hunk operations and web-chat-visible line review notes without creating a second local chat or weakening content-free telemetry. The complete release matrix and public deployment are the remaining steps for this version; npm publication and the account-authenticated ChatGPT acceptance passes remain external checks.
+Every required ledger row remains verified. The full 0.39.0 release matrix passes, and source, GitHub release, GitHub Pages, the Flow7-hosted site, and permanent tunnel are live. This release adds guarded individual-hunk operations and web-chat-visible line review notes without creating a second local chat or weakening content-free telemetry. npm publication and the account-authenticated ChatGPT acceptance passes remain external checks.
