@@ -199,6 +199,17 @@ const AdminBrowserCommand = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("revoke"),
     origin: z.string().trim().min(1).max(500)
+  }).strict(),
+  z.object({
+    action: z.literal("add_comment"),
+    sessionId: z.string().regex(/^but_[a-f0-9]{16}$/),
+    selector: z.string().trim().min(1).max(1000),
+    target: z.string().trim().min(1).max(300),
+    note: z.string().trim().min(1).max(1000)
+  }).strict(),
+  z.object({
+    action: z.literal("remove_comment"),
+    commentId: z.string().regex(/^bua_[a-f0-9]{16}$/)
   }).strict()
 ]);
 
@@ -1100,6 +1111,8 @@ async function main(): Promise<void> {
         case "decide_host": browserUse.decideHost(parsed.data.requestId, parsed.data.decision); break;
         case "decide_action": browserUse.decideAction(parsed.data.requestId, parsed.data.approve); break;
         case "revoke": browserUse.revoke(parsed.data.origin); break;
+        case "add_comment": browserUse.addComment(parsed.data.sessionId, parsed.data.selector, parsed.data.target, parsed.data.note); break;
+        case "remove_comment": browserUse.removeComment(parsed.data.commentId); break;
       }
       res.json({ ...browserUse.overview(false), message: "Browser policy updated." });
     } catch (error) {

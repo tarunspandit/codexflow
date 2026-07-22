@@ -1495,10 +1495,10 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     {
       title: "Browser",
       description:
-        "Use CodexFlow's dedicated ephemeral WebKit browser after the user approves each website origin in the native Browser view. Observe before every DOM-targeted action. Sensitive actions require a separate native confirmation. Chrome, Safari, downloads, extensions, account/security settings, browser permissions, credentials, and arbitrary coordinates are outside this tool.",
+        "Use CodexFlow's dedicated ephemeral WebKit browser after the user approves each website origin in the native Browser view. Observe before every DOM-targeted action. Read route-private visual comments that the user leaves on exact page elements. Sensitive actions require a separate native confirmation. Chrome, Safari, downloads, extensions, account/security settings, browser permissions, credentials, and arbitrary coordinates are outside this tool.",
       inputSchema: {
         route_id: ROUTE_ID_INPUT,
-        action: z.enum(["status", "request_host", "open", "observe", "act", "close"]),
+        action: z.enum(["status", "request_host", "open", "observe", "comments", "act", "close"]),
         url: z.string().trim().min(1).max(4096).optional().describe("Complete HTTP(S) URL for request_host or open. Origins must be approved before opening."),
         reason: z.string().trim().min(1).max(500).optional().describe("Narrow user-facing reason shown with a host access request."),
         browser_session_id: z.string().regex(/^but_[a-f0-9]{16}$/).optional().describe("Ephemeral browser session returned by open."),
@@ -1535,6 +1535,24 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         const result = await browserUse.open(routeId, String(args.url ?? ""));
         return textResult(`# Browser opened\n\n${result.title}\n${result.url}\n\nObserve this session before interacting.`, result);
       }
+      if (args.action === "comments") {
+        const sessionId = args.browser_session_id === undefined ? undefined : String(args.browser_session_id);
+        const comments = browserUse.routeComments(routeId, sessionId);
+        const rows = comments.map((comment, index) => [
+          `${index + 1}. ${comment.target}`,
+          `   Comment: ${comment.note}`,
+          `   URL: ${comment.url}`,
+          `   Selector: ${comment.selector}`,
+          `   ID: ${comment.id}`
+        ].join("\n"));
+        return textResult([
+          "# Browser comments",
+          "",
+          rows.join("\n\n") || "No page comments are waiting for this chat.",
+          "",
+          "These comments were written by the user in the native CodexFlow Browser and are private to this project route. Address them, then ask the user to review the rendered page again."
+        ].join("\n"), { comments });
+      }
       if (args.action === "observe") {
         const result = await browserUse.observe(routeId, String(args.browser_session_id ?? ""));
         const screenshot = String(result.screenshot_base64 ?? "");
@@ -1543,9 +1561,13 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         const rows = elements.slice(0, 160).map((element) =>
           `- ${element.id} · ${element.role}${element.name ? ` · ${element.name}` : ""}${element.text ? ` · ${element.text}` : ""}`
         );
+        const comments = Array.isArray(structured.comments) ? structured.comments as Array<Record<string, unknown>> : [];
+        const commentRows = comments.map((comment) =>
+          `- ${comment.id} · ${comment.target} · ${comment.note}`
+        );
         return {
           content: [
-            { type: "text", text: redactSensitiveText(`# Browser snapshot\n\n${structured.title}\n${structured.url}\nSnapshot: ${structured.snapshot_id}\n\n${rows.join("\n") || "No interactive DOM elements were returned."}\n\nObserve again after every action; snapshots are short-lived and route-private.`) },
+            { type: "text", text: redactSensitiveText(`# Browser snapshot\n\n${structured.title}\n${structured.url}\nSnapshot: ${structured.snapshot_id}\n\n${rows.join("\n") || "No interactive DOM elements were returned."}\n\n## User comments\n\n${commentRows.join("\n") || "No page comments are waiting."}\n\nObserve again after every action; snapshots and comments are route-private.`) },
             ...(screenshot ? [{ type: "image", data: screenshot, mimeType: "image/png" }] : [])
           ],
           structuredContent: redactStructured(structured)

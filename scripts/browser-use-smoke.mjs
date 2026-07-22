@@ -141,7 +141,53 @@ try {
     const observed = await client.callTool({ name: 'browser_use', arguments: { ...common, action: 'observe', browser_session_id: browserSessionId } });
     assert.ok(observed.content.some((item) => item.type === 'image' && item.mimeType === 'image/png'));
     assert.equal(observed.structuredContent.elements.length, 3);
+    assert.deepEqual(observed.structuredContent.comments, []);
     assert.equal(observed.structuredContent.elements[0].href, undefined, 'secret-bearing hrefs must not cross the broker boundary');
+
+    const secretComment = await fetch(`${base}/admin/browser?${auth}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'add_comment', sessionId: browserSessionId, selector: 'body > button',
+        target: 'button · Continue', note: 'Never save ghp_abcdefghijklmnopqrstuvwxyz'
+      })
+    });
+    assert.equal(secretComment.status, 400, 'secret-looking browser comments must fail closed');
+
+    const secretTargetComment = await fetch(`${base}/admin/browser?${auth}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'add_comment', sessionId: browserSessionId, selector: 'body > button',
+        target: 'button · sk-abcdefghijklmnopqrstuvwxyz123456', note: 'Replace this visible token.'
+      })
+    });
+    assert.equal(secretTargetComment.status, 400, 'secret-looking target text must fail before redaction');
+
+    const addedComment = await fetch(`${base}/admin/browser?${auth}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'add_comment', sessionId: browserSessionId, selector: 'html > body > main > button:nth-of-type(1)',
+        target: 'button · Continue', note: 'Keep this action aligned with the section heading on narrow screens.'
+      })
+    });
+    assert.equal(addedComment.status, 200);
+    const addedOverview = await addedComment.json();
+    assert.equal(addedOverview.comments.length, 1);
+    assert.equal(addedOverview.comments[0].route_id, undefined, 'native comment overview must not expose a route credential');
+    const commentId = addedOverview.comments[0].id;
+
+    const routedComments = await client.callTool({ name: 'browser_use', arguments: {
+      ...common, action: 'comments', browser_session_id: browserSessionId
+    } });
+    assert.equal(routedComments.structuredContent.comments.length, 1);
+    assert.match(routedComments.structuredContent.comments[0].note, /aligned with the section heading/);
+    assert.equal(routedComments.structuredContent.comments[0].route_display, undefined);
+    const { client: crossedCommentClient, common: crossedCommentRoute } = await selectedClient(base, auth, 'browser-comment-isolation');
+    try {
+      const crossedComments = await crossedCommentClient.callTool({ name: 'browser_use', arguments: {
+        ...crossedCommentRoute, action: 'comments', browser_session_id: browserSessionId
+      } });
+      assert.equal(crossedComments.isError, true, 'a different chat route must not inspect another route browser session');
+    } finally { await crossedCommentClient.close(); }
 
     const actionArgs = {
       ...common, action: 'act', browser_session_id: browserSessionId, snapshot_id: observed.structuredContent.snapshot_id,
@@ -165,12 +211,20 @@ try {
     assert.match(resultText(stale), /snapshot is missing, expired/i);
 
     const observedAgain = await client.callTool({ name: 'browser_use', arguments: { ...common, action: 'observe', browser_session_id: browserSessionId } });
+    assert.equal(observedAgain.structuredContent.comments.length, 1, 'fresh observations must carry route-private user comments');
     const secret = await client.callTool({ name: 'browser_use', arguments: {
       ...common, action: 'act', browser_session_id: browserSessionId, snapshot_id: observedAgain.structuredContent.snapshot_id,
       element_id: 'dom_3333333333333333', operation: 'set_value', value: 'sk-abcdefghijklmnopqrstuvwxyz123456'
     } });
     assert.equal(secret.isError, true);
     assert.match(resultText(secret), /credential or secret/i);
+
+    const removedComment = await fetch(`${base}/admin/browser?${auth}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'remove_comment', commentId })
+    });
+    assert.equal(removedComment.status, 200);
+    assert.equal((await removedComment.json()).comments.length, 0);
 
     const closed = await client.callTool({ name: 'browser_use', arguments: { ...common, action: 'close', browser_session_id: browserSessionId } });
     assert.equal(closed.structuredContent.status, 'closed');
@@ -201,7 +255,7 @@ try {
 
   pumping = false;
   await pumpPromise;
-  console.log('✓ browser host approval, route isolation, ephemeral sessions, DOM snapshots, confirmations, secret refusal, persistence, and revocation pass');
+  console.log('✓ browser host approval, route isolation, ephemeral sessions, DOM snapshots, visual comments, confirmations, secret refusal, persistence, and revocation pass');
 } finally {
   pumping = false;
   child.kill('SIGTERM');

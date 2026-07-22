@@ -3,10 +3,26 @@ import Foundation
 import SwiftUI
 import WebKit
 
+struct BrowserAnnotationTarget: Equatable {
+    let sessionID: String
+    let selector: String
+    let target: String
+}
+
+private final class WeakBrowserMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var delegate: WKScriptMessageHandler?
+    init(delegate: WKScriptMessageHandler) { self.delegate = delegate }
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        delegate?.userContentController(userContentController, didReceive: message)
+    }
+}
+
 @MainActor
-final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
+final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     @Published private(set) var selectedSessionID: String?
     @Published private(set) var revision = 0
+    @Published private(set) var annotationMode = false
+    @Published private(set) var annotationTarget: BrowserAnnotationTarget?
 
     private struct Session {
         let id: String
@@ -28,8 +44,32 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
 
     func select(_ sessionID: String) {
         guard sessions[sessionID] != nil else { return }
+        if let selectedSessionID, selectedSessionID != sessionID, annotationMode {
+            setAnnotationMode(false, sessionID: selectedSessionID)
+        }
         selectedSessionID = sessionID
+        annotationMode = false
+        annotationTarget = nil
         revision &+= 1
+    }
+
+    func toggleAnnotationMode() {
+        guard let selectedSessionID, sessions[selectedSessionID] != nil else { return }
+        annotationMode.toggle()
+        annotationTarget = nil
+        setAnnotationMode(annotationMode, sessionID: selectedSessionID)
+    }
+
+    func clearAnnotationTarget(keepMode: Bool = true) {
+        annotationTarget = nil
+        if let selectedSessionID {
+            if keepMode && annotationMode {
+                setAnnotationMode(true, sessionID: selectedSessionID)
+            } else if !keepMode {
+                annotationMode = false
+                setAnnotationMode(false, sessionID: selectedSessionID)
+            }
+        }
     }
 
     func webView(for sessionID: String?) -> WKWebView? {
@@ -45,9 +85,12 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
             session.webView.stopLoading()
             session.webView.navigationDelegate = nil
             session.webView.uiDelegate = nil
+            session.webView.configuration.userContentController.removeScriptMessageHandler(forName: "codexflowAnnotation")
         }
         if let selectedSessionID, removed.contains(selectedSessionID) {
             self.selectedSessionID = sessions.keys.sorted().first
+            annotationMode = false
+            annotationTarget = nil
         }
         revision &+= 1
     }
@@ -94,8 +137,13 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
                 session.webView.stopLoading()
                 session.webView.navigationDelegate = nil
                 session.webView.uiDelegate = nil
+                session.webView.configuration.userContentController.removeScriptMessageHandler(forName: "codexflowAnnotation")
             }
-            if selectedSessionID == command.sessionId { selectedSessionID = sessions.keys.sorted().first }
+            if selectedSessionID == command.sessionId {
+                selectedSessionID = sessions.keys.sorted().first
+                annotationMode = false
+                annotationTarget = nil
+            }
             revision &+= 1
             return ["closed": true]
         default:
@@ -110,11 +158,82 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.mediaTypesRequiringUserActionForPlayback = .all
         configuration.applicationNameForUserAgent = "CodexFlow Ephemeral Browser"
+        configuration.userContentController.add(WeakBrowserMessageHandler(delegate: self), name: "codexflowAnnotation")
         let view = WKWebView(frame: CGRect(x: 0, y: 0, width: 1280, height: 760), configuration: configuration)
         view.navigationDelegate = self
         view.uiDelegate = self
         view.allowsMagnification = true
         return view
+    }
+
+    private func setAnnotationMode(_ enabled: Bool, sessionID: String) {
+        guard let webView = sessions[sessionID]?.webView else { return }
+        let flag = enabled ? "true" : "false"
+        let script = """
+        (() => {
+          if (!window.__codexflowAnnotationState) {
+            const state = {enabled:false, overlay:null};
+            const clear = () => { if (state.overlay) state.overlay.remove(); state.overlay = null; };
+            const selectorFor = (element) => {
+              const parts = [];
+              let node = element;
+              while (node && node.nodeType === 1 && parts.length < 8) {
+                let part = node.tagName.toLowerCase();
+                const parent = node.parentElement;
+                if (parent) {
+                  const siblings = Array.from(parent.children).filter(candidate => candidate.tagName === node.tagName);
+                  if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+                }
+                parts.unshift(part);
+                if (node === document.body) break;
+                node = parent;
+              }
+              return parts.join(' > ').slice(0, 1000);
+            };
+            document.addEventListener('click', (event) => {
+              if (!state.enabled) return;
+              const element = event.target instanceof Element ? event.target : null;
+              if (!element || String(element.type || '').toLowerCase() === 'password') return;
+              event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation();
+              clear();
+              const rect = element.getBoundingClientRect();
+              const overlay = document.createElement('div');
+              overlay.setAttribute('data-codexflow-annotation-overlay', '');
+              Object.assign(overlay.style, {
+                position:'fixed', pointerEvents:'none', zIndex:'2147483647',
+                left:`${Math.max(0, rect.left)}px`, top:`${Math.max(0, rect.top)}px`,
+                width:`${Math.max(1, rect.width)}px`, height:`${Math.max(1, rect.height)}px`,
+                border:'2px solid #79B5DC', borderRadius:'4px', boxSizing:'border-box',
+                background:'rgba(121,181,220,0.10)', boxShadow:'0 0 0 3px rgba(8,9,11,0.28)'
+              });
+              document.documentElement.appendChild(overlay); state.overlay = overlay;
+              const role = element.getAttribute('role') || element.tagName.toLowerCase();
+              const label = element.getAttribute('aria-label') || element.getAttribute('title') || (element.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 180);
+              window.webkit.messageHandlers.codexflowAnnotation.postMessage({
+                selector: selectorFor(element), target: `${role}${label ? ` · ${label}` : ''}`.slice(0, 300)
+              });
+            }, true);
+            window.__codexflowAnnotationState = state;
+          }
+          const state = window.__codexflowAnnotationState;
+          state.enabled = \(flag);
+          document.documentElement.style.cursor = state.enabled ? 'crosshair' : '';
+          if (state.overlay) { state.overlay.remove(); state.overlay = null; }
+          return state.enabled;
+        })()
+        """
+        webView.evaluateJavaScript(script, completionHandler: nil)
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "codexflowAnnotation", let webView = message.webView,
+              let body = message.body as? [String: Any], let selector = body["selector"] as? String,
+              let target = body["target"] as? String else { return }
+        guard let sessionID = sessions.first(where: { $0.value.webView === webView })?.key,
+              annotationMode, !selector.isEmpty, selector.count <= 1000,
+              !target.isEmpty, target.count <= 300 else { return }
+        annotationTarget = BrowserAnnotationTarget(sessionID: sessionID, selector: selector, target: target)
+        revision &+= 1
     }
 
     private func updateOrigins(_ values: [String]?, sessionID: String) {
@@ -303,6 +422,12 @@ final class BrowserController: NSObject, ObservableObject, WKNavigationDelegate,
         guard let key = sessions.first(where: { $0.value.webView === webView })?.key, var session = sessions[key] else { return }
         session.lastError = nil
         sessions[key] = session
+        if key == selectedSessionID { annotationTarget = nil }
+    }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard annotationMode, let key = sessions.first(where: { $0.value.webView === webView })?.key,
+              key == selectedSessionID else { return }
+        setAnnotationMode(true, sessionID: key)
     }
     private func setError(_ error: Error, for webView: WKWebView) {
         guard let key = sessions.first(where: { $0.value.webView === webView })?.key, var session = sessions[key] else { return }

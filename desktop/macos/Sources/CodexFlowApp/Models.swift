@@ -504,6 +504,7 @@ struct BrowserOverview: Decodable {
     let hostRequests: [BrowserHostRequest]
     let actionRequests: [BrowserActionRequest]
     let sessions: [BrowserSessionOverview]
+    let comments: [BrowserCommentOverview]
     let recentActivity: [BrowserActivity]
     let commands: [BrowserNativeCommand]
     let message: String?
@@ -550,6 +551,17 @@ struct BrowserSessionOverview: Decodable, Identifiable, Hashable {
     let title: String
 }
 
+struct BrowserCommentOverview: Decodable, Identifiable, Hashable {
+    let id: String
+    let sessionId: String
+    let url: String
+    let selector: String
+    let target: String
+    let note: String
+    let routeDisplay: String
+    let createdAt: String
+}
+
 struct BrowserActivity: Decodable, Identifiable, Hashable {
     let at: String
     let routeDisplay: String
@@ -578,6 +590,15 @@ struct BrowserCommand: Encodable {
     let decision: String?
     let approve: Bool?
     let origin: String?
+}
+
+struct BrowserAnnotationCommand: Encodable {
+    let action: String
+    let sessionId: String?
+    let selector: String?
+    let target: String?
+    let note: String?
+    let commentId: String?
 }
 
 struct BrowserCompletionResponse: Decodable {

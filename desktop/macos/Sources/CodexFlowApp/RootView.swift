@@ -191,12 +191,11 @@ private struct BrandLockup: View {
             }
             .frame(width: 37, height: 37)
             .overlay(RoundedRectangle(cornerRadius: 9).stroke(FlowColor.signal.opacity(0.28), lineWidth: 1))
-            Text("Codex")
-                .font(FlowType.title(17))
-                .foregroundStyle(Color.white)
-            + Text("Flow")
-                .font(FlowType.title(17))
-                .foregroundStyle(FlowColor.signalBright)
+            HStack(spacing: 0) {
+                Text("Codex").foregroundStyle(Color.white)
+                Text("Flow").foregroundStyle(FlowColor.signalBright)
+            }
+            .font(FlowType.title(17))
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("CodexFlow")

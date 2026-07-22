@@ -57,6 +57,7 @@ const pageOrigin = `http://127.0.0.1:${pagePort}`;
 const token = 'native-browser-smoke-token';
 const brokerBase = `http://127.0.0.1:${brokerPort}`;
 const authHeaders = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+const manualAnnotationWaitMs = Math.max(0, Math.min(180_000, Number(process.env.CODEXFLOW_NATIVE_ANNOTATION_WAIT_MS ?? 0) || 0));
 const pageServer = http.createServer((request, response) => {
   if (request.url === '/download') {
     response.writeHead(200, { 'content-type': 'application/octet-stream', 'content-disposition': 'attachment; filename="blocked.bin"' });
@@ -128,11 +129,50 @@ try {
 
   let observed = await client.callTool({ name: 'browser_use', arguments: { ...common, action: 'observe', browser_session_id: browserSessionId } });
   assert.ok(observed.content.some((item) => item.type === 'image' && item.mimeType === 'image/png' && item.data.length > 100));
-  const button = observed.structuredContent.elements.find((element) => element.name === 'Run example');
+  let button = observed.structuredContent.elements.find((element) => element.name === 'Run example');
   const note = observed.structuredContent.elements.find((element) => element.name === 'Project note');
   const password = observed.structuredContent.elements.find((element) => element.type === 'password');
   assert.ok(button && note && password, 'native DOM snapshot must expose stable semantic targets');
   assert.equal(password.text, '', 'native DOM snapshots must redact password values');
+
+  let commentId;
+  if (manualAnnotationWaitMs > 0) {
+    console.log(`MANUAL_ANNOTATION_READY ${browserSessionId}`);
+    const deadline = Date.now() + manualAnnotationWaitMs;
+    while (Date.now() < deadline) {
+      const manualOverview = await (await fetch(`${brokerBase}/admin/browser`, { headers: authHeaders })).json();
+      if (manualOverview.comments.some((comment) => comment.sessionId === browserSessionId)) break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  } else {
+    const addedComment = await fetch(`${brokerBase}/admin/browser`, {
+      method: 'POST', headers: authHeaders,
+      body: JSON.stringify({
+        action: 'add_comment', sessionId: browserSessionId, selector: 'html > body > main > button:nth-of-type(1)',
+        target: 'button · Run example', note: 'Keep this action aligned with the page heading at narrow widths.'
+      })
+    });
+    assert.equal(addedComment.status, 200);
+    const commentOverview = await addedComment.json();
+    assert.equal(commentOverview.comments.length, 1);
+    commentId = commentOverview.comments[0].id;
+  }
+  const routedComments = await client.callTool({
+    name: 'browser_use', arguments: { ...common, action: 'comments', browser_session_id: browserSessionId }
+  });
+  assert.equal(routedComments.structuredContent.comments.length, 1);
+  if (manualAnnotationWaitMs > 0) {
+    assert.match(routedComments.structuredContent.comments[0].note, /manual annotation/i);
+    commentId = routedComments.structuredContent.comments[0].id;
+    observed = await client.callTool({
+      name: 'browser_use', arguments: { ...common, action: 'observe', browser_session_id: browserSessionId }
+    });
+    assert.equal(observed.structuredContent.comments.length, 1, 'manual UI comment must survive a fresh observation');
+    button = observed.structuredContent.elements.find((element) => element.name === 'Run example');
+    assert.ok(button, 'manual UI acceptance must reacquire the target from the fresh snapshot');
+  } else {
+    assert.match(routedComments.structuredContent.comments[0].note, /aligned with the page heading/);
+  }
 
   const clickArgs = {
     ...common, action: 'act', browser_session_id: browserSessionId, snapshot_id: observed.structuredContent.snapshot_id,
@@ -168,10 +208,16 @@ try {
 
   observed = await client.callTool({ name: 'browser_use', arguments: { ...common, action: 'observe', browser_session_id: browserSessionId } });
   assert.equal(observed.structuredContent.elements.find((element) => element.name === 'Project note').text, 'native bridge works');
+  assert.equal(observed.structuredContent.comments.length, 1);
+  const removedComment = await fetch(`${brokerBase}/admin/browser`, {
+    method: 'POST', headers: authHeaders,
+    body: JSON.stringify({ action: 'remove_comment', commentId })
+  });
+  assert.equal(removedComment.status, 200);
   const closed = await client.callTool({ name: 'browser_use', arguments: { ...common, action: 'close', browser_session_id: browserSessionId } });
   assert.equal(closed.structuredContent.status, 'closed');
 
-  console.log('✓ real native WebKit open, screenshot, semantic DOM, confirmation, action, input, redaction, and close pass');
+  console.log('✓ real native WebKit open, screenshot, semantic DOM, route-private comments, confirmation, action, input, redaction, and close pass');
 } catch (error) {
   failure = error;
   throw error;

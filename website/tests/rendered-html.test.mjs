@@ -56,9 +56,10 @@ test("renders the complete English launch page", async () => {
   assert.match(html, /isolated terminals, Codex environments, project skills, repository analysis/i);
   assert.match(html, /Visual work still asks first/i);
   assert.match(html, /COMPUTER USE \/ CONSENTED/i);
-  assert.match(html, /A clean web profile, not your personal one/i);
+  assert.match(html, /Review the rendered page together/i);
+  assert.match(html, /exact elements and leave route-private comments/i);
   assert.match(html, /WEBKIT \/ ORIGIN SCOPED/i);
-  assert.match(html, /CODEXFLOW \/ 0\.43\.0/);
+  assert.match(html, /CODEXFLOW \/ 0\.44\.0/);
   assert.match(html, /representative native-app preview/i);
   assert.match(html, /Bounded local progress/);
   assert.match(html, /public website cannot see your projects or chats/i);
@@ -91,8 +92,9 @@ test("renders the Chinese edition", async () => {
   assert.match(html, /远程工作区已上线/);
   assert.match(html, /持久终端、Codex 环境、项目 skills、仓库分析/);
   assert.match(html, /视觉操作仍然先征求同意/);
-  assert.match(html, /使用干净的 Web profile/);
-  assert.match(html, /CODEXFLOW \/ 0\.43\.0/);
+  assert.match(html, /和 Web chat 一起审查真实页面/);
+  assert.match(html, /选择准确元素留下仅该 route 可见的评论/);
+  assert.match(html, /CODEXFLOW \/ 0\.44\.0/);
   assert.match(html, /一切运行，一目了然/);
   assert.match(html, /示意预览/);
   assert.match(html, /受限的本地进度/);

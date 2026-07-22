@@ -2130,6 +2130,7 @@ struct BrowserView: View {
                     }
 
                     BrowserStage(overview: overview, controller: model.browserController) { model.selectBrowserSession($0) }
+                    BrowserAnnotationWorkspace(overview: overview, controller: model.browserController)
 
                     HStack(alignment: .top, spacing: 17) {
                         PaperCard {
@@ -2199,6 +2200,148 @@ struct BrowserView: View {
             content()
         }
     }
+}
+
+private struct BrowserAnnotationWorkspace: View {
+    @EnvironmentObject private var model: AppModel
+    let overview: BrowserOverview
+    @ObservedObject var controller: BrowserController
+    @State private var note = ""
+
+    private var visibleComments: [BrowserCommentOverview] {
+        guard let selected = controller.selectedSessionID else { return overview.comments }
+        return overview.comments.filter { $0.sessionId == selected }
+    }
+
+    private var trimmedNote: String { note.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private func save(_ target: BrowserAnnotationTarget) {
+        let value = trimmedNote
+        Task { @MainActor in
+            if await model.saveBrowserComment(target, note: value) { note = "" }
+        }
+    }
+
+    var body: some View {
+        PaperCard(padding: 18) {
+            HStack(alignment: .top, spacing: 18) {
+                annotationPanel.frame(maxWidth: .infinity, alignment: .leading)
+                commentsPanel.frame(width: 330, alignment: .leading)
+            }
+        }
+    }
+
+    @ViewBuilder private var annotationPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: controller.annotationMode ? "scope" : "cursorarrow.rays")
+                    .foregroundStyle(controller.annotationMode ? FlowColor.signal : FlowColor.inkMuted)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Page annotations").font(FlowType.title(15)).foregroundStyle(FlowColor.ink)
+                    Text("Select a rendered element, describe the intended result, then ask the web chat to address the comments.")
+                        .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted)
+                }
+                Spacer()
+                Button(controller.annotationMode ? "Stop annotating" : "Annotate page") { controller.toggleAnnotationMode() }
+                    .buttonStyle(FlowButtonStyle(kind: .primary)).disabled(controller.selectedSessionID == nil)
+            }
+            if let target = controller.annotationTarget {
+                BrowserAnnotationComposer(
+                    target: target, note: $note, busy: model.browserBusy,
+                    clear: { controller.clearAnnotationTarget() }, save: { save(target) }
+                )
+            }
+            else if controller.annotationMode {
+                HStack(spacing: 9) {
+                    StateDot(color: FlowColor.signal)
+                    Text("Annotation mode is active. Click the exact element in the browser preview above.")
+                        .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var commentsPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("OPEN COMMENTS").font(FlowType.label(8)).tracking(1).foregroundStyle(FlowColor.inkMuted)
+                Spacer()
+                Text("\(visibleComments.count)").font(FlowType.mono(9)).foregroundStyle(FlowColor.signal)
+            }
+            if visibleComments.isEmpty {
+                Text("No visual feedback is waiting for this page.")
+                    .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted).padding(.vertical, 8)
+            } else {
+                ForEach(visibleComments) { comment in
+                    BrowserCommentCard(comment: comment, busy: model.browserBusy) {
+                        Task { @MainActor in await model.removeBrowserComment(comment.id) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct BrowserAnnotationComposer: View {
+    let target: BrowserAnnotationTarget
+    @Binding var note: String
+    let busy: Bool
+    let clear: () -> Void
+    let save: () -> Void
+
+    var bodyView: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                StatusPill(label: "TARGET SELECTED", color: FlowColor.signal)
+                Text(target.target).font(FlowType.label(10)).foregroundStyle(FlowColor.ink).lineLimit(1)
+                Spacer()
+                Button("Clear", action: clear).buttonStyle(FlowButtonStyle(kind: .secondary))
+            }
+            Text(target.selector).font(FlowType.mono(8)).foregroundStyle(FlowColor.inkMuted).lineLimit(2)
+            TextEditor(text: $note)
+                .font(FlowType.body(11)).frame(minHeight: 76, maxHeight: 112).padding(9)
+                .background(FlowColor.paperBright).clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(FlowColor.line, lineWidth: 1))
+            HStack {
+                Text("Memory-only · route-private · 1,000 characters max")
+                    .font(FlowType.label(7)).tracking(0.6).foregroundStyle(FlowColor.inkMuted)
+                Spacer()
+                Button("Save comment", action: save).buttonStyle(FlowButtonStyle(kind: .primary))
+                    .disabled(note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || note.count > 1000 || busy)
+            }
+        }
+        .padding(13).background(FlowColor.signal.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(FlowColor.signal.opacity(0.2), lineWidth: 1))
+    }
+
+    var body: some View { bodyView }
+}
+
+private struct BrowserCommentCard: View {
+    let comment: BrowserCommentOverview
+    let busy: Bool
+    let remove: () -> Void
+
+    var bodyView: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(comment.target).font(FlowType.label(10)).foregroundStyle(FlowColor.ink).lineLimit(1)
+                Spacer()
+                Button(action: remove) {
+                    Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
+                }
+                .buttonStyle(.plain).foregroundStyle(FlowColor.inkMuted).disabled(busy)
+            }
+            Text(comment.note).font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted).lineLimit(4)
+            Text("\(comment.routeDisplay) · \(Format.relative(comment.createdAt))")
+                .font(FlowType.mono(8)).foregroundStyle(FlowColor.inkMuted.opacity(0.72))
+        }
+        .padding(10).background(FlowColor.paperBright)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    var body: some View { bodyView }
 }
 
 private struct BrowserStage: View {
