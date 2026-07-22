@@ -227,6 +227,8 @@ The chat receives a fresh screenshot and bounded semantic DOM targets rather tha
 
 For visual review, turn on **Annotate page**, select the exact rendered element, and write the intended result. Comments are memory-only, private to that chat route, returned through `browser_use comments` and fresh observations, and removed when the tab closes or its origin is revoked. Password fields and secret-looking target or note text are refused.
 
+For debugging, **Page diagnostics** captures up to 100 recent console entries, resource timings, and document/script/stylesheet URLs from the selected ephemeral tab. The owning route can request the same bounded view with `browser_use diagnostics`. Queries, fragments, response bodies, headers, cookies, storage, credentials, and source contents never cross the bridge; secret-looking console messages are suppressed.
+
 ## Normal Commands
 
 ```bash

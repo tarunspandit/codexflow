@@ -168,6 +168,8 @@ ChatGPT Web 负责 schedule、模型、cadence 与运行历史。需要定时处
 
 需要视觉审查时，开启 **Annotate page**，选择准确的页面元素并写下预期结果。评论只保存在内存中，只对该聊天 route 可见，会通过 `browser_use comments` 和新的页面观察返回；关闭 tab 或撤销 origin 时自动删除。密码框以及疑似包含 secret 的目标或评论会被拒绝。
 
+需要调试时，**Page diagnostics** 会从当前临时 tab 捕获最多 100 条 console 记录、resource timing，以及 document/script/stylesheet URL；所属 route 也可以通过 `browser_use diagnostics` 读取同样的受限视图。Query、fragment、response body、header、cookie、storage、credential 与源码内容都不会跨过边界，疑似 secret 的 console 消息会被直接隐藏。
+
 ## 其他启动方式
 
 不想全局安装时，也可以用：

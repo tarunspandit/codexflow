@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.45.0 (2026-07-23)
+
+- Added a native Page diagnostics workspace for the isolated WebKit browser with bounded console entries, resource timing, and document/script/stylesheet source URLs.
+- Added the route-private `browser_use diagnostics` action so the owning web chat can debug its approved tab without receiving response bodies, headers, cookies, storage, credentials, source contents, or another route's events.
+- Stripped URL queries and fragments on both sides of the native bridge, capped every diagnostic lane, and suppressed credential-labelled or secret-looking console messages before model output.
+- Added mocked route-isolation and redaction regressions plus a real signed-WebKit test covering inline console capture, fetched resources, script inventory, and production-size native visual QA.
+
 ## 0.44.0 (2026-07-23)
 
 - Added native annotation mode to the isolated WebKit browser so a user can select an exact rendered element and leave bounded visual feedback.

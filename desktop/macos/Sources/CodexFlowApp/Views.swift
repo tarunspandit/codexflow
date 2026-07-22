@@ -2130,6 +2130,7 @@ struct BrowserView: View {
                     }
 
                     BrowserStage(overview: overview, controller: model.browserController) { model.selectBrowserSession($0) }
+                    BrowserDiagnosticsWorkspace(controller: model.browserController)
                     BrowserAnnotationWorkspace(overview: overview, controller: model.browserController)
 
                     HStack(alignment: .top, spacing: 17) {
@@ -2199,6 +2200,117 @@ struct BrowserView: View {
             }
             content()
         }
+    }
+}
+
+private struct BrowserDiagnosticsWorkspace: View {
+    @ObservedObject var controller: BrowserController
+
+    var body: some View {
+        PaperCard(padding: 18) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "waveform.path.ecg.rectangle").foregroundStyle(FlowColor.signal)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Page diagnostics").font(FlowType.title(15)).foregroundStyle(FlowColor.ink)
+                        Text("Bounded console, resource timing, and source URLs from this ephemeral tab. Queries, bodies, headers, cookies, storage, and source contents stay out.")
+                            .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted)
+                    }
+                    Spacer()
+                    if let snapshot = controller.selectedDiagnostics {
+                        Text("CAPTURED \(Format.relative(snapshot.capturedAt).uppercased())")
+                            .font(FlowType.label(7)).tracking(0.7).foregroundStyle(FlowColor.inkMuted)
+                    }
+                    Button(controller.diagnosticsBusy ? "Capturing…" : "Refresh diagnostics") {
+                        Task { @MainActor in await controller.refreshSelectedDiagnostics() }
+                    }
+                    .buttonStyle(FlowButtonStyle(kind: .secondary))
+                    .disabled(controller.selectedSessionID == nil || controller.diagnosticsBusy)
+                }
+
+                if let error = controller.diagnosticsError {
+                    HStack(spacing: 9) {
+                        StateDot(color: FlowColor.warning)
+                        Text(error).font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted)
+                    }
+                } else if let snapshot = controller.selectedDiagnostics {
+                    HStack(alignment: .top, spacing: 14) {
+                        BrowserDiagnosticLane(
+                            title: "CONSOLE", count: snapshot.console.count, empty: "No console entries.",
+                            rows: snapshot.console.suffix(8).map { entry in
+                                BrowserDiagnosticRow(
+                                    primary: "[\(entry.level.uppercased())] \(entry.message)",
+                                    secondary: entry.source.map { "\($0)\(entry.line.map { ":\($0)" } ?? "")" },
+                                    color: entry.level == "error" ? FlowColor.danger : entry.level == "warn" ? FlowColor.warning : FlowColor.signal
+                                )
+                            }
+                        )
+                        BrowserDiagnosticLane(
+                            title: "NETWORK", count: snapshot.network.count, empty: "No resource timings.",
+                            rows: snapshot.network.suffix(8).map { entry in
+                                BrowserDiagnosticRow(
+                                    primary: "\(entry.kind.uppercased()) · \(entry.status.map(String.init) ?? "—") · \(entry.durationMS)ms",
+                                    secondary: entry.url,
+                                    color: (entry.status ?? 200) >= 400 ? FlowColor.danger : FlowColor.success
+                                )
+                            }
+                        )
+                        BrowserDiagnosticLane(
+                            title: "SOURCES", count: snapshot.sources.count, empty: "No source URLs.",
+                            rows: snapshot.sources.prefix(8).map { entry in
+                                BrowserDiagnosticRow(primary: entry.kind.uppercased(), secondary: entry.url, color: FlowColor.signal)
+                            }
+                        )
+                    }
+                } else {
+                    Text("Capture diagnostics when a page is open, or let the owning web chat request them through Browser.")
+                        .font(FlowType.body(10)).foregroundStyle(FlowColor.inkMuted).padding(.vertical, 7)
+                }
+            }
+        }
+    }
+}
+
+private struct BrowserDiagnosticRow {
+    let primary: String
+    let secondary: String?
+    let color: Color
+}
+
+private struct BrowserDiagnosticLane: View {
+    let title: String
+    let count: Int
+    let empty: String
+    let rows: [BrowserDiagnosticRow]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(FlowType.label(8)).tracking(1).foregroundStyle(FlowColor.inkMuted)
+                Spacer()
+                Text("\(count)").font(FlowType.mono(8)).foregroundStyle(FlowColor.signal)
+            }
+            FlowDivider()
+            if rows.isEmpty {
+                Text(empty).font(FlowType.body(9)).foregroundStyle(FlowColor.inkMuted).padding(.vertical, 6)
+            } else {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    HStack(alignment: .top, spacing: 8) {
+                        StateDot(color: row.color).padding(.top, 3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.primary).font(FlowType.label(8)).foregroundStyle(FlowColor.ink).lineLimit(2)
+                            if let secondary = row.secondary {
+                                Text(secondary).font(FlowType.mono(7)).foregroundStyle(FlowColor.inkMuted).lineLimit(2)
+                            }
+                        }
+                    }
+                    if index < rows.count - 1 { FlowDivider() }
+                }
+            }
+        }
+        .padding(12).frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+        .background(FlowColor.paperBright).clipShape(RoundedRectangle(cornerRadius: 11))
+        .overlay(RoundedRectangle(cornerRadius: 11).stroke(FlowColor.line, lineWidth: 1))
     }
 }
 

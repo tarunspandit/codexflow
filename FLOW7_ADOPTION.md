@@ -162,3 +162,11 @@ account: spawn two children, give each its allocated route, verify independent
 project/worktree access, steer from the parent, and observe native Active/Done
 state. This external account prerequisite is not replaced with fabricated local
 success state.
+
+The 0.45.0 Page diagnostics workspace treats debugging as a quiet technical
+reading surface rather than a miniature DevTools clone. Console, network, and
+source lanes share one restrained card, use Signal only for identity and state,
+and keep the rendered page visually primary. The native and model-facing paths
+share the same bounded, query-free, secret-aware contract. Real WebKit capture,
+route isolation, accessibility structure, and production-size visual QA pass;
+the complete release record remains in `PRODUCT_BUILD_STATE.md`.

@@ -33,7 +33,7 @@ codexflow can expose:
 - optional shell command execution through the `bash` tool, hidden when bash mode is off
 - optional write/edit/apply_patch capability depending on `CODEXFLOW_WRITE_MODE`, advertised only in workspace write mode
 - optional native macOS Computer Use for one explicitly approved, code-signing-bound app, with fresh window captures and bounded accessibility metadata
-- optional native browser use for one explicitly approved HTTP(S) origin, with an ephemeral WebKit profile, fresh screenshots, bounded semantic DOM metadata, and exact-element user comments private to the owning route
+- optional native browser use for one explicitly approved HTTP(S) origin, with an ephemeral WebKit profile, fresh screenshots, bounded semantic DOM metadata, exact-element user comments, and query-free console/resource/source diagnostics private to the owning route
 - optional local handoff execution through `codexflow execute-handoff`, run from the user's terminal only
 - optional local execute/review looping through `codexflow loop-handoff`, run from the user's terminal only with a user-provided reviewer command and iteration limit
 
@@ -72,6 +72,7 @@ Review changes against these failure modes before release:
 | Browser state leaks personal sessions or credentials | Every tab uses a non-persistent WebKit data store rather than Safari/Chrome state. URL credentials, secret-looking query values, password contents/input, authentication hosts, and account-security, billing, checkout, and payment paths fail closed. |
 | A stale or altered browser action executes | DOM snapshots are route/tab-bound and short-lived. Meaningful actions require local confirmation sealed to the route, tab, snapshot, DOM element, operation, and value; successful actions invalidate the snapshot. Downloads, popups, JavaScript dialogs, authentication challenges, and browser permission prompts are refused. |
 | A browser comment leaks page content or crosses chats | Comments are explicit user-authored, memory-only, capped per tab, length-bounded, secret-checked before redaction, and returned only to the session’s private route. Structural selectors omit IDs, classes, and data attributes; native overviews omit route credentials; comments disappear with the tab or revoked origin. |
+| Browser diagnostics expose credentials or another chat's page activity | Diagnostics require an existing approved session owned by the caller's private route. Native and broker boundaries independently cap entries and strip URL queries, fragments, and credentials; secret-looking console messages are suppressed. Only console text, resource timing metadata, and document/script/stylesheet URLs cross the bridge—never bodies, headers, cookies, storage, or source contents. |
 | A displayed chat identifier can be replayed against MCP | The app exposes a one-way display fingerprint, never the random transport identifier used by the MCP endpoint. |
 | Remote MCP tool runs Codex/OpenCode/Pi directly | Agent execution remains a user-started CLI/watch process on the local machine. |
 | Autonomous loop drives ChatGPT Web or bypasses approvals | `loop-handoff` only runs local terminal commands over `.ai-bridge` files; it does not resume browser sessions, approve prompts, or expose a remote MCP executor. |

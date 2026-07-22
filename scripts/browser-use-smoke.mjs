@@ -90,6 +90,20 @@ async function nativePump() {
         } else if (command.action === 'act') {
           actions.push(command);
           result = { operation: command.operation };
+        } else if (command.action === 'diagnostics') {
+          result = {
+            captured_at: new Date().toISOString(),
+            console: [
+              { at: new Date().toISOString(), level: 'warn', message: 'Fixture warning', source: 'https://example.com/app.js?token=never-show', line: 12 },
+              { at: new Date().toISOString(), level: 'error', message: 'token=never-show' }
+            ],
+            network: [
+              { url: 'https://example.com/api?token=never-show', kind: 'fetch', status: 500, duration_ms: 27, transfer_bytes: 128 }
+            ],
+            sources: [
+              { url: 'https://example.com/app.js?token=never-show', kind: 'script' }
+            ]
+          };
         } else if (command.action === 'close') {
           tabs.delete(command.session_id);
           result = { closed: true };
@@ -144,6 +158,16 @@ try {
     assert.deepEqual(observed.structuredContent.comments, []);
     assert.equal(observed.structuredContent.elements[0].href, undefined, 'secret-bearing hrefs must not cross the broker boundary');
 
+    const diagnostics = await client.callTool({ name: 'browser_use', arguments: {
+      ...common, action: 'diagnostics', browser_session_id: browserSessionId
+    } });
+    assert.equal(diagnostics.structuredContent.status, 'captured');
+    assert.match(diagnostics.structuredContent.console[0].message, /Fixture warning/);
+    assert.match(diagnostics.structuredContent.console[1].message, /redacted potentially sensitive/);
+    assert.equal(diagnostics.structuredContent.network[0].url, 'https://example.com/api');
+    assert.equal(diagnostics.structuredContent.sources[0].url, 'https://example.com/app.js');
+    assert.doesNotMatch(JSON.stringify(diagnostics.structuredContent), /never-show|\?token=/);
+
     const secretComment = await fetch(`${base}/admin/browser?${auth}`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -187,6 +211,10 @@ try {
         ...crossedCommentRoute, action: 'comments', browser_session_id: browserSessionId
       } });
       assert.equal(crossedComments.isError, true, 'a different chat route must not inspect another route browser session');
+      const crossedDiagnostics = await crossedCommentClient.callTool({ name: 'browser_use', arguments: {
+        ...crossedCommentRoute, action: 'diagnostics', browser_session_id: browserSessionId
+      } });
+      assert.equal(crossedDiagnostics.isError, true, 'a different chat route must not inspect another route diagnostics');
     } finally { await crossedCommentClient.close(); }
 
     const actionArgs = {
@@ -255,7 +283,7 @@ try {
 
   pumping = false;
   await pumpPromise;
-  console.log('✓ browser host approval, route isolation, ephemeral sessions, DOM snapshots, visual comments, confirmations, secret refusal, persistence, and revocation pass');
+  console.log('✓ browser host approval, route isolation, ephemeral sessions, DOM snapshots, visual comments, diagnostics, confirmations, secret refusal, persistence, and revocation pass');
 } finally {
   pumping = false;
   child.kill('SIGTERM');
