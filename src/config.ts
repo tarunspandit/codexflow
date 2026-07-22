@@ -12,6 +12,7 @@ export type ToolMode = "minimal" | "standard" | "full";
 export interface CodexFlowConfig {
   defaultRoot: string;
   allowedRoots: string[];
+  managedWorktreeRoot: string;
   host: string;
   port: number;
   widgetDomain: string;
@@ -262,6 +263,11 @@ export function loadConfig(argv = process.argv.slice(2)): CodexFlowConfig {
   const allowHome = process.env.CODEXFLOW_ALLOW_HOME === "1" || args["allow-home"] === true;
   const requestedAllowed = [defaultRoot, ...allowRootArgs, ...envAllowedRoots, ...(allowHome ? [os.homedir()] : [])];
   const allowedRoots = [...new Set(requestedAllowed.map(toRealDir))];
+  const requestedManagedWorktreeRoot = path.resolve(
+    expandHome(process.env.CODEXFLOW_WORKTREE_ROOT || path.join(process.env.CODEXFLOW_HOME || path.join(os.homedir(), ".codexflow"), "worktrees"))
+  );
+  fs.mkdirSync(requestedManagedWorktreeRoot, { recursive: true, mode: 0o700 });
+  const managedWorktreeRoot = fs.realpathSync(requestedManagedWorktreeRoot);
 
   const portArg = typeof args.port === "string" ? args.port : undefined;
   const hostArg = typeof args.host === "string" ? args.host : undefined;
@@ -303,6 +309,7 @@ export function loadConfig(argv = process.argv.slice(2)): CodexFlowConfig {
   return {
     defaultRoot,
     allowedRoots,
+    managedWorktreeRoot,
     host,
     port: numberFrom(portArg ?? process.env.CODEXFLOW_PORT ?? process.env.PORT, 8787, 1, 65535),
     widgetDomain: widgetDomainFrom(widgetDomainArg ?? process.env.CODEXFLOW_WIDGET_DOMAIN),

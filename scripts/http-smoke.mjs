@@ -744,6 +744,26 @@ try {
         throw new Error(`live companion telemetry retained forbidden content: ${forbidden}`);
       }
     }
+    for (const command of [
+      { action: 'rename', chatId: alternateRouteSession.id, title: 'Alternate release work' },
+      { action: 'pin', chatId: alternateRouteSession.id, value: true },
+      { action: 'archive', chatId: alternateRouteSession.id, value: true }
+    ]) {
+      const lifecycleResponse = await fetch(`${baseUrl}/admin/chats?codexflow_token=${encodeURIComponent(token)}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(command)
+      });
+      const lifecycleBody = await lifecycleResponse.json();
+      if (lifecycleResponse.status !== 200 || lifecycleBody.ok !== true) {
+        throw new Error(`chat lifecycle action failed: ${lifecycleResponse.status} ${JSON.stringify(lifecycleBody)}`);
+      }
+    }
+    const lifecycleOverview = await (await fetch(`${baseUrl}/api/overview?codexflow_token=${encodeURIComponent(token)}`)).json();
+    const updatedChat = lifecycleOverview.sessions?.find?.((session) => session.id === alternateRouteSession.id);
+    if (updatedChat?.title !== 'Alternate release work' || updatedChat?.pinned !== true || updatedChat?.archived !== true) {
+      throw new Error(`chat lifecycle state was not reflected in overview: ${JSON.stringify(updatedChat)}`);
+    }
   } finally {
     await Promise.allSettled(bindingClients.map((client) => client.close()));
   }

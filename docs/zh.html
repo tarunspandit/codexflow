@@ -57,7 +57,7 @@
           <div class="hero-copy reveal">
             <p class="eyebrow">本地代理基础设施 / Flow7 Tech</p>
             <h1 id="hero-title"><span>一个命令。</span><span>所有项目。</span><span>任意对话。</span></h1>
-            <p class="hero-lede">CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、文件、git、终端、skills 与指令，都通过一条清晰可控的连接进入对话。</p>
+            <p class="hero-lede">CodexFlow 为 ChatGPT 提供可靠的本地编码后端。项目、受管 worktrees、受保护 Git 流程、持久终端、skills 与指令，都通过一条清晰可控的连接进入对话。</p>
             <div class="hero-actions">
               <div class="command-control" role="group" aria-label="安装 CodexFlow">
                 <span aria-hidden="true">$</span><code>npm i -g @tarunspandit/codexflow</code><button type="button" data-copy="npm install -g @tarunspandit/codexflow" data-copy-label="复制安装命令" data-copy-done="已复制">复制</button>
@@ -82,7 +82,7 @@
             </div>
           </div>
         </div>
-        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.30.4</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
+        <div class="hero-foot section-shell" aria-hidden="true"><span>CODEXFLOW / 0.31.0</span><span>本地电脑 → CHATGPT</span><span>向下继续</span></div>
       </section>
 
       <section class="system section-pad" id="system" aria-labelledby="system-title">
@@ -145,27 +145,27 @@
         <div class="section-shell">
           <div class="section-heading companion-heading reveal">
             <div><p class="eyebrow dark-label">原生桌面应用</p><h2 id="companion-title">你的电脑。<br />一个清晰界面。</h2></div>
-            <p>CodexFlow 现在会在 Mac 上打开原生应用。启动或停止 broker、切换工作区、查看实时聊天路由、复制连接和编辑下次启动策略，都无需管理浏览器标签。</p>
+            <p>CodexFlow 会在 Mac 上打开原生应用。启动或停止 broker、创建隔离 worktrees、整理聊天路由、复制连接和编辑下次启动策略，都无需管理浏览器标签。</p>
           </div>
           <div class="companion-frame reveal" aria-label="CodexFlow 原生桌面应用预览">
             <aside class="companion-rail">
               <div class="companion-lockup"><img src="./assets/brand/flow7-tech-dark.webp" alt="" width="1024" height="1024" /><span><strong>CodexFlow</strong><small>原生桌面应用</small></span></div>
               <div class="companion-ready"><i aria-hidden="true"></i><span>正在此电脑上运行</span></div>
-              <ol><li class="is-active"><span>01</span>当前</li><li><span>02</span>项目</li><li><span>03</span>聊天</li><li><span>04</span>连接</li><li><span>05</span>策略</li></ol>
+              <ol><li class="is-active"><span>01</span>当前</li><li><span>02</span>项目</li><li><span>03</span>Worktrees</li><li><span>04</span>聊天</li><li><span>05</span>连接</li><li><span>06</span>策略</li></ol>
               <small>ENDORSED BY FLOW7</small>
             </aside>
             <div class="companion-stage">
               <header><span class="companion-window-title"><i class="window-dots" aria-hidden="true"><b></b><b></b><b></b></i>CodexFlow / <strong>当前</strong></span><small>正在此电脑上运行</small></header>
               <div class="companion-content">
                 <div class="companion-intro"><small>当前运行</small><h3>一切运行，一目了然。</h3></div>
-                <dl class="companion-metrics"><div><dt>项目</dt><dd>自动发现</dd></div><div><dt>聊天路由</dt><dd>各自独立</dd></div><div><dt>策略</dt><dd>workspace / safe</dd></div><div><dt>活动</dt><dd>仅保存在内存</dd></div></dl>
+                <dl class="companion-metrics"><div><dt>项目</dt><dd>自动发现</dd></div><div><dt>Worktrees</dt><dd>彼此隔离</dd></div><div><dt>聊天路由</dt><dd>各自独立</dd></div><div><dt>终端</dt><dd>随路由持久</dd></div></dl>
                 <div class="companion-ledgers">
                   <section aria-label="聊天路由"><div class="companion-panel-head"><span>01 / 实时路由</span><strong>进行中的聊天</strong></div><ol>
                     <li><i aria-hidden="true"></i><div><strong>优化新手流程</strong><code>atlas-web</code></div><span>read · 完成</span><small>chat-a40c97f2</small></li>
                     <li><i aria-hidden="true"></i><div><strong>重构身份验证</strong><code>signal-api</code></div><span>test · 完成</span><small>chat-7eac13b8</small></li>
                     <li><i aria-hidden="true"></i><div><strong>发布审查</strong><code>codexflow</code></div><span>git status · 运行中</span><small>chat-29d1f640</small></li>
                   </ol></section>
-                  <aside><span>02 / 隐私</span><strong>不包含内容的遥测</strong><p>只记录项目、工具名称、结果和耗时。不会记录 prompts、arguments、源码、命令输出、tokens 或可用的 MCP session IDs。</p></aside>
+                  <aside><span>02 / 隐私</span><strong>不包含内容的遥测</strong><p>你明确设置的本地标签、置顶和归档会保留；prompts、arguments、源码、命令输出、tokens 与可用的 MCP session IDs 不会保留。</p></aside>
                 </div>
               </div>
             </div>
@@ -181,8 +181,9 @@
             <article class="reveal"><span>01</span><div><p class="micro-label">发现</p><h3>项目已经在那里。</h3></div><p>读取最近的本地项目 metadata 和配置的 roots，在每个新对话中提供清晰的选择器。</p><small>自动</small></article>
             <article class="reveal"><span>02</span><div><p class="micro-label">理解</p><h3>行动之前先读懂仓库。</h3></div><p>加载 AGENTS.md，映射文件和符号，定位测试，读取 git 状态，并在改动前识别潜在影响。</p><small>项目原生</small></article>
             <article class="reveal"><span>03</span><div><p class="micro-label">修改</p><h3>在一个 root 中精确编辑。</h3></div><p>搜索、读取、写入、编辑并应用受保护补丁，不暴露其他项目，也不在机器中越界。</p><small>工作区范围</small></article>
-            <article class="reveal"><span>04</span><div><p class="micro-label">验证</p><h3>有意识地构建与测试。</h3></div><p>运行允许的检查与验证命令，默认阻止 secret 路径和危险模式。</p><small>安全 BASH</small></article>
-            <article class="reveal"><span>05</span><div><p class="micro-label">适配</p><h3>Skills 与 plugins 跟随项目。</h3></div><p>向当前聊天提供工作区与用户 skills、plugin manifests、指令以及已配置的 MCP servers。</p><small>可扩展</small></article>
+            <article class="reveal"><span>04</span><div><p class="micro-label">并行</p><h3>一个任务，一个受管 checkout。</h3></div><p>创建隔离 worktrees，安全带入当前改动；如果目标 checkout 被独立修改，则拒绝覆盖。</p><small>受保护交接</small></article>
+            <article class="reveal"><span>05</span><div><p class="micro-label">验证</p><h3>Git 与终端状态持续存在。</h3></div><p>只暂存并提交所选项目，运行受限验证，并让私有路由终端跨工具连接保持运行。</p><small>持久</small></article>
+            <article class="reveal"><span>06</span><div><p class="micro-label">适配</p><h3>Skills 与 plugins 跟随项目。</h3></div><p>向当前聊天提供工作区与用户 skills、plugin manifests、指令以及已配置的 MCP servers。</p><small>可扩展</small></article>
           </div>
         </div>
       </section>
@@ -195,6 +196,7 @@
             <li><span>02</span><div><strong>工作区 root 强制执行</strong><p>路径与 symlink 检查让所有操作始终在范围内。</p></div></li>
             <li><span>03</span><div><strong>Secret 感知输出</strong><p>凭据和常见 secret 模式会被拦截或隐藏。</p></div></li>
             <li><span>04</span><div><strong>受保护写入与终端</strong><p>安全默认值一直生效，直到你明确扩大权限。</p></div></li>
+            <li><span>05</span><div><strong>冲突感知 Worktrees</strong><p>交接前会验证两个 checkout，避免覆盖独立改动。</p></div></li>
           </ol>
         </div>
       </section>

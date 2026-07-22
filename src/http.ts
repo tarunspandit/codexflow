@@ -22,10 +22,11 @@ import {
 import { redactSensitiveText, redactStructured } from "./redact.js";
 import { createCodexFlowServer } from "./server.js";
 import { discoverProjects } from "./projectCatalog.js";
-import { workspaceIdForRoot, type Workspace } from "./guard.js";
+import { WorkspaceManager, workspaceIdForRoot, type Workspace } from "./guard.js";
 import { RuntimeMonitor, type RuntimeSessionHandle } from "./runtimeMonitor.js";
 import { CODEXFLOW_VERSION } from "./version.js";
 import { renderLocalAppPage } from "./localAppPage.js";
+import { createManagedWorktree, listManagedWorktrees, removeManagedWorktree } from "./worktreeOps.js";
 
 const TUNNELS = ["cloudflare", "ngrok", "cloudflare-named", "tailscale", "none"] as const;
 const MODES = ["agent", "handoff", "pro"] as const;
@@ -64,6 +65,20 @@ const AdminProfilePatch = z.object({
 }).strict();
 
 type AdminProfilePatch = z.infer<typeof AdminProfilePatch>;
+
+const AdminWorktreeCommand = z.object({
+  action: z.enum(["create", "remove"]),
+  worktreeId: z.string().regex(/^wt_[a-f0-9]{16}$/).optional(),
+  baseRef: z.string().trim().max(256).optional(),
+  includeChanges: z.boolean().optional()
+}).strict();
+
+const AdminChatCommand = z.object({
+  action: z.enum(["rename", "pin", "archive"]),
+  chatId: z.string().regex(/^chat-[0-9a-f]{8}$/),
+  title: z.string().trim().max(80).optional(),
+  value: z.boolean().optional()
+}).strict();
 
 interface ProfileFormValues {
   port: string;
@@ -274,6 +289,7 @@ function runtimeProject(workspace: Workspace): { id: string; name: string; root:
 
 async function applicationOverview(
   config: CodexFlowConfig,
+  workspaces: WorkspaceManager,
   monitor: RuntimeMonitor,
   startedAt: number,
   refreshProjects = false
@@ -284,6 +300,12 @@ async function applicationOverview(
   ]);
   const runtime = readRuntimeConnection(config.defaultRoot);
   const monitored = monitor.snapshot();
+  let worktrees: ReturnType<typeof listManagedWorktrees> = [];
+  try {
+    worktrees = listManagedWorktrees(config, workspaces.defaultWorkspace());
+  } catch {
+    // A non-Git project simply has no managed worktrees.
+  }
   const runtimeEndpoint = endpointBase(runtime.endpoint);
   const localBase = endpointBase(runtime.localBase) || `http://${config.host}:${config.port}`;
   const endpoint = runtimeEndpoint || `${localBase}/mcp`;
@@ -323,13 +345,15 @@ async function applicationOverview(
     })),
     sessions: monitored.sessions,
     activity: monitored.activity,
+    worktrees,
     summary: {
       projects: projects.length,
       active_sessions: monitored.active_sessions,
       pending_sessions: monitored.pending_sessions,
       open_connections: monitored.open_connections,
       recent_sessions: monitored.recent_sessions,
-      activity_events: monitored.activity.length
+      activity_events: monitored.activity.length,
+      managed_worktrees: worktrees.length
     },
     saved_profile: {
       exists: Boolean(profile.profilePath),
@@ -436,7 +460,13 @@ async function main(): Promise<void> {
   }
 
   const app = express();
-  const runtimeMonitor = new RuntimeMonitor();
+  const runtimeMonitor = new RuntimeMonitor(
+    120,
+    5 * 60_000,
+    config.maxHttpSessions,
+    path.join(path.dirname(config.managedWorktreeRoot), "chat-metadata.json")
+  );
+  const workspaces = new WorkspaceManager(config);
   const logRequests = process.env.CODEXFLOW_LOG_REQUESTS === "1";
 
   app.disable("x-powered-by");
@@ -614,7 +644,7 @@ async function main(): Promise<void> {
     try {
       const refresh = req.query.refresh === "1" || req.query.refresh === "true";
       res.setHeader("Cache-Control", "no-store");
-      res.json(await applicationOverview(config, runtimeMonitor, startedAt, refresh));
+      res.json(await applicationOverview(config, workspaces, runtimeMonitor, startedAt, refresh));
     } catch (error) {
       jsonError(res, 500, "overview_unavailable", error instanceof Error ? error.message : String(error));
     }
@@ -700,6 +730,90 @@ async function main(): Promise<void> {
 
   app.all("/admin/profile", (_req, res) => {
     jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/profile.");
+  });
+
+  app.get("/admin/worktrees", (_req, res) => {
+    try {
+      res.json({ ok: true, worktrees: listManagedWorktrees(config, workspaces.defaultWorkspace()) });
+    } catch (error) {
+      jsonError(res, 400, "worktrees_unavailable", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.post("/admin/worktrees", adminRateLimit, adminBodyLimit, express.json({ limit: "32kb" }), (req, res) => {
+    if (config.writeMode !== "workspace") {
+      jsonError(res, 403, "worktrees_disabled", "Managed worktrees require workspace write mode.");
+      return;
+    }
+    const parsed = AdminWorktreeCommand.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      jsonError(res, 400, "invalid_worktree_command", "Invalid managed worktree command.", parsed.error.flatten());
+      return;
+    }
+    try {
+      const workspace = workspaces.defaultWorkspace();
+      if (parsed.data.action === "create") {
+        const created = createManagedWorktree(config, workspace, {
+          baseRef: parsed.data.baseRef,
+          includeChanges: parsed.data.includeChanges
+        });
+        res.json({
+          ok: true,
+          message: "Managed worktree created.",
+          worktree: created.worktree,
+          worktrees: listManagedWorktrees(config, workspace)
+        });
+        return;
+      }
+      if (!parsed.data.worktreeId) {
+        jsonError(res, 400, "worktree_id_required", "worktreeId is required for remove.");
+        return;
+      }
+      const removed = removeManagedWorktree(config, workspace, parsed.data.worktreeId);
+      res.json({
+        ok: true,
+        message: removed.snapshotPath ? "Managed worktree removed and its tracked changes were snapshotted." : "Managed worktree removed.",
+        removed,
+        worktrees: listManagedWorktrees(config, workspace)
+      });
+    } catch (error) {
+      jsonError(res, 400, "worktree_action_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.all("/admin/worktrees", (_req, res) => {
+    jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/worktrees.");
+  });
+
+  app.post("/admin/chats", adminRateLimit, adminBodyLimit, express.json({ limit: "32kb" }), (req, res) => {
+    const parsed = AdminChatCommand.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      jsonError(res, 400, "invalid_chat_command", "Invalid chat lifecycle command.", parsed.error.flatten());
+      return;
+    }
+    try {
+      const { action, chatId } = parsed.data;
+      if (action === "rename" && parsed.data.title === undefined) {
+        jsonError(res, 400, "chat_title_required", "title is required for rename.");
+        return;
+      }
+      if ((action === "pin" || action === "archive") && parsed.data.value === undefined) {
+        jsonError(res, 400, "chat_value_required", "value is required for pin or archive.");
+        return;
+      }
+      const session = runtimeMonitor.updateSession(chatId, {
+        ...(action === "rename" ? { title: parsed.data.title } : {}),
+        ...(action === "pin" ? { pinned: parsed.data.value } : {}),
+        ...(action === "archive" ? { archived: parsed.data.value } : {})
+      });
+      res.json({ ok: true, message: `Chat ${action} updated.`, session });
+    } catch (error) {
+      jsonError(res, 404, "chat_action_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.all("/admin/chats", (_req, res) => {
+    jsonError(res, 405, "method_not_allowed", "Use POST for /admin/chats.");
   });
 
   app.post("/mcp", express.json({ limit: "20mb" }), async (req, res) => {
@@ -805,7 +919,7 @@ async function main(): Promise<void> {
       });
       return;
     }
-    if (req.path === "/admin/profile") {
+    if (req.path === "/admin/profile" || req.path === "/admin/worktrees" || req.path === "/admin/chats") {
       jsonError(
         res,
         status,

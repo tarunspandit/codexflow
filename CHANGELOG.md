@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.31.0 (2026-07-22)
+
+- Added guarded, project-scoped Git workflow actions for staging, unstaging, explicit-path discard, branch creation/switching, commits, pushes, and GitHub pull requests; commits refuse staged files outside a selected nested project.
+- Added CodexFlow-managed detached worktrees with tracked/untracked change transfer, private-route handoff, owner-only manifests, dirty-removal snapshots, and destination fingerprints that reject independently changed checkouts.
+- Added a persistent per-chat terminal keyed by private route, including cwd/environment continuity, background commands, bounded cursor-based transcript reads, full-mode interactive input, timeouts, route isolation, and pseudo-terminal support.
+- Added native Worktrees navigation and authenticated local worktree controls, plus chat search, rename, pin, archive, and restore controls backed by owner-only lifecycle metadata.
+- Expanded regression coverage for worktree transfer/divergence, nested-project Git scope, commit/push workflows, terminal persistence/interactivity/isolation, chat lifecycle persistence, and authenticated lifecycle APIs.
+
 ## 0.30.4 (2026-07-18)
 
 - Reworked native chat telemetry around durable private routes instead of raw MCP transports, so one ChatGPT conversation remains one GUI chat even when ChatGPT opens a fresh connection for every tool call.

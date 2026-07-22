@@ -79,7 +79,9 @@ export class WorkspaceManager {
       throw new CodexFlowError(`Workspace root is not a directory: ${resolved}`);
     }
     const realRoot = fs.realpathSync(resolved);
-    const allowed = this.config.allowedRoots.some((allowedRoot) => isSubpath(realRoot, allowedRoot));
+    const allowed =
+      this.config.allowedRoots.some((allowedRoot) => isSubpath(realRoot, allowedRoot)) ||
+      isSubpath(realRoot, this.config.managedWorktreeRoot);
     if (!allowed) {
       throw new CodexFlowError(
         `Workspace root is outside allowed roots: ${realRoot}\nAllowed roots:\n${this.config.allowedRoots.map((r) => `- ${r}`).join("\n")}`

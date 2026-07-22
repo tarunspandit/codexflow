@@ -1,0 +1,145 @@
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { loadConfig } from '../dist/config.js';
+import { PathGuard, WorkspaceManager } from '../dist/guard.js';
+import { runGitWorkflow } from '../dist/gitWorkflow.js';
+import {
+  createManagedWorktree,
+  handoffManagedWorktree,
+  listManagedWorktrees,
+  removeManagedWorktree
+} from '../dist/worktreeOps.js';
+
+function git(cwd, args, options = {}) {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', ...options });
+  if (result.status !== 0) {
+    throw new Error(`git ${args.join(' ')} failed\n${result.stderr || result.stdout}`);
+  }
+  return result.stdout.trim();
+}
+
+async function fixture(name) {
+  const repository = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), `codexflow-${name}-`)));
+  const project = path.join(repository, 'app');
+  await fs.mkdir(project);
+  await fs.writeFile(path.join(project, 'feature.txt'), 'base\n', 'utf8');
+  await fs.writeFile(path.join(repository, 'sibling.txt'), 'sibling base\n', 'utf8');
+  git(repository, ['init']);
+  git(repository, ['config', 'user.email', 'smoke@example.com']);
+  git(repository, ['config', 'user.name', 'CodexFlow Smoke']);
+  git(repository, ['add', '.']);
+  git(repository, ['commit', '-m', 'initial']);
+  return { repository, project };
+}
+
+const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-parity-home-'));
+process.env.CODEXFLOW_HOME = home;
+process.env.CODEXFLOW_WORKTREE_ROOT = path.join(home, 'worktrees');
+
+const worktreeFixture = await fixture('worktree-smoke');
+await fs.appendFile(path.join(worktreeFixture.project, 'feature.txt'), 'local start\n', 'utf8');
+await fs.writeFile(path.join(worktreeFixture.project, 'untracked.txt'), 'untracked start\n', 'utf8');
+await fs.appendFile(path.join(worktreeFixture.repository, 'sibling.txt'), 'must not transfer\n', 'utf8');
+
+const worktreeConfig = loadConfig([
+  '--root', worktreeFixture.project,
+  '--allow-root', worktreeFixture.repository,
+  '--write', 'workspace',
+  '--tool-mode', 'full'
+]);
+const worktreeManager = new WorkspaceManager(worktreeConfig);
+const localWorkspace = worktreeManager.defaultWorkspace();
+const created = createManagedWorktree(worktreeConfig, localWorkspace);
+if (!created.patchApplied || created.untrackedCopied !== 1) throw new Error('create did not transfer project changes');
+if ((await fs.readFile(path.join(created.worktree.projectRoot, 'feature.txt'), 'utf8')) !== 'base\nlocal start\n') {
+  throw new Error('managed worktree missed tracked project changes');
+}
+if ((await fs.readFile(path.join(created.worktree.checkoutRoot, 'sibling.txt'), 'utf8')) !== 'sibling base\n') {
+  throw new Error('managed worktree copied changes outside the selected project');
+}
+if (listManagedWorktrees(worktreeConfig, localWorkspace).length !== 1) throw new Error('managed worktree was not listed');
+
+const worktreeWorkspace = worktreeManager.openWorkspace(created.worktree.projectRoot);
+await fs.appendFile(path.join(worktreeWorkspace.root, 'feature.txt'), 'worktree edit\n', 'utf8');
+await fs.writeFile(path.join(worktreeWorkspace.root, 'second.txt'), 'from worktree\n', 'utf8');
+const toLocal = handoffManagedWorktree(worktreeConfig, worktreeWorkspace, {
+  worktreeId: created.worktree.id,
+  destination: 'local'
+});
+if (toLocal.destinationRoot !== worktreeFixture.project || !toLocal.patchApplied) throw new Error('worktree-to-local handoff failed');
+if (!(await fs.readFile(path.join(worktreeFixture.project, 'feature.txt'), 'utf8')).includes('worktree edit')) {
+  throw new Error('worktree-to-local handoff missed tracked changes');
+}
+if ((await fs.readFile(path.join(worktreeFixture.project, 'second.txt'), 'utf8')) !== 'from worktree\n') {
+  throw new Error('worktree-to-local handoff missed untracked changes');
+}
+
+await fs.appendFile(path.join(worktreeFixture.project, 'feature.txt'), 'local follow-up\n', 'utf8');
+const backToWorktree = handoffManagedWorktree(worktreeConfig, localWorkspace, {
+  worktreeId: created.worktree.id,
+  destination: 'worktree'
+});
+if (!backToWorktree.patchApplied) throw new Error('local-to-worktree handoff failed');
+if (!(await fs.readFile(path.join(worktreeWorkspace.root, 'feature.txt'), 'utf8')).includes('local follow-up')) {
+  throw new Error('local-to-worktree handoff missed follow-up changes');
+}
+
+await fs.appendFile(path.join(worktreeFixture.project, 'feature.txt'), 'independent local edit\n', 'utf8');
+await fs.appendFile(path.join(worktreeWorkspace.root, 'feature.txt'), 'independent worktree edit\n', 'utf8');
+let divergenceRejected = false;
+try {
+  handoffManagedWorktree(worktreeConfig, worktreeWorkspace, {
+    worktreeId: created.worktree.id,
+    destination: 'local'
+  });
+} catch (error) {
+  divergenceRejected = String(error).includes('changed independently');
+}
+if (!divergenceRejected) throw new Error('handoff did not reject independently changed destination');
+
+const removed = removeManagedWorktree(worktreeConfig, worktreeWorkspace, created.worktree.id);
+if (!removed.removed || !removed.snapshotPath) throw new Error('dirty worktree removal did not save a snapshot');
+if (listManagedWorktrees(worktreeConfig, localWorkspace).length !== 0) throw new Error('removed worktree remains listed');
+
+const workflowFixture = await fixture('git-workflow-smoke');
+const workflowConfig = loadConfig([
+  '--root', workflowFixture.project,
+  '--allow-root', workflowFixture.repository,
+  '--write', 'workspace',
+  '--tool-mode', 'full'
+]);
+const workflowWorkspace = new WorkspaceManager(workflowConfig).defaultWorkspace();
+const guard = new PathGuard(workflowConfig);
+await fs.appendFile(path.join(workflowFixture.project, 'feature.txt'), 'project edit\n', 'utf8');
+await fs.appendFile(path.join(workflowFixture.repository, 'sibling.txt'), 'sibling edit\n', 'utf8');
+runGitWorkflow(workflowConfig, guard, workflowWorkspace, { action: 'stage' });
+const stagedAfterProjectAdd = git(workflowFixture.repository, ['diff', '--cached', '--name-only']);
+if (stagedAfterProjectAdd !== 'app/feature.txt') throw new Error(`project stage escaped its scope: ${stagedAfterProjectAdd}`);
+
+git(workflowFixture.repository, ['add', 'sibling.txt']);
+let outsideCommitRejected = false;
+try {
+  runGitWorkflow(workflowConfig, guard, workflowWorkspace, { action: 'commit', message: 'scoped commit' });
+} catch (error) {
+  outsideCommitRejected = String(error).includes('outside this selected project');
+}
+if (!outsideCommitRejected) throw new Error('commit did not reject staged changes outside the selected project');
+git(workflowFixture.repository, ['restore', '--staged', 'sibling.txt']);
+runGitWorkflow(workflowConfig, guard, workflowWorkspace, { action: 'commit', message: 'scoped commit' });
+if (git(workflowFixture.repository, ['log', '-1', '--pretty=%s']) !== 'scoped commit') throw new Error('commit action failed');
+
+runGitWorkflow(workflowConfig, guard, workflowWorkspace, { action: 'create_branch', branch: 'codexflow/smoke' });
+if (git(workflowFixture.repository, ['branch', '--show-current']) !== 'codexflow/smoke') throw new Error('create_branch action failed');
+await fs.appendFile(path.join(workflowFixture.project, 'feature.txt'), 'discard me\n', 'utf8');
+runGitWorkflow(workflowConfig, guard, workflowWorkspace, { action: 'discard', paths: ['feature.txt'] });
+if ((await fs.readFile(path.join(workflowFixture.project, 'feature.txt'), 'utf8')).includes('discard me')) throw new Error('discard action failed');
+
+const bareRemote = await fs.mkdtemp(path.join(os.tmpdir(), 'codexflow-bare-remote-'));
+git(bareRemote, ['init', '--bare']);
+git(workflowFixture.repository, ['remote', 'add', 'origin', bareRemote]);
+runGitWorkflow(workflowConfig, guard, workflowWorkspace, { action: 'push' });
+if (!git(bareRemote, ['show-ref']).includes('refs/heads/codexflow/smoke')) throw new Error('push action failed');
+
+console.log('worktree and git workflow smoke passed');

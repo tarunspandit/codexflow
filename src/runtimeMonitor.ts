@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 
 export type RuntimeToolStatus = "ok" | "error";
 export type RuntimeSessionState = "initializing" | "active" | "closed";
@@ -38,6 +40,9 @@ export interface RuntimeSessionSnapshot {
   errors: number;
   last_tool: string | null;
   last_tool_status: RuntimeToolStatus | null;
+  title: string | null;
+  pinned: boolean;
+  archived: boolean;
 }
 
 export interface RuntimeMonitorSnapshot {
@@ -62,6 +67,9 @@ interface RuntimeSessionRecord {
   lastTool?: string;
   lastToolStatus?: RuntimeToolStatus;
   connectionIds: Set<string>;
+  title?: string;
+  pinned: boolean;
+  archived: boolean;
 }
 
 interface RuntimeConnectionRecord {
@@ -88,6 +96,13 @@ const DEFAULT_CLOSED_RETENTION_MS = 5 * 60_000;
 const DEFAULT_SESSION_LIMIT = 256;
 const MAX_LISTENERS = 32;
 
+interface RuntimeSessionMetadata {
+  title?: string;
+  pinned?: boolean;
+  archived?: boolean;
+  updatedAt: string;
+}
+
 function iso(value: number): string {
   return new Date(value).toISOString();
 }
@@ -109,12 +124,16 @@ export class RuntimeMonitor {
   private readonly connections = new Map<string, RuntimeConnectionRecord>();
   private readonly activity: RuntimeActivitySnapshot[] = [];
   private readonly listeners = new Set<() => void>();
+  private readonly metadata = new Map<string, RuntimeSessionMetadata>();
 
   constructor(
     private readonly activityLimit = DEFAULT_ACTIVITY_LIMIT,
     private readonly closedRetentionMs = DEFAULT_CLOSED_RETENTION_MS,
-    private readonly sessionLimit = DEFAULT_SESSION_LIMIT
-  ) {}
+    private readonly sessionLimit = DEFAULT_SESSION_LIMIT,
+    private readonly metadataPath?: string
+  ) {
+    this.loadMetadata();
+  }
 
   beginSession(now = Date.now()): RuntimeSessionHandle {
     this.prune(now);
@@ -204,6 +223,7 @@ export class RuntimeMonitor {
     const sessions = [...this.sessions.values()]
       .filter((session) => Boolean(session.project))
       .sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
         const aActive = a.state === "active" || a.state === "initializing" ? 1 : 0;
         const bActive = b.state === "active" || b.state === "initializing" ? 1 : 0;
         return bActive - aActive || b.lastSeenAt - a.lastSeenAt;
@@ -218,7 +238,10 @@ export class RuntimeMonitor {
         tool_calls: session.toolCalls,
         errors: session.errors,
         last_tool: session.lastTool ?? null,
-        last_tool_status: session.lastToolStatus ?? null
+        last_tool_status: session.lastToolStatus ?? null,
+        title: session.title ?? null,
+        pinned: session.pinned,
+        archived: session.archived
       }));
     return {
       sessions,
@@ -241,6 +264,30 @@ export class RuntimeMonitor {
     return () => this.listeners.delete(listener);
   }
 
+  updateSession(
+    chatId: string,
+    patch: { title?: string | null; pinned?: boolean; archived?: boolean }
+  ): RuntimeSessionSnapshot {
+    const session = [...this.sessions.values()].find((candidate) => candidate.displayId === chatId);
+    if (!session) throw new Error(`Chat not found: ${chatId}`);
+    if (patch.title !== undefined) {
+      const title = patch.title?.trim() || undefined;
+      if (title && title.length > 80) throw new Error("Chat title must be 80 characters or fewer.");
+      session.title = title;
+    }
+    if (patch.pinned !== undefined) session.pinned = patch.pinned;
+    if (patch.archived !== undefined) session.archived = patch.archived;
+    this.metadata.set(chatId, {
+      ...(session.title ? { title: session.title } : {}),
+      ...(session.pinned ? { pinned: true } : {}),
+      ...(session.archived ? { archived: true } : {}),
+      updatedAt: new Date().toISOString()
+    });
+    this.saveMetadata();
+    this.emit();
+    return this.snapshot().sessions.find((candidate) => candidate.id === chatId)!;
+  }
+
   private attachSession(
     connection: RuntimeConnectionRecord,
     key: string,
@@ -251,16 +298,21 @@ export class RuntimeMonitor {
     let session = this.sessions.get(key);
     if (!session) {
       this.enforceSessionLimit(at);
+      const id = displayId(displaySeed);
+      const metadata = this.metadata.get(id);
       session = {
         key,
-        displayId: displayId(displaySeed),
+        displayId: id,
         state: connection.state === "closed" ? "closed" : "active",
         createdAt: at,
         lastSeenAt: at,
         project: project ? { ...project } : undefined,
         toolCalls: 0,
         errors: 0,
-        connectionIds: new Set()
+        connectionIds: new Set(),
+        title: metadata?.title,
+        pinned: Boolean(metadata?.pinned),
+        archived: Boolean(metadata?.archived)
       };
       this.sessions.set(key, session);
     }
@@ -302,7 +354,7 @@ export class RuntimeMonitor {
 
   private prune(now: number): void {
     for (const [key, session] of this.sessions) {
-      if (session.state === "closed" && session.closedAt && now - session.closedAt > this.closedRetentionMs) {
+      if (session.state === "closed" && !session.pinned && !session.archived && session.closedAt && now - session.closedAt > this.closedRetentionMs) {
         this.deleteSession(key);
       }
     }
@@ -348,5 +400,33 @@ export class RuntimeMonitor {
         // Runtime telemetry must never interrupt a tool call or transport lifecycle.
       }
     }
+  }
+
+  private loadMetadata(): void {
+    if (!this.metadataPath) return;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.metadataPath, "utf8")) as { sessions?: Record<string, RuntimeSessionMetadata> };
+      for (const [id, value] of Object.entries(parsed.sessions ?? {})) {
+        if (!/^chat-[0-9a-f]{8}$/.test(id) || !value || typeof value !== "object") continue;
+        this.metadata.set(id, {
+          ...(typeof value.title === "string" && value.title.trim() ? { title: value.title.trim().slice(0, 80) } : {}),
+          ...(value.pinned === true ? { pinned: true } : {}),
+          ...(value.archived === true ? { archived: true } : {}),
+          updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date(0).toISOString()
+        });
+      }
+    } catch {
+      // Missing or invalid optional metadata starts with an empty local catalog.
+    }
+  }
+
+  private saveMetadata(): void {
+    if (!this.metadataPath) return;
+    const dir = path.dirname(this.metadataPath);
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const temp = `${this.metadataPath}.${process.pid}.tmp`;
+    fs.writeFileSync(temp, `${JSON.stringify({ version: 1, sessions: Object.fromEntries(this.metadata) }, null, 2)}\n`, { mode: 0o600 });
+    fs.renameSync(temp, this.metadataPath);
+    try { fs.chmodSync(this.metadataPath, 0o600); } catch { /* best effort */ }
   }
 }

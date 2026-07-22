@@ -41,6 +41,7 @@ struct RootView: View {
         switch model.section {
         case .now: NowView()
         case .projects: ProjectsView()
+        case .worktrees: WorktreesView()
         case .chats: ChatsView()
         case .connection: ConnectionView()
         case .policy: PolicyView()

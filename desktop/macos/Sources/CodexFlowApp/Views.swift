@@ -415,16 +415,151 @@ private struct ProjectRow: View {
     }
 }
 
+struct WorktreesView: View {
+    @EnvironmentObject private var model: AppModel
+    @State private var removalCandidate: ManagedWorktreeOverview?
+
+    private var worktrees: [ManagedWorktreeOverview] { model.overview?.worktrees ?? [] }
+    private var worktreesEnabled: Bool { model.overview?.broker.writeMode == "workspace" }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 21) {
+                HStack(alignment: .bottom) {
+                    SectionHeading(
+                        eyebrow: "Parallel execution",
+                        title: "Worktrees",
+                        detail: "Give a coding chat an isolated checkout without duplicating the repository. Each route can work independently, then hand changes back deliberately."
+                    )
+                    Spacer()
+                    Button {
+                        Task { await model.createManagedWorktree() }
+                    } label: {
+                        Label(model.worktreeBusy ? "Working…" : "New worktree", systemImage: "plus")
+                    }
+                    .buttonStyle(FlowButtonStyle(kind: .primary))
+                    .disabled(!model.hasLiveRuntime || !worktreesEnabled || model.worktreeBusy)
+                }
+
+                HStack(spacing: 11) {
+                    Image(systemName: "shield.lefthalf.filled").foregroundStyle(FlowColor.signal)
+                    Text("Transfers are project-scoped. CodexFlow fingerprints both checkouts and refuses to overwrite independently changed work.")
+                        .font(FlowType.body(11)).foregroundStyle(FlowColor.inkMuted)
+                    Spacer()
+                    Text("GUARDED HANDOFF").font(FlowType.label(8)).tracking(1.1).foregroundStyle(FlowColor.signal)
+                }
+                .padding(.horizontal, 15)
+                .frame(minHeight: 47)
+                .background(FlowColor.signalWash.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(FlowColor.signal.opacity(0.17), lineWidth: 1))
+
+                if !model.hasLiveRuntime {
+                    OfflineInlineCard(title: "Start a workspace to manage worktrees.", detail: "Managed checkouts belong to the selected broker and remain available across chat reconnects.")
+                } else if !worktreesEnabled {
+                    OfflineInlineCard(title: "Worktrees need workspace write access.", detail: "Change Write access to Workspace in Policy, then restart the broker.")
+                } else if worktrees.isEmpty {
+                    PaperCard {
+                        EmptyState(symbol: "arrow.triangle.branch", title: "No managed worktrees", detail: "Create one here or let a connected coding chat create one before it begins a parallel task.")
+                    }
+                } else {
+                    LazyVStack(spacing: 11) {
+                        ForEach(worktrees) { worktree in
+                            WorktreeCard(worktree: worktree) { removalCandidate = worktree }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 25)
+            .padding(.top, 25)
+            .padding(.bottom, 42)
+            .frame(maxWidth: 1160, alignment: .leading)
+        }
+        .confirmationDialog(
+            "Remove this managed worktree?",
+            isPresented: Binding(
+                get: { removalCandidate != nil },
+                set: { if !$0 { removalCandidate = nil } }
+            ),
+            presenting: removalCandidate
+        ) { worktree in
+            Button("Remove worktree", role: .destructive) {
+                removalCandidate = nil
+                Task { await model.removeManagedWorktree(worktree.id) }
+            }
+            Button("Cancel", role: .cancel) { removalCandidate = nil }
+        } message: { worktree in
+            Text(worktree.dirty ? "Tracked changes will be saved as a local patch snapshot before removal." : "The isolated checkout will be removed. Your original project is untouched.")
+        }
+    }
+}
+
+private struct WorktreeCard: View {
+    let worktree: ManagedWorktreeOverview
+    let remove: () -> Void
+
+    var body: some View {
+        PaperCard(padding: 18) {
+            HStack(spacing: 16) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12).fill(worktree.dirty ? FlowColor.warning.opacity(0.11) : FlowColor.signalWash)
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(worktree.dirty ? FlowColor.warning : FlowColor.signal)
+                }
+                .frame(width: 48, height: 48)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 8) {
+                        Text(worktree.id).font(FlowType.mono(12)).foregroundStyle(FlowColor.ink)
+                        StatusPill(label: worktree.dirty ? "Uncommitted changes" : "Clean", color: worktree.dirty ? FlowColor.warning : FlowColor.success)
+                        if !worktree.exists { StatusPill(label: "Missing", color: FlowColor.danger) }
+                    }
+                    Text(worktree.projectRoot)
+                        .font(FlowType.mono(10)).foregroundStyle(FlowColor.inkMuted)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+
+                Spacer()
+                InfoPair(label: "BRANCH", value: worktree.branch ?? "Detached")
+                InfoPair(label: "BASE", value: worktree.baseRef)
+                InfoPair(label: "UPDATED", value: Format.relative(worktree.updatedAt))
+
+                Button("Reveal") {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: worktree.projectRoot)])
+                }
+                .buttonStyle(FlowButtonStyle(kind: .secondary))
+                .disabled(!worktree.exists)
+
+                Button("Remove", action: remove)
+                    .buttonStyle(FlowButtonStyle(kind: .danger))
+            }
+        }
+    }
+}
+
 struct ChatsView: View {
     @EnvironmentObject private var model: AppModel
     @State private var scope = "all"
+    @State private var query = ""
+    @State private var renameCandidate: SessionOverview?
+    @State private var renameTitle = ""
 
     private var sessions: [SessionOverview] {
         let all = model.overview?.sessions ?? []
+        let scoped: [SessionOverview]
         switch scope {
-        case "active": return all.filter { $0.state != "closed" }
-        case "closed": return all.filter { $0.state == "closed" }
-        default: return all
+        case "active": scoped = all.filter { $0.state != "closed" && $0.archived != true }
+        case "closed": scoped = all.filter { $0.state == "closed" && $0.archived != true }
+        case "archived": scoped = all.filter { $0.archived == true }
+        default: scoped = all.filter { $0.archived != true }
+        }
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !needle.isEmpty else { return scoped }
+        return scoped.filter {
+            $0.id.lowercased().contains(needle) ||
+            ($0.title?.lowercased().contains(needle) ?? false) ||
+            ($0.project?.name.lowercased().contains(needle) ?? false)
         }
     }
 
@@ -434,13 +569,18 @@ struct ChatsView: View {
                 HStack(alignment: .bottom) {
                     SectionHeading(eyebrow: "Independent routes", title: "Chats", detail: "A content-free view of the web conversations currently using this broker and the project each one selected.")
                     Spacer()
+                    TextField("Search chats", text: $query)
+                        .textFieldStyle(.roundedBorder)
+                        .font(FlowType.body(12))
+                        .frame(width: 190)
                     Picker("Chat scope", selection: $scope) {
                         Text("All").tag("all")
                         Text("Active").tag("active")
                         Text("Closed").tag("closed")
+                        Text("Archived").tag("archived")
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 230)
+                    .frame(width: 310)
                 }
 
                 PrivacyStrip()
@@ -450,7 +590,17 @@ struct ChatsView: View {
                     PaperCard { EmptyState(symbol: "bubble.left.and.bubble.right", title: scope == "all" ? "No chats routed yet" : "No \(scope) chats", detail: "A chat appears after it selects a project. Discovery and picker connections stay hidden, and conversation text is never stored.") }
                 } else {
                     LazyVStack(spacing: 11) {
-                        ForEach(sessions) { session in SessionDetailCard(session: session) }
+                        ForEach(sessions) { session in
+                            SessionDetailCard(
+                                session: session,
+                                rename: {
+                                    renameTitle = session.title ?? session.project?.name ?? session.id
+                                    renameCandidate = session
+                                },
+                                togglePin: { Task { await model.updateChat(session.id, action: "pin", value: session.pinned != true) } },
+                                toggleArchive: { Task { await model.updateChat(session.id, action: "archive", value: session.archived != true) } }
+                            )
+                        }
                     }
                 }
             }
@@ -458,6 +608,21 @@ struct ChatsView: View {
             .padding(.top, 25)
             .padding(.bottom, 42)
             .frame(maxWidth: 1160, alignment: .leading)
+        }
+        .alert("Rename chat", isPresented: Binding(
+            get: { renameCandidate != nil },
+            set: { if !$0 { renameCandidate = nil } }
+        )) {
+            TextField("Chat name", text: $renameTitle)
+            Button("Save") {
+                guard let chat = renameCandidate else { return }
+                let title = renameTitle
+                renameCandidate = nil
+                Task { await model.updateChat(chat.id, action: "rename", title: title) }
+            }
+            Button("Cancel", role: .cancel) { renameCandidate = nil }
+        } message: {
+            Text("This local label is stored by CodexFlow; conversation text is not.")
         }
     }
 }
@@ -481,6 +646,9 @@ private struct PrivacyStrip: View {
 
 private struct SessionDetailCard: View {
     let session: SessionOverview
+    let rename: () -> Void
+    let togglePin: () -> Void
+    let toggleArchive: () -> Void
     var body: some View {
         PaperCard(padding: 18) {
             HStack(spacing: 16) {
@@ -490,10 +658,11 @@ private struct SessionDetailCard: View {
                 }
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 8) {
-                        Text(session.id).font(FlowType.mono(12)).foregroundStyle(FlowColor.ink)
+                        Text(session.title ?? session.id).font(FlowType.title(13)).foregroundStyle(FlowColor.ink)
+                        if session.pinned == true { Image(systemName: "pin.fill").font(.system(size: 10)).foregroundStyle(FlowColor.signal) }
                         StatusPill(label: session.project == nil && session.state != "closed" ? "Choosing project" : session.state.codexFlowTitle, color: session.state == "closed" ? FlowColor.inkMuted : session.project == nil ? FlowColor.warning : FlowColor.success)
                     }
-                    Text(session.project?.name ?? "Project not selected yet")
+                    Text([session.project?.name ?? "Project not selected yet", session.title == nil ? nil : session.id].compactMap { $0 }.joined(separator: " · "))
                         .font(FlowType.label(11)).foregroundStyle(session.project == nil ? FlowColor.warning : FlowColor.inkMuted)
                 }
                 Spacer()
@@ -501,6 +670,20 @@ private struct SessionDetailCard: View {
                 InfoPair(label: "TOOL CALLS", value: "\(session.toolCalls)")
                 InfoPair(label: "ERRORS", value: "\(session.errors)", warning: session.errors > 0)
                 InfoPair(label: "LAST TOOL", value: session.lastTool?.codexFlowTitle ?? "—")
+                Button(action: togglePin) {
+                    Image(systemName: session.pinned == true ? "pin.slash" : "pin")
+                        .frame(width: 18)
+                }
+                .buttonStyle(FlowButtonStyle(kind: .quiet))
+                .help(session.pinned == true ? "Unpin chat" : "Pin chat")
+                Menu {
+                    Button("Rename…", action: rename)
+                    Button(session.archived == true ? "Restore from archive" : "Archive", action: toggleArchive)
+                } label: {
+                    Image(systemName: "ellipsis").frame(width: 18)
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 38)
             }
         }
     }

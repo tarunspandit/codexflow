@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-The 0.30.4 implementation, local release matrix, source release, and public-site deployments are complete. Durable private-route chat telemetry, new-chat discovery guidance, documentation, the signed desktop bundle, package contents, GitHub Pages, and the Flow7-hosted product site are verified. The obsolete `CodexFlow Local` ChatGPT connector has been removed. npm publication and a final live two-chat ChatGPT acceptance pass remain account-authenticated release checks.
+The 0.30.4 implementation, local release matrix, source release, and public-site deployments are complete. The 0.31.0 parity release adds guarded Git workflow actions, managed worktrees, persistent route terminals, and native chat lifecycle controls and is now in final release verification. The obsolete `CodexFlow Local` ChatGPT connector has been removed. npm publication and a final live two-chat ChatGPT acceptance pass remain account-authenticated release checks.
 
 ## Product truth
 

@@ -128,7 +128,7 @@ function isAllowedPackageScript(command: string): boolean {
   return packageScriptPattern.test(command);
 }
 
-function assertSafeCommand(config: CodexFlowConfig, command: string): void {
+export function assertBashCommandAllowed(config: CodexFlowConfig, command: string): void {
   if (config.bashMode === "off") {
     throw new CodexFlowError("bash tool is disabled. Start with CODEXFLOW_BASH_MODE=safe or CODEXFLOW_BASH_MODE=full to enable it.");
   }
@@ -153,7 +153,7 @@ function assertSafeCommand(config: CodexFlowConfig, command: string): void {
   }
 }
 
-function assertBashSession(config: CodexFlowConfig, sessionId?: string): string | undefined {
+export function assertBashSession(config: CodexFlowConfig, sessionId?: string): string | undefined {
   const requested = sessionId?.trim();
   if (!config.bashSessionId) {
     if (config.requireBashSession) {
@@ -173,7 +173,7 @@ function assertBashSession(config: CodexFlowConfig, sessionId?: string): string 
   return config.bashSessionId;
 }
 
-function makeEnv(config: CodexFlowConfig): NodeJS.ProcessEnv {
+export function bashEnvironment(config: CodexFlowConfig): NodeJS.ProcessEnv {
   if (config.inheritEnv) {
     return { ...process.env, NO_COLOR: "1", CI: process.env.CI ?? "1" };
   }
@@ -189,7 +189,7 @@ function makeEnv(config: CodexFlowConfig): NodeJS.ProcessEnv {
   };
 }
 
-function bashExecutable(): string {
+export function bashExecutable(): string {
   return fs.existsSync("/bin/bash") ? "/bin/bash" : "bash";
 }
 
@@ -209,7 +209,7 @@ export async function runBash(
 ): Promise<BashResult> {
   if (!command?.trim()) throw new CodexFlowError("command is required.");
   const bashSessionId = assertBashSession(config, options.sessionId);
-  assertSafeCommand(config, command);
+  assertBashCommandAllowed(config, command);
   const cwdResolved = guard.resolve(workspace, options.cwd ?? ".");
   const cwd = cwdResolved.absPath;
   const timeoutMs = Math.max(1_000, Math.min(options.timeoutMs ?? 30_000, 180_000));
@@ -218,7 +218,7 @@ export async function runBash(
   return new Promise((resolve, reject) => {
     const child = spawn(bashExecutable(), ["-lc", command], {
       cwd,
-      env: makeEnv(config),
+      env: bashEnvironment(config),
       stdio: ["ignore", "pipe", "pipe"]
     });
 

@@ -9,8 +9,16 @@ import type { CodexFlowConfig } from "./config.js";
 import { WorkspaceManager, PathGuard, CodexFlowError, type Workspace } from "./guard.js";
 import { repoTree, readTextFile, writeTextFile, editTextFile, ensureAiBridge } from "./fsOps.js";
 import { searchWorkspace } from "./searchOps.js";
-import { runBash } from "./bashOps.js";
+import { assertBashSession, runBash } from "./bashOps.js";
 import { gitDiff, gitDiffStatus, gitLog, gitStatus } from "./gitOps.js";
+import { runGitWorkflow } from "./gitWorkflow.js";
+import {
+  createManagedWorktree,
+  handoffManagedWorktree,
+  listManagedWorktrees,
+  removeManagedWorktree
+} from "./worktreeOps.js";
+import { persistentTerminals } from "./terminalOps.js";
 import { readAiBridgeContext, readCodexContext, workspaceSummary } from "./workspaceOps.js";
 import { buildProContext, exportProContext } from "./proContext.js";
 import { codexflowInventory, loadSkill } from "./capabilitiesOps.js";
@@ -551,6 +559,9 @@ const STANDARD_TOOL_NAMES = [
   "inspect_workspace",
   "tree",
   "search",
+  "terminal",
+  "git_workflow",
+  "worktree",
   "read_handoff",
   "wait_for_handoff",
   "export_pro_context",
@@ -577,8 +588,11 @@ const FULL_TOOL_NAMES = [
   "edit",
   "apply_patch",
   "bash",
+  "terminal",
   "git_status",
   "git_diff",
+  "git_workflow",
+  "worktree",
   "show_changes",
   "read_handoff",
   "wait_for_handoff",
@@ -595,6 +609,9 @@ const CONNECTION_TEST_HIDDEN_TOOLS = new Set<string>([
   "edit",
   "apply_patch",
   "bash",
+  "terminal",
+  "git_workflow",
+  "worktree",
   "export_pro_context",
   "handoff_to_agent",
   "handoff_to_codex"
@@ -619,7 +636,7 @@ function toolNamesForMode(config: CodexFlowConfig): string[] {
     if (bashIndex !== -1) names.splice(bashIndex, 1);
   }
   if (config.writeMode !== "workspace") {
-    for (const writeTool of ["write", "edit", "apply_patch"]) {
+    for (const writeTool of ["write", "edit", "apply_patch", "git_workflow", "worktree"]) {
       const toolIndex = names.indexOf(writeTool);
       if (toolIndex !== -1) names.splice(toolIndex, 1);
     }
@@ -659,7 +676,9 @@ function registeredToolNames(server: McpServer): string[] {
 function shouldRegisterTool(config: CodexFlowConfig, name: string): boolean {
   if (config.connectionTest && CONNECTION_TEST_HIDDEN_TOOLS.has(name)) return false;
   if (name === "bash" && config.bashMode === "off") return false;
+  if (name === "terminal" && config.bashMode === "off") return false;
   if ((name === "write" || name === "edit" || name === "apply_patch") && config.writeMode !== "workspace") return false;
+  if ((name === "git_workflow" || name === "worktree") && config.writeMode !== "workspace") return false;
   if (name === "codex_sessions") return config.codexSessions !== "off";
   if (name === "read_codex_session") return config.codexSessions === "read";
   if (name === "inspect_workspace" && !config.analysisEnabled) return false;
@@ -693,14 +712,14 @@ function serverInstructions(config: CodexFlowConfig): string {
     config.connectionTest
       ? "5. Connection test mode is read-only. Write, patch, export, and handoff-writing tools are unavailable."
       : config.writeMode === "workspace"
-      ? "5. Edit source files with write/edit/apply_patch. After edits, call show_changes once for git status, diff stats, and review diff."
+      ? "5. Edit source files with write/edit/apply_patch. After edits, call show_changes once for git status, diff stats, and review diff. Use git_workflow for deliberate stage, commit, branch, push, or pull-request actions."
       : config.writeMode === "handoff"
         ? "5. Source writes are disabled and generic write/edit/apply_patch tools are unavailable. Use handoff_to_agent/handoff_to_codex for plans."
         : "5. Write/edit/apply_patch tools are disabled. Do not attempt direct file writes; use handoff or context export workflows instead.";
   const bashInstruction =
     config.bashMode === "off"
       ? "6. Bash is disabled and the bash tool is unavailable. Do not attempt shell commands."
-      : "6. Use bash only for meaningful verification commands such as npm test, npm run build, lint, typecheck, or an existing project script.";
+      : "6. Use bash for isolated verification commands. Use terminal when a chat needs persistent shell state, a background process, or interactive input.";
 
   return [
     "CodexFlow gives this ChatGPT conversation Codex-style access to one selected local project while sharing a single local broker with other conversations. It never invokes the Codex CLI.",
@@ -714,6 +733,9 @@ function serverInstructions(config: CodexFlowConfig): string {
     "4. Inspect with tree, search, and read. Do not use bash for git status, git diff, cat, sed, grep, rg, find, ls, or file reading.",
     editInstruction,
     bashInstruction,
+    config.writeMode === "workspace"
+      ? "6a. Use worktree to isolate parallel tasks. Creating or handing off a worktree moves this private chat route to that checkout while preserving project scope."
+      : "",
     "7. Keep tool calls minimal. Prefer one targeted search plus show_changes instead of repeated broad inspection calls.",
     config.codexSessions !== "off"
       ? `8. Codex session history access is enabled in ${config.codexSessions} mode. Use it only when the user asks for local Codex session history.`
@@ -2415,6 +2437,89 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
   registerCodexTool(
     config,
     server,
+    "terminal",
+    {
+      title: "Persistent Terminal",
+      description:
+        "Use the private chat route's persistent shell. run waits for one command; start launches a long-running or interactive command; read returns new transcript output; write sends input in full bash mode; stop closes the route terminal. Shell cwd and environment changes persist between commands.",
+      inputSchema: {
+        workspace_id: z.string().optional().describe("Workspace id bound to this private route."),
+        action: z.enum(["run", "start", "read", "write", "stop"]),
+        command: z.string().optional().describe("Command for run or start."),
+        data: z.string().max(32768).optional().describe("Raw terminal input for write. Add a newline when submitting a response."),
+        cwd: z.string().optional().describe("Optional workspace-relative directory to enter before the command."),
+        timeout_ms: z.number().int().min(1000).max(180000).optional().describe("Command timeout. Default: 30000."),
+        after_cursor: z.number().int().min(0).optional().describe("For read, return transcript chunks after this cursor."),
+        wait_ms: z.number().int().min(0).max(5000).optional().describe("For read, briefly wait before collecting output."),
+        session_id: z.string().optional().describe(config.requireBashSession && config.bashSessionId ? `Required bash session id for this server: ${config.bashSessionId}.` : "Optional configured bash session guard.")
+      },
+      annotations: BASH_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Using persistent terminal...",
+        "openai/toolInvocation/invoked": "Terminal updated"
+      }
+    },
+    async (args) => {
+      const routeId = invocationRouteId();
+      if (!routeId) throw new CodexFlowError("terminal requires the private route_id returned by list_projects or select_project.");
+      const workspace = workspaces.getWorkspace(args.workspace_id);
+      if (args.action === "run" || args.action === "start") {
+        const result = await persistentTerminals.run(config, guard, routeId, workspace, String(args.command ?? ""), {
+          cwd: args.cwd,
+          timeoutMs: args.timeout_ms,
+          wait: args.action === "run",
+          bashSessionId: args.session_id
+        });
+        const text = [
+          "# Persistent Terminal",
+          "",
+          `Terminal: ${result.terminalId}`,
+          `Command: ${result.commandId}`,
+          `State: ${result.completed ? "completed" : "running"}`,
+          result.completed ? `Exit: ${result.exitCode ?? "unknown"}` : "Use terminal action=read with this route_id to collect output.",
+          result.output ? `\n## Output\n\n${result.output}` : ""
+        ].filter(Boolean).join("\n");
+        return textResult(text, { workspace_id: workspace.id, root: workspace.root, ...result });
+      }
+      if (args.action === "read") {
+        if (args.wait_ms) await new Promise((resolve) => setTimeout(resolve, args.wait_ms));
+        const result = persistentTerminals.read(config, routeId, workspace, args.after_cursor ?? 0, args.session_id);
+        const text = [
+          "# Terminal Output",
+          "",
+          `Terminal: ${result.terminalId}`,
+          `State: ${result.running ? "running" : "idle"}`,
+          `Cursor: ${result.cursor}`,
+          result.output ? `\n${result.output}` : "\nNo new output."
+        ].join("\n");
+        return textResult(text, { workspace_id: workspace.id, root: workspace.root, ...result });
+      }
+      if (args.action === "write") {
+        const result = persistentTerminals.write(config, routeId, workspace, String(args.data ?? ""), args.session_id);
+        return textResult(`# Terminal Input\n\nInput sent to ${result.terminalId}.`, {
+          workspace_id: workspace.id,
+          root: workspace.root,
+          ...result,
+          input_sent: true
+        });
+      }
+      if (args.action === "stop") {
+        assertBashSession(config, args.session_id);
+        const stopped = persistentTerminals.stop(routeId);
+        return textResult(`# Terminal Stopped\n\n${stopped ? "The route terminal was closed." : "No route terminal was running."}`, {
+          workspace_id: workspace.id,
+          root: workspace.root,
+          stopped
+        });
+      }
+      throw new CodexFlowError(`Unsupported terminal action: ${String(args.action)}`);
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
     "git_status",
     {
       title: "Git Status",
@@ -2500,6 +2605,174 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         changed: !diffError && stats.changed,
         diff: diffError || includeDiff ? rawDiff : ""
       });
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
+    "git_workflow",
+    {
+      title: "Git Workflow",
+      description: "Perform one deliberate Git workflow action in the selected project: stage, unstage, discard explicit paths, create or switch branches, commit staged changes, push, or create a GitHub pull request. Each call is separately approval-visible.",
+      inputSchema: {
+        workspace_id: z.string().optional().describe("Workspace id from the active project or worktree."),
+        action: z.enum(["stage", "unstage", "discard", "create_branch", "switch_branch", "commit", "push", "create_pr"]),
+        paths: z.array(z.string()).max(200).optional().describe("Workspace-relative paths. stage/unstage default to all; discard always requires explicit paths."),
+        branch: z.string().optional().describe("Branch to create, switch to, or push. push defaults to the current branch."),
+        message: z.string().max(500).optional().describe("Commit message for action=commit."),
+        remote: z.string().optional().describe("Configured Git remote for push. Default: origin."),
+        set_upstream: z.boolean().optional().describe("Set the push upstream. Default: true."),
+        title: z.string().max(256).optional().describe("Pull request title for action=create_pr."),
+        body: z.string().max(20_000).optional().describe("Pull request body for action=create_pr."),
+        base: z.string().optional().describe("Optional pull request base branch."),
+        include_staged: z.boolean().optional().describe("For discard, restore both index and working tree. Default: false.")
+      },
+      annotations: BASH_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Running Git workflow action...",
+        "openai/toolInvocation/invoked": "Git workflow action complete"
+      }
+    },
+    async (args) => {
+      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const result = runGitWorkflow(config, guard, workspace, {
+        action: args.action,
+        paths: args.paths,
+        branch: args.branch,
+        message: args.message,
+        remote: args.remote,
+        setUpstream: args.set_upstream,
+        title: args.title,
+        body: args.body,
+        base: args.base,
+        includeStaged: args.include_staged
+      });
+      invalidateWorkspaceAnalysis(workspace.root);
+      const text = [
+        "# Git Workflow",
+        "",
+        `Action: ${result.action}`,
+        `Workspace: ${result.root}`,
+        result.branch ? `Branch: ${result.branch}` : "",
+        result.paths.length ? `Paths: ${result.paths.join(", ")}` : "Paths: workspace",
+        result.url ? `Pull request: ${result.url}` : "",
+        result.stdout ? `\n## Output\n\n${result.stdout}` : "",
+        result.stderr ? `\n## stderr\n\n${result.stderr}` : ""
+      ].filter(Boolean).join("\n");
+      return textResult(text, { workspace_id: workspace.id, ...result });
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
+    "worktree",
+    {
+      title: "Managed Worktree",
+      description: "List, create, hand off to/from, or remove CodexFlow-managed Git worktrees. Create and handoff preserve this private chat route while changing its working checkout. Removal saves a patch snapshot when tracked changes exist.",
+      inputSchema: {
+        workspace_id: z.string().optional().describe("Workspace id from the active local project or managed worktree."),
+        action: z.enum(["list", "create", "handoff", "remove"]),
+        worktree_id: z.string().optional().describe("Managed worktree id for handoff or remove."),
+        destination: z.enum(["worktree", "local"]).optional().describe("Handoff destination."),
+        base_ref: z.string().optional().describe("Commit-ish used to create a detached worktree. Default: HEAD."),
+        include_changes: z.boolean().optional().describe("Copy current tracked and untracked project changes into a new worktree. Default: true."),
+        transfer_changes: z.boolean().optional().describe("Apply current tracked and untracked project changes to the handoff destination. Default: true.")
+      },
+      annotations: LOCAL_WRITE_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Managing worktree...",
+        "openai/toolInvocation/invoked": "Worktree action complete"
+      }
+    },
+    async (args) => {
+      const workspace = workspaces.getWorkspace(args.workspace_id);
+      if (args.action === "list") {
+        const items = listManagedWorktrees(config, workspace);
+        const rows = items.length
+          ? items.map((item) => `- ${item.id}  ${item.branch || "detached"}  ${item.dirty ? "dirty" : "clean"}  ${item.projectRoot}`).join("\n")
+          : "- No managed worktrees.";
+        return textResult(`# Managed Worktrees\n\n${rows}`, {
+          workspace_id: workspace.id,
+          root: workspace.root,
+          worktrees: items,
+          count: items.length
+        });
+      }
+      if (args.action === "create") {
+        const created = createManagedWorktree(config, workspace, {
+          baseRef: args.base_ref,
+          includeChanges: args.include_changes
+        });
+        const destination = workspaces.openWorkspace(created.worktree.projectRoot);
+        return textResult([
+          "# Worktree Created",
+          "",
+          `ID: ${created.worktree.id}`,
+          `Project: ${destination.root}`,
+          `Base: ${created.worktree.baseRef}`,
+          `Tracked changes applied: ${created.patchApplied}`,
+          `Untracked files copied: ${created.untrackedCopied}`,
+          "This private chat route now uses the managed worktree."
+        ].join("\n"), {
+          workspace_id: destination.id,
+          root: destination.root,
+          worktree: created.worktree,
+          patch_applied: created.patchApplied,
+          untracked_copied: created.untrackedCopied,
+          route_switched: true
+        });
+      }
+      if (args.action === "handoff") {
+        if (!args.worktree_id || !args.destination) throw new CodexFlowError("worktree_id and destination are required for handoff.");
+        const handed = handoffManagedWorktree(config, workspace, {
+          worktreeId: args.worktree_id,
+          destination: args.destination,
+          transferChanges: args.transfer_changes
+        });
+        const destination = workspaces.openWorkspace(handed.destinationRoot);
+        return textResult([
+          "# Worktree Handoff",
+          "",
+          `Destination: ${args.destination}`,
+          `Project: ${destination.root}`,
+          `Tracked changes applied: ${handed.patchApplied}`,
+          `Untracked files copied: ${handed.untrackedCopied}`,
+          "This private chat route now uses the destination checkout."
+        ].join("\n"), {
+          workspace_id: destination.id,
+          root: destination.root,
+          worktree: handed.worktree,
+          destination: args.destination,
+          patch_applied: handed.patchApplied,
+          untracked_copied: handed.untrackedCopied,
+          route_switched: true
+        });
+      }
+      if (args.action === "remove") {
+        if (!args.worktree_id) throw new CodexFlowError("worktree_id is required for remove.");
+        const removed = removeManagedWorktree(config, workspace, args.worktree_id);
+        const destination = workspaces.openWorkspace(removed.localRoot);
+        return textResult([
+          "# Worktree Removed",
+          "",
+          `ID: ${removed.worktreeId}`,
+          removed.snapshotPath ? `Snapshot: ${removed.snapshotPath}` : "Snapshot: no tracked changes",
+          `Project: ${destination.root}`,
+          "This private chat route now uses the local checkout."
+        ].join("\n"), {
+          workspace_id: destination.id,
+          root: destination.root,
+          worktree_id: removed.worktreeId,
+          snapshot_path: removed.snapshotPath ?? null,
+          removed: true,
+          route_switched: true
+        });
+      }
+      throw new CodexFlowError(`Unsupported worktree action: ${String(args.action)}`);
     }
   );
 
