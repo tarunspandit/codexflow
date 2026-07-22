@@ -371,7 +371,7 @@ async function applicationOverview(
   }
   let environments: ReturnType<typeof localEnvironmentSummary>[] = [];
   try {
-    environments = listLocalEnvironments(config, workspaces.defaultWorkspace()).map(localEnvironmentSummary);
+    environments = listLocalEnvironments(config, workspaces.defaultWorkspace()).map((environment) => localEnvironmentSummary(environment));
   } catch {
     // Invalid environment files are surfaced by the dedicated endpoint.
   }
@@ -1036,7 +1036,7 @@ async function main(): Promise<void> {
   app.get("/admin/environments", (_req, res) => {
     try {
       const workspace = workspaces.defaultWorkspace();
-      const environments = listLocalEnvironments(config, workspace).map(localEnvironmentSummary);
+      const environments = listLocalEnvironments(config, workspace).map((environment) => localEnvironmentSummary(environment));
       res.json({ ok: true, root: workspace.root, environments });
     } catch (error) {
       jsonError(res, 400, "environments_unavailable", error instanceof Error ? error.message : String(error));

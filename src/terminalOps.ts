@@ -1,8 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import type { CodexFlowConfig } from "./config.js";
 import type { Workspace } from "./guard.js";
 import { CodexFlowError, PathGuard } from "./guard.js";
+import type { SavedRemoteProject } from "./remoteConnections.js";
+import { runRemoteWorkspaceOperation } from "./remoteWorkspace.js";
 import {
   assertBashCommandAllowed,
   assertBashSession,
@@ -31,8 +35,8 @@ interface ActiveCommand {
 interface TerminalSession {
   id: string;
   routeId: string;
-  workspaceId: string;
   workspaceRoot: string;
+  targetIdentity: string;
   child: ChildProcessWithoutNullStreams;
   chunks: TranscriptChunk[];
   transcriptBytes: number;
@@ -42,6 +46,21 @@ interface TerminalSession {
   ready: Promise<void>;
   active?: ActiveCommand;
   closed: boolean;
+}
+
+interface TerminalTarget {
+  workspaceRoot: string;
+  identity: string;
+  location: "local" | "remote";
+}
+
+interface TerminalProcessSpec {
+  command: string;
+  args: string[];
+  detached: boolean;
+  waitForReady: boolean;
+  initialize: (readyMarker: string) => string;
+  decode: (encoded: string) => string;
 }
 
 export interface TerminalCommandResult {
@@ -71,22 +90,83 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
-function terminalProcess(): { command: string; args: string[]; pseudoTerminal: boolean } {
+function terminalProcess(): TerminalProcessSpec {
   if (process.platform === "darwin") {
     return {
       command: "/bin/sh",
       args: ["-c", `cat | /usr/bin/script -q /dev/null ${shellQuote(bashExecutable())} --noprofile --norc`],
-      pseudoTerminal: true
+      detached: true,
+      waitForReady: true,
+      initialize: (readyMarker) => `stty -echo; printf '${readyMarker}\\n'\n`,
+      decode: (encoded) => `printf '%s' '${encoded}' | /usr/bin/base64 -D`
     };
   }
   if (process.platform === "linux") {
     return {
       command: "/bin/sh",
       args: ["-c", `cat | /usr/bin/script -q -c ${shellQuote(`${bashExecutable()} --noprofile --norc`)} /dev/null`],
-      pseudoTerminal: true
+      detached: true,
+      waitForReady: true,
+      initialize: (readyMarker) => `stty -echo; printf '${readyMarker}\\n'\n`,
+      decode: (encoded) => `printf '%s' '${encoded}' | base64 -d`
     };
   }
-  return { command: bashExecutable(), args: ["--noprofile", "--norc"], pseudoTerminal: false };
+  return {
+    command: bashExecutable(),
+    args: ["--noprofile", "--norc"],
+    detached: false,
+    waitForReady: false,
+    initialize: () => "",
+    decode: (encoded) => `printf '%s' '${encoded}' | base64 -d`
+  };
+}
+
+function expandHome(value: string): string {
+  if (value === "~") return process.env.HOME ?? "";
+  if (value.startsWith("~/")) return `${process.env.HOME ?? ""}/${value.slice(2)}`;
+  return value;
+}
+
+function sshBinary(): string {
+  const configured = process.env.CODEXFLOW_SSH_BIN?.trim();
+  if (configured) return expandHome(configured);
+  return process.platform !== "win32" && fs.existsSync("/usr/bin/ssh") ? "/usr/bin/ssh" : "ssh";
+}
+
+function remoteTerminalProcess(project: SavedRemoteProject): TerminalProcessSpec {
+  const remoteCommand = "if [ -x /bin/bash ]; then exec /bin/bash --noprofile --norc; else exec bash --noprofile --norc; fi";
+  return {
+    command: sshBinary(),
+    args: [
+      "-T",
+      "-o", "BatchMode=yes",
+      "-o", "ConnectTimeout=8",
+      "-o", "StrictHostKeyChecking=yes",
+      project.hostAlias,
+      remoteCommand
+    ],
+    detached: process.platform !== "win32",
+    waitForReady: true,
+    initialize: (readyMarker) =>
+      `cd -- ${shellQuote(project.root)} || exit 70; export NO_COLOR=1; export CI=1; printf '${readyMarker}\\n'\n`,
+    decode: (encoded) => `node -e 'process.stdout.write(Buffer.from(process.argv[1],"base64").toString("utf8"))' '${encoded}'`
+  };
+}
+
+function localTarget(workspace: Workspace): TerminalTarget {
+  return {
+    workspaceRoot: workspace.root,
+    identity: `local:${workspace.id}:${workspace.root}`,
+    location: "local"
+  };
+}
+
+function remoteTarget(project: SavedRemoteProject): TerminalTarget {
+  return {
+    workspaceRoot: project.root,
+    identity: `remote:${project.id}:${project.hostFingerprint}:${project.root}`,
+    location: "remote"
+  };
 }
 
 class TerminalRegistry {
@@ -155,27 +235,33 @@ class TerminalRegistry {
     this.finishActive(config, session, exitCode, output);
   }
 
-  private create(config: CodexFlowConfig, routeId: string, workspace: Workspace): TerminalSession {
+  private create(
+    config: CodexFlowConfig,
+    routeId: string,
+    target: TerminalTarget,
+    processSpec: TerminalProcessSpec
+  ): TerminalSession {
     this.prune(config);
-    const processSpec = terminalProcess();
     const child = spawn(processSpec.command, processSpec.args, {
-      cwd: workspace.root,
-      env: { ...bashEnvironment(config), PS1: "", PS2: "", PROMPT_COMMAND: "" },
+      ...(target.location === "local" ? { cwd: target.workspaceRoot } : {}),
+      env: target.location === "remote"
+        ? { ...process.env, NO_COLOR: "1", CI: process.env.CI ?? "1" }
+        : { ...bashEnvironment(config), PS1: "", PS2: "", PROMPT_COMMAND: "" },
       stdio: ["pipe", "pipe", "pipe"],
-      detached: processSpec.pseudoTerminal
+      detached: processSpec.detached
     });
     const now = Date.now();
     const readyMarker = `__CODEXFLOW_READY_${randomBytes(8).toString("hex")}__`;
     let resolveReady!: () => void;
     const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
-    let readyResolved = !processSpec.pseudoTerminal;
+    let readyResolved = !processSpec.waitForReady;
     let readyBuffer = "";
     if (readyResolved) resolveReady();
     const session: TerminalSession = {
       id: `term_${randomBytes(8).toString("hex")}`,
       routeId,
-      workspaceId: workspace.id,
-      workspaceRoot: workspace.root,
+      workspaceRoot: target.workspaceRoot,
+      targetIdentity: target.identity,
       child,
       chunks: [],
       transcriptBytes: 0,
@@ -186,6 +272,14 @@ class TerminalRegistry {
       closed: false
     };
     this.sessions.set(routeId, session);
+    const readyTimer = setTimeout(() => {
+      if (readyResolved || session.closed) return;
+      readyResolved = true;
+      this.append(config, session, "[codexflow] terminal did not become ready within 15 seconds.\n");
+      resolveReady();
+      this.stop(routeId);
+    }, 15_000);
+    readyTimer.unref();
     child.stdout.on("data", (chunk) => {
       let raw = String(chunk);
       if (!readyResolved) {
@@ -193,6 +287,7 @@ class TerminalRegistry {
         const readyMatch = readyBuffer.match(new RegExp(`(?:^|\\r?\\n)${readyMarker}\\r?\\n`));
         if (readyMatch?.index !== undefined) {
           readyResolved = true;
+          clearTimeout(readyTimer);
           resolveReady();
           raw = readyBuffer.slice(readyMatch.index + readyMatch[0].length);
           readyBuffer = "";
@@ -215,36 +310,42 @@ class TerminalRegistry {
     });
     child.on("error", (error) => this.append(config, session, `[codexflow] terminal error: ${error.message}\n`));
     child.on("close", (code, signal) => {
+      clearTimeout(readyTimer);
       if (!readyResolved) { readyResolved = true; resolveReady(); }
       session.closed = true;
       this.append(config, session, `[codexflow] terminal closed (${code ?? signal ?? "unknown"}).\n`);
       if (session.active) this.finishActive(config, session, code, session.active.raw);
-      this.sessions.delete(routeId);
+      if (this.sessions.get(routeId) === session) this.sessions.delete(routeId);
     });
-    if (processSpec.pseudoTerminal) {
+    if (processSpec.waitForReady) {
       const initialize = setTimeout(() => {
-        if (!session.closed) child.stdin.write(`stty -echo; printf '${readyMarker}\\n'\n`);
-      }, 150);
+        if (!session.closed) child.stdin.write(processSpec.initialize(readyMarker));
+      }, target.location === "local" ? 150 : 0);
       initialize.unref();
     }
     return session;
   }
 
-  private session(config: CodexFlowConfig, routeId: string, workspace: Workspace): TerminalSession {
+  private session(
+    config: CodexFlowConfig,
+    routeId: string,
+    target: TerminalTarget,
+    processSpec: () => TerminalProcessSpec
+  ): TerminalSession {
     const current = this.sessions.get(routeId);
-    if (current && !current.closed && current.workspaceId === workspace.id) return current;
+    if (current && !current.closed && current.targetIdentity === target.identity) return current;
     if (current?.active) throw new CodexFlowError("The route changed projects while its terminal command is still running. Stop the terminal before switching.");
     if (current) this.stop(routeId);
-    return this.create(config, routeId, workspace);
+    return this.create(config, routeId, target, processSpec());
   }
 
-  async run(
+  private async runTarget(
     config: CodexFlowConfig,
-    guard: PathGuard,
     routeId: string,
-    workspace: Workspace,
+    target: TerminalTarget,
+    processSpec: () => TerminalProcessSpec,
     command: string,
-    options: { cwd?: string; timeoutMs?: number; wait?: boolean; bashSessionId?: string; trustedProjectCommand?: boolean } = {}
+    options: { cwd?: string; timeoutMs?: number; wait?: boolean; bashSessionId?: string; trustedProjectCommand?: boolean; resolvedCwd?: string } = {}
   ): Promise<TerminalCommandResult> {
     if (!command.trim()) throw new CodexFlowError("command is required.");
     assertBashSession(config, options.bashSessionId);
@@ -253,7 +354,8 @@ class TerminalRegistry {
     } else {
       assertBashCommandAllowed(config, command);
     }
-    const session = this.session(config, routeId, workspace);
+    const spec = processSpec();
+    const session = this.session(config, routeId, target, () => spec);
     await session.ready;
     if (session.closed) throw new CodexFlowError("The persistent terminal exited before it became ready.");
     if (session.active) throw new CodexFlowError(`Terminal already has a running command (${session.active.id}). Read, write to, or stop it first.`);
@@ -262,7 +364,6 @@ class TerminalRegistry {
     const endMarker = `__CODEXFLOW_END_${commandId}__`;
     const maxTimeoutMs = options.trustedProjectCommand ? 600_000 : 180_000;
     const timeoutMs = Math.max(1_000, Math.min(options.timeoutMs ?? 30_000, maxTimeoutMs));
-    const cwd = options.cwd ? guard.resolve(workspace, options.cwd).absPath : undefined;
     let resolveCommand!: (result: TerminalCommandResult) => void;
     const completed = new Promise<TerminalCommandResult>((resolve) => { resolveCommand = resolve; });
     const timer = setTimeout(() => {
@@ -285,15 +386,14 @@ class TerminalRegistry {
     };
     session.lastUsedAt = Date.now();
     const encodedCommand = Buffer.from(command, "utf8").toString("base64");
-    const decode = process.platform === "darwin" ? "/usr/bin/base64 -D" : "base64 -d";
-    const scopedCommand = `${cwd ? `cd -- ${shellQuote(cwd)} && ` : ""}eval "$(printf '%s' '${encodedCommand}' | ${decode})"`;
+    const scopedCommand = `${options.resolvedCwd ? `cd -- ${shellQuote(options.resolvedCwd)} && ` : ""}eval "$(${spec.decode(encodedCommand)})"`;
     session.child.stdin.write(`printf '${beginMarker}\\n'; ${scopedCommand}; cf_status=$?; printf '\\n${endMarker}:%s\\n' "$cf_status"\n`);
     if (options.wait === false) {
       return {
         terminalId: session.id,
         commandId,
         command,
-        workspaceRoot: workspace.root,
+        workspaceRoot: target.workspaceRoot,
         exitCode: null,
         durationMs: 0,
         output: "",
@@ -304,9 +404,53 @@ class TerminalRegistry {
     return completed;
   }
 
+  async run(
+    config: CodexFlowConfig,
+    guard: PathGuard,
+    routeId: string,
+    workspace: Workspace,
+    command: string,
+    options: { cwd?: string; timeoutMs?: number; wait?: boolean; bashSessionId?: string; trustedProjectCommand?: boolean } = {}
+  ): Promise<TerminalCommandResult> {
+    const cwd = options.cwd ? guard.resolve(workspace, options.cwd).absPath : undefined;
+    return this.runTarget(config, routeId, localTarget(workspace), terminalProcess, command, { ...options, resolvedCwd: cwd });
+  }
+
+  async runRemote(
+    config: CodexFlowConfig,
+    routeId: string,
+    project: SavedRemoteProject,
+    command: string,
+    options: { cwd?: string; timeoutMs?: number; wait?: boolean; bashSessionId?: string; trustedProjectCommand?: boolean } = {}
+  ): Promise<TerminalCommandResult> {
+    const rawCwd = options.cwd?.trim();
+    if (rawCwd && path.posix.isAbsolute(rawCwd)) throw new CodexFlowError("Terminal cwd must be relative to the remote project.");
+    const resolved = rawCwd
+      ? await runRemoteWorkspaceOperation<{ absolute: string; relative: string }>(project.hostAlias, config, {
+          action: "resolve_directory",
+          root: project.root,
+          path: rawCwd
+        })
+      : undefined;
+    return this.runTarget(config, routeId, remoteTarget(project), () => remoteTerminalProcess(project), command, {
+      ...options,
+      resolvedCwd: resolved?.absolute
+    });
+  }
+
   read(config: CodexFlowConfig, routeId: string, workspace: Workspace, afterCursor = 0, bashSessionId?: string): TerminalReadResult {
     assertBashSession(config, bashSessionId);
-    const session = this.session(config, routeId, workspace);
+    const session = this.session(config, routeId, localTarget(workspace), terminalProcess);
+    return this.readSession(session, afterCursor);
+  }
+
+  readRemote(config: CodexFlowConfig, routeId: string, project: SavedRemoteProject, afterCursor = 0, bashSessionId?: string): TerminalReadResult {
+    assertBashSession(config, bashSessionId);
+    const session = this.session(config, routeId, remoteTarget(project), () => remoteTerminalProcess(project));
+    return this.readSession(session, afterCursor);
+  }
+
+  private readSession(session: TerminalSession, afterCursor: number): TerminalReadResult {
     session.lastUsedAt = Date.now();
     const earliestCursor = session.chunks[0]?.cursor ?? session.cursor;
     const chunks = session.chunks.filter((chunk) => chunk.cursor > Math.max(0, afterCursor));
@@ -325,12 +469,23 @@ class TerminalRegistry {
   write(config: CodexFlowConfig, routeId: string, workspace: Workspace, data: string, bashSessionId?: string): TerminalReadResult {
     assertBashSession(config, bashSessionId);
     if (config.bashMode !== "full") throw new CodexFlowError("Interactive terminal input requires CODEXFLOW_BASH_MODE=full.");
-    const session = this.session(config, routeId, workspace);
+    const session = this.session(config, routeId, localTarget(workspace), terminalProcess);
     if (!session.active) throw new CodexFlowError("The terminal has no running command to receive input.");
     if (!data || Buffer.byteLength(data, "utf8") > 32_768) throw new CodexFlowError("data must contain 1 to 32768 bytes.");
     session.child.stdin.write(data);
     session.lastUsedAt = Date.now();
     return this.read(config, routeId, workspace, session.cursor, bashSessionId);
+  }
+
+  writeRemote(config: CodexFlowConfig, routeId: string, project: SavedRemoteProject, data: string, bashSessionId?: string): TerminalReadResult {
+    assertBashSession(config, bashSessionId);
+    if (config.bashMode !== "full") throw new CodexFlowError("Interactive terminal input requires CODEXFLOW_BASH_MODE=full.");
+    const session = this.session(config, routeId, remoteTarget(project), () => remoteTerminalProcess(project));
+    if (!session.active) throw new CodexFlowError("The terminal has no running command to receive input.");
+    if (!data || Buffer.byteLength(data, "utf8") > 32_768) throw new CodexFlowError("data must contain 1 to 32768 bytes.");
+    session.child.stdin.write(data);
+    session.lastUsedAt = Date.now();
+    return this.readRemote(config, routeId, project, session.cursor, bashSessionId);
   }
 
   stop(routeId: string): boolean {

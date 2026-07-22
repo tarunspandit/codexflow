@@ -9,6 +9,11 @@ import { hasSecretValue, redactStructured } from "./redact.js";
 
 export type RemoteWorkspaceOperation =
   | { action: "probe_project"; root: string }
+  | { action: "resolve_directory"; root: string; path?: string }
+  | { action: "list_environments"; root: string; maxBytes: number; maxFiles: number }
+  | { action: "list_skills"; root: string; maxSkills: number }
+  | { action: "load_skill"; root: string; name: string; path?: string; maxSkills: number; maxBytes: number }
+  | { action: "inspect"; root: string; maxFiles: number; maxAnalyzedFiles: number; maxScannedBytes: number; maxSymbols: number; maxRelationships: number }
   | { action: "summary"; root: string; maxDepth: number; maxEntries: number }
   | { action: "tree"; root: string; path?: string; maxDepth: number; maxEntries: number; includeHidden: boolean }
   | { action: "read"; root: string; path: string; startLine?: number; endLine?: number; maxBytes: number }
@@ -336,6 +341,135 @@ function applyPatch(root, request, limits) {
   return Object.assign({ paths: paths, stdout: applied.text === "(no output)" ? "" : applied.text, stderr: applied.stderr, diff: diff === "(no output)" ? "" : diff }, countDiff(diff));
 }
 
+function inspectProject(root, request, limits) {
+  const files = [];
+  const warnings = [];
+  let inventoryLimited = false;
+  const languageByExtension = {
+    ".ts": "typescript", ".tsx": "typescript", ".mts": "typescript", ".cts": "typescript",
+    ".js": "javascript", ".jsx": "javascript", ".mjs": "javascript", ".cjs": "javascript",
+    ".py": "python", ".go": "go", ".rs": "rust", ".swift": "swift", ".java": "java",
+    ".cs": "csharp", ".c": "c", ".h": "c", ".cpp": "cpp", ".cc": "cpp", ".hpp": "cpp",
+    ".json": "json", ".yaml": "yaml", ".yml": "yaml", ".toml": "toml", ".md": "markdown", ".sh": "shell"
+  };
+  function classify(rel) {
+    const lower = rel.toLowerCase();
+    const language = languageByExtension[path.extname(lower)] || "unknown";
+    const generated = /(^|\/)(dist|build|coverage|vendor|generated)(\/|$)/.test(lower) || /(?:\.min\.js|\.generated\.)/.test(lower);
+    let role = "other";
+    if (generated) role = "generated";
+    else if (/(^|\/)(test|tests|__tests__|spec)(\/|$)|(?:\.test|\.spec)\./.test(lower)) role = "test";
+    else if (/(^|\/)(readme|agents)\.md$|(^|\/)docs?\//.test(lower) || language === "markdown") role = "docs";
+    else if (/(^|\/)(package\.json|tsconfig[^/]*\.json|pyproject\.toml|cargo\.toml|go\.mod|dockerfile|makefile|\.github\/)/.test(lower) || ["json", "yaml", "toml"].indexOf(language) >= 0) role = "config";
+    else if (/(^|\/)(infra|terraform|deploy|docker)(\/|$)/.test(lower)) role = "infrastructure";
+    else if (["typescript", "javascript", "python", "go", "rust", "swift", "java", "csharp", "c", "cpp"].indexOf(language) >= 0) role = "source";
+    const base = path.basename(lower);
+    const entrypoint = /^(index|main|app|server|cli)\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|swift|java|cs|c|cpp)$/.test(base);
+    return { language: language, role: role, generated: generated, entrypoint: entrypoint };
+  }
+  function walk(directory, relDir) {
+    if (files.length >= request.maxFiles) { inventoryLimited = true; return; }
+    let entries = [];
+    try { entries = fs.readdirSync(directory, { withFileTypes: true }); } catch (_) { return; }
+    entries.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    for (let index = 0; index < entries.length; index += 1) {
+      if (files.length >= request.maxFiles) { inventoryLimited = true; return; }
+      const entry = entries[index];
+      const rel = relDir ? relDir + "/" + entry.name : entry.name;
+      if (blocked(rel, limits.blockedGlobs)) continue;
+      const absolute = path.join(directory, entry.name);
+      let stat;
+      try { stat = fs.lstatSync(absolute); } catch (_) { continue; }
+      if (stat.isSymbolicLink()) continue;
+      if (stat.isDirectory()) walk(absolute, rel);
+      else if (stat.isFile() && stat.size <= 4000000) {
+        let head;
+        try { const fd = fs.openSync(absolute, "r"); head = Buffer.alloc(Math.min(stat.size, 4096)); fs.readSync(fd, head, 0, head.length, 0); fs.closeSync(fd); } catch (_) { continue; }
+        if (head.indexOf(0) >= 0) continue;
+        files.push(Object.assign({ path: rel, bytes: stat.size, modifiedMs: stat.mtimeMs }, classify(rel)));
+      }
+    }
+  }
+  walk(root, "");
+  files.sort(function (a, b) { return a.path.localeCompare(b.path); });
+  const fileSet = new Set(files.map(function (file) { return file.path; }));
+  const symbols = [];
+  const relationships = [];
+  let analyzedFiles = 0;
+  let scannedBytes = 0;
+  let sourceLimited = false;
+  const patterns = {
+    typescript: [[/\b(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/, "function"], [/\b(?:export\s+)?class\s+([A-Za-z_$][\w$]*)/, "class"], [/\b(?:export\s+)?interface\s+([A-Za-z_$][\w$]*)/, "interface"], [/\b(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)/, "variable"]],
+    javascript: [[/\b(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/, "function"], [/\b(?:export\s+)?class\s+([A-Za-z_$][\w$]*)/, "class"], [/\b(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)/, "variable"]],
+    python: [[/^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)/, "function"], [/^\s*class\s+([A-Za-z_]\w*)/, "class"]],
+    go: [[/^func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)/, "function"], [/^type\s+([A-Za-z_]\w*)\s+/, "type"]],
+    rust: [[/^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)/, "function"], [/^\s*(?:pub\s+)?struct\s+([A-Za-z_]\w*)/, "struct"], [/^\s*(?:pub\s+)?enum\s+([A-Za-z_]\w*)/, "enum"], [/^\s*(?:pub\s+)?trait\s+([A-Za-z_]\w*)/, "trait"]]
+  };
+  function resolveImport(from, specifier) {
+    if (specifier.indexOf(".") !== 0) return undefined;
+    const raw = path.posix.normalize(path.posix.join(path.posix.dirname(from), specifier)).replace(/\.(js|mjs|cjs)$/, "");
+    const candidates = [raw, raw + ".ts", raw + ".tsx", raw + ".js", raw + ".jsx", raw + ".py", raw + ".go", raw + ".rs", raw + "/index.ts", raw + "/index.js", raw + "/index.py"];
+    return candidates.find(function (candidate) { return fileSet.has(candidate); });
+  }
+  for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
+    const file = files[fileIndex];
+    if (!patterns[file.language] || file.generated) continue;
+    if (analyzedFiles >= request.maxAnalyzedFiles || scannedBytes + file.bytes > request.maxScannedBytes) { sourceLimited = true; break; }
+    let text;
+    try { text = fs.readFileSync(path.join(root, file.path), "utf8"); } catch (_) { continue; }
+    analyzedFiles += 1;
+    scannedBytes += Buffer.byteLength(text, "utf8");
+    text.split(/\r?\n/).forEach(function (line, lineIndex) {
+      (patterns[file.language] || []).forEach(function (pattern) {
+        if (symbols.length >= request.maxSymbols) return;
+        const match = line.match(pattern[0]);
+        if (match && match[1]) symbols.push({ name: match[1], kind: pattern[1], path: file.path, line: lineIndex + 1, exported: /\b(export|public|pub)\b/.test(line), confidence: "strong" });
+      });
+      if (relationships.length >= request.maxRelationships || (file.language !== "typescript" && file.language !== "javascript")) return;
+      const match = line.match(/\b(?:import|export)\b[^"']*?["']([^"']+)["']|\brequire\(\s*["']([^"']+)["']\s*\)/);
+      const target = match && resolveImport(file.path, match[1] || match[2]);
+      if (target && !relationships.some(function (item) { return item.from === file.path && item.to === target; })) {
+        relationships.push({ from: file.path, to: target, kind: file.role === "test" ? "tests" : "imports", confidence: "strong", source: "remote built-in import extraction" });
+      }
+    });
+  }
+  if (inventoryLimited) warnings.push("Remote inventory reached its configured file limit.");
+  if (sourceLimited) warnings.push("Remote source analysis reached its file or byte limit.");
+  if (symbols.length >= request.maxSymbols) warnings.push("Remote symbol extraction reached its configured limit.");
+  if (relationships.length >= request.maxRelationships) warnings.push("Remote relationship extraction reached its configured limit.");
+  const areaMap = {};
+  files.forEach(function (file) {
+    const top = file.path.indexOf("/") >= 0 ? file.path.split("/")[0] : ".";
+    if (!areaMap[top]) areaMap[top] = { path: top, role: file.role, files: 0 };
+    areaMap[top].files += 1;
+    if (areaMap[top].role === "other" && file.role !== "other") areaMap[top].role = file.role;
+  });
+  const names = new Set(files.map(function (file) { return file.path.toLowerCase(); }));
+  const projectTypes = [];
+  if (names.has("package.json")) projectTypes.push("Node.js");
+  if (names.has("pyproject.toml") || names.has("requirements.txt")) projectTypes.push("Python");
+  if (names.has("go.mod")) projectTypes.push("Go");
+  if (names.has("cargo.toml")) projectTypes.push("Rust");
+  if (names.has("package.swift")) projectTypes.push("Swift");
+  const fingerprint = crypto.createHash("sha256").update(files.map(function (file) { return file.path + ":" + file.bytes + ":" + file.modifiedMs; }).join("\n")).digest("hex");
+  return {
+    schemaVersion: 1,
+    root: root,
+    languages: Array.from(new Set(files.map(function (file) { return file.language; }).filter(function (language) { return language !== "unknown"; }))).sort(),
+    projectTypes: projectTypes,
+    entrypoints: files.filter(function (file) { return file.entrypoint; }).map(function (file) { return file.path; }),
+    importantFiles: files.filter(function (file) { return file.role === "config" || /(^|\/)(README|AGENTS)\.md$/i.test(file.path); }).map(function (file) { return file.path; }),
+    areas: Object.keys(areaMap).map(function (key) { return areaMap[key]; }).sort(function (a, b) { return b.files - a.files || a.path.localeCompare(b.path); }),
+    files: files,
+    symbols: symbols,
+    relationships: relationships,
+    coverage: { inventoryFiles: files.length, analyzedFiles: analyzedFiles, scannedBytes: scannedBytes, symbolCount: symbols.length, relationshipCount: relationships.length, truncated: inventoryLimited || sourceLimited || symbols.length >= request.maxSymbols || relationships.length >= request.maxRelationships, warnings: warnings },
+    warnings: warnings,
+    fingerprint: fingerprint,
+    cache: { hit: false, key: "remote:" + fingerprint }
+  };
+}
+
 function execute(request, limits) {
   if (request.action === "probe_project") {
     const root = canonicalRoot(request.root);
@@ -344,6 +478,89 @@ function execute(request, limits) {
     return { root: root, name: path.basename(root) || root, gitRoot: gitRoot, gitRelativePath: gitRoot && inside(gitRoot, root) ? (path.relative(gitRoot, root) || ".").replace(/\\/g, "/") : undefined };
   }
   const root = canonicalRoot(request.root);
+  if (request.action === "inspect") return inspectProject(root, request, limits);
+  if (request.action === "list_skills" || request.action === "load_skill") {
+    const skillFiles = [];
+    function visitSkills(directory, depth) {
+      if (depth < 0 || skillFiles.length >= request.maxSkills) return;
+      let entries = [];
+      try { entries = fs.readdirSync(directory, { withFileTypes: true }); } catch (_) { return; }
+      entries.sort(function (a, b) { return a.name.localeCompare(b.name); });
+      entries.forEach(function (entry) {
+        if (skillFiles.length >= request.maxSkills || entry.name === ".git" || entry.name === "node_modules") return;
+        const absolute = path.join(directory, entry.name);
+        let stat;
+        try { stat = fs.lstatSync(absolute); } catch (_) { return; }
+        if (stat.isSymbolicLink()) return;
+        if (stat.isFile() && entry.name === "SKILL.md") skillFiles.push(absolute);
+        else if (stat.isDirectory()) visitSkills(absolute, depth - 1);
+      });
+    }
+    [path.join(root, ".codex", "skills"), path.join(root, ".agents", "skills"), path.join(root, "skills")].forEach(function (directory) {
+      let real;
+      try { real = fs.realpathSync(directory); } catch (_) { return; }
+      if (inside(root, real)) visitSkills(real, 3);
+    });
+    const skills = skillFiles.map(function (file) {
+      const rel = path.relative(root, file).replace(/\\/g, "/");
+      let head = "";
+      try { head = fs.readFileSync(file, "utf8").slice(0, 16000); } catch (_) {}
+      const nameMatch = head.match(/^name:\s*(.+)$/m);
+      const descriptionMatch = head.match(/^description:\s*(.+)$/m);
+      function clean(value) { return String(value || "").trim().replace(/^["']|["']$/g, ""); }
+      return {
+        name: clean(nameMatch && nameMatch[1]) || path.basename(path.dirname(file)),
+        description: clean(descriptionMatch && descriptionMatch[1]) || undefined,
+        source: "workspace",
+        path: "$WORKSPACE/" + rel,
+        absolute: file
+      };
+    });
+    if (request.action === "list_skills") {
+      return skills.map(function (skill) { return { name: skill.name, description: skill.description, source: skill.source, path: skill.path }; });
+    }
+    const matches = skills.filter(function (skill) {
+      return skill.name === request.name && (!request.path || skill.path === request.path);
+    });
+    if (!matches.length) throw new Error("Remote workspace skill not found: " + request.name);
+    if (matches.length > 1) throw new Error("Multiple remote workspace skills share that name. Pass the exact advertised path.");
+    const skill = matches[0];
+    const stat = fs.lstatSync(skill.absolute);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("Remote workspace skill must be a regular file.");
+    const body = trim(fs.readFileSync(skill.absolute, "utf8"), request.maxBytes);
+    return {
+      skill: { name: skill.name, description: skill.description, source: skill.source, path: skill.path },
+      text: body.value,
+      bytes: Math.min(stat.size, request.maxBytes),
+      totalBytes: stat.size,
+      truncated: body.truncated
+    };
+  }
+  if (request.action === "list_environments") {
+    const directory = path.join(root, ".codex", "environments");
+    let directoryStat;
+    try { directoryStat = fs.lstatSync(directory); } catch (_) {
+      return { platform: process.platform === "darwin" ? "darwin" : process.platform === "win32" ? "win32" : "linux", files: [] };
+    }
+    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) throw new Error("Remote environment directory must be a regular directory inside the project.");
+    const realDirectory = fs.realpathSync(directory);
+    if (!inside(root, realDirectory)) throw new Error("Remote environment directory escapes the project.");
+    const names = fs.readdirSync(realDirectory).filter(function (name) { return /^[^/\\]+\.toml$/.test(name); }).sort();
+    if (names.length > request.maxFiles) throw new Error("Remote project has too many environment files.");
+    const files = names.map(function (name) {
+      const file = path.join(realDirectory, name);
+      const stat = fs.lstatSync(file);
+      if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("Remote environment config must be a regular file: " + name);
+      if (stat.size > request.maxBytes) throw new Error("Remote environment config is too large: " + name);
+      return { configPath: file, sourceRoot: root, content: fs.readFileSync(file, "utf8") };
+    });
+    return { platform: process.platform === "darwin" ? "darwin" : process.platform === "win32" ? "win32" : "linux", files: files };
+  }
+  if (request.action === "resolve_directory") {
+    const target = resolveTarget(root, request.path || ".", false, limits.blockedGlobs);
+    if (!fs.statSync(target.absolute).isDirectory()) throw new Error("Terminal cwd is not a directory.");
+    return { absolute: fs.realpathSync(target.absolute), relative: target.rel };
+  }
   if (request.action === "tree") return listTree(root, request, limits);
   if (request.action === "read") return readFile(root, request, limits);
   if (request.action === "search") return searchFiles(root, request, limits);

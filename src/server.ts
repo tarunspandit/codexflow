@@ -22,15 +22,19 @@ import {
 import { persistentTerminals } from "./terminalOps.js";
 import {
   environmentAction,
+  environmentActionForPlatform,
+  environmentScriptForPlatform,
   environmentTerminalCommand,
   listLocalEnvironments,
   localEnvironmentSummary,
   resolveLocalEnvironment,
   runLocalEnvironmentCommand
 } from "./localEnvironmentOps.js";
+import { listRemoteEnvironments, resolveRemoteEnvironment } from "./remoteEnvironmentOps.js";
 import { readAiBridgeContext, readCodexContext, workspaceSummary } from "./workspaceOps.js";
 import { buildProContext, exportProContext } from "./proContext.js";
 import { codexflowInventory, loadSkill } from "./capabilitiesOps.js";
+import { discoverRemoteSkillInventory, loadRemoteSkill } from "./remoteCapabilitiesOps.js";
 import { listCodexSessions, readCodexSession } from "./codexSessions.js";
 import { discoverProjects } from "./projectCatalog.js";
 import { TOOL_CARD_LEGACY_URIS, TOOL_CARD_MIME_TYPE, TOOL_CARD_URI, toolCardWidgetHtml } from "./toolCardWidget.js";
@@ -41,6 +45,7 @@ import {
 } from "./projectPickerWidget.js";
 import { hasSecretValue, redactSensitiveText, redactStructured } from "./redact.js";
 import { inspectWorkspace, invalidateWorkspaceAnalysis, reviewWorkspaceChanges } from "./analysis/index.js";
+import { inspectRemoteWorkspace } from "./remoteAnalysisOps.js";
 import { CODEXFLOW_VERSION } from "./version.js";
 import { ChatRouteStore, isChatRouteId } from "./chatRoutes.js";
 import { codexFlowHome } from "./profileStore.js";
@@ -1255,7 +1260,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       throw new CodexFlowError("This private chat route is not bound to a project. Call select_project with this route_id before using project tools.");
     }
     if (route.location === "remote") {
-      throw new CodexFlowError("This route uses a remote project. This particular tool is not remote-capable yet; use tree, search, read, write, edit, apply_patch, bash, git_status, git_diff, or git_log.");
+      throw new CodexFlowError("This route uses a remote project. This particular tool is not remote-capable yet; use inspect_workspace, tree, search, read, write, edit, apply_patch, bash, terminal, git_status, git_diff, git_log, local_environment, or load_skill.");
     }
     let workspace: Workspace;
     try {
@@ -1733,20 +1738,32 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
-      const inventory = await codexflowInventory(config, workspace, {
+      const target = projectTarget(args.workspace_id);
+      const inventoryWorkspace = target.kind === "remote" ? workspaceManager.defaultWorkspace() : target.workspace;
+      const inventory = await codexflowInventory(config, inventoryWorkspace, {
         includeGlobalSkills: parseBool(args.include_global_skills, true),
         includeMcpServers: parseBool(args.include_mcp_servers, true),
         maxSkills: limitInt(args.max_skills, 120, 1, 500)
       });
-      return textResult(inventory.text, {
-        workspace_id: workspace.id,
-        root: workspace.root,
+      const skills = target.kind === "remote"
+        ? [
+            ...await discoverRemoteSkillInventory(config, target.project, limitInt(args.max_skills, 120, 1, 500)),
+            ...inventory.skills.filter((skill) => skill.source !== "workspace")
+          ].slice(0, limitInt(args.max_skills, 120, 1, 500))
+        : inventory.skills;
+      const inventoryText = target.kind === "remote"
+        ? `${inventory.text}\n\n## Remote workspace skills\n\n${skills.filter((skill) => skill.source === "workspace").map((skill) => `- ${skill.name} — ${skill.path}`).join("\n") || "- none"}`
+        : inventory.text;
+      return textResult(inventoryText, {
+        workspace_id: target.workspace.id,
+        root: target.workspace.root,
+        location: target.kind,
+        host_alias: target.kind === "remote" ? target.project.hostAlias : null,
         bash_mode: config.bashMode,
         write_mode: config.writeMode,
         tool_mode: config.toolMode,
-        skills: inventory.skills,
-        skill_count: inventory.skills.length,
+        skills,
+        skill_count: skills.length,
         plugins: inventory.plugins,
         plugin_count: inventory.plugins.length,
         mcp_servers: inventory.mcpServers,
@@ -1781,25 +1798,46 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
       const requestedPath = typeof args.path === "string" ? args.path : undefined;
       const includeGlobalDefault =
         args.source === undefined ||
         (args.source !== undefined && args.source !== "workspace") ||
         Boolean(requestedPath && !requestedPath.startsWith("$WORKSPACE/"));
-      const loaded = await loadSkill(workspace, {
-        name: String(args.name ?? ""),
-        source: args.source,
-        path: requestedPath,
-        includeGlobal: parseBool(args.include_global_skills, includeGlobalDefault),
-        maxSkills: limitInt(args.max_skills, 500, 1, 500),
-        maxBytes: limitInt(args.max_bytes, 40_000, 1_000, 100_000)
-      });
+      let loaded;
+      if (target.kind === "remote" && (args.source === "workspace" || requestedPath?.startsWith("$WORKSPACE/") || args.source === undefined)) {
+        const remoteSkills = await discoverRemoteSkillInventory(config, target.project, limitInt(args.max_skills, 500, 1, 500));
+        const remoteMatches = remoteSkills.filter((skill) =>
+          skill.name === String(args.name ?? "") && (!requestedPath || skill.path === requestedPath)
+        );
+        if (remoteMatches.length > 1) throw new CodexFlowError("Multiple remote workspace skills share that name. Pass the exact advertised path.");
+        if (remoteMatches.length === 1) {
+          loaded = await loadRemoteSkill(config, target.project, {
+            name: String(args.name ?? ""),
+            path: requestedPath,
+            maxSkills: limitInt(args.max_skills, 500, 1, 500),
+            maxBytes: limitInt(args.max_bytes, 40_000, 1_000, 100_000)
+          });
+        } else if (args.source === "workspace" || requestedPath?.startsWith("$WORKSPACE/")) {
+          throw new CodexFlowError(`Remote workspace skill not found: ${String(args.name ?? "")}`);
+        }
+      }
+      loaded ??= await loadSkill(target.kind === "remote" ? workspaceManager.defaultWorkspace() : workspace, {
+          name: String(args.name ?? ""),
+          source: args.source,
+          path: requestedPath,
+          includeGlobal: parseBool(args.include_global_skills, includeGlobalDefault),
+          maxSkills: limitInt(args.max_skills, 500, 1, 500),
+          maxBytes: limitInt(args.max_bytes, 40_000, 1_000, 100_000)
+        });
       const truncated = loaded.truncated ? "\n\n[truncated: increase max_bytes if more context is required]" : "";
       const text = `# Load Skill\n\nName: ${loaded.skill.name}\nSource: ${loaded.skill.source}\nPath: ${loaded.skill.path}\nBytes: ${loaded.bytes}/${loaded.totalBytes}\n\n\`\`\`markdown\n${loaded.text}${truncated}\n\`\`\``;
       return textResult(text, {
         workspace_id: workspace.id,
         root: workspace.root,
+        location: target.kind,
+        host_alias: target.kind === "remote" ? target.project.hostAlias : null,
         skill: loaded.skill,
         bytes: loaded.bytes,
         total_bytes: loaded.totalBytes,
@@ -1925,7 +1963,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
           throw new CodexFlowError(error instanceof Error ? error.message : String(error));
         }
         routeStore.bindRemote(routeId, project);
-        const [summary, inventory] = await Promise.all([
+        const [summary, inventory, remoteWorkspaceSkills] = await Promise.all([
           Promise.resolve(runRemoteWorkspaceOperation<{
             tree?: string;
             gitStatus: string;
@@ -1937,9 +1975,13 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
             maxDepth: limitInt(args.max_depth, 2, 1, 8),
             maxEntries: 500
           })),
-          codexflowInventory(config, workspaceManager.defaultWorkspace(), { includeGlobalSkills: true, includeMcpServers: true, maxSkills: 120 })
+          codexflowInventory(config, workspaceManager.defaultWorkspace(), { includeGlobalSkills: true, includeMcpServers: true, maxSkills: 120 }),
+          discoverRemoteSkillInventory(config, project, 120)
         ]);
-        const skills = inventory.skills.filter((skill) => skill.source !== "workspace");
+        const skills = [
+          ...remoteWorkspaceSkills,
+          ...inventory.skills.filter((skill) => skill.source !== "workspace")
+        ].slice(0, 120);
         const pluginSkills = skills.filter((skill) => skill.source === "plugin");
         const text = [
           `# Remote project selected: ${project.name}`,
@@ -2331,17 +2373,30 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
-      if (args.path) guard.resolve(workspace, args.path);
-      const result = await inspectWorkspace(config, guard, workspace);
-      const prefix = typeof args.path === "string" && args.path.trim()
-        ? guard.resolve(workspace, args.path).relPath.replace(/^\.\/?$/, "")
-        : "";
-      const inScope = (filePath: string) => !prefix || filePath === prefix || filePath.startsWith(`${prefix}/`);
-      const areaInScope = (areaPath: string) => !prefix || areaPath === "." || inScope(areaPath) || prefix.startsWith(`${areaPath}/`);
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
       const fileLimit = config.toolCards ? 120 : limitInt(args.max_files, 300, 1, config.analysisLimits.maxInventoryFiles);
       const symbolLimit = config.toolCards ? 80 : limitInt(args.max_symbols, 500, 1, config.analysisLimits.maxSymbols);
       const relationshipLimit = config.toolCards ? 120 : limitInt(args.max_relationships, 800, 1, config.analysisLimits.maxRelationships);
+      let prefix = "";
+      if (typeof args.path === "string" && args.path.trim()) {
+        if (target.kind === "remote") {
+          if (path.posix.isAbsolute(args.path)) throw new CodexFlowError("Analysis path must be relative to the remote project.");
+          prefix = path.posix.normalize(args.path).replace(/^\.\/?$/, "");
+          if (prefix === ".." || prefix.startsWith("../")) throw new CodexFlowError("Analysis path escapes the remote project.");
+        } else {
+          prefix = guard.resolve(workspace, args.path).relPath.replace(/^\.\/?$/, "");
+        }
+      }
+      const result = target.kind === "remote"
+        ? await inspectRemoteWorkspace(config, target.project, {
+            maxFiles: fileLimit,
+            maxSymbols: symbolLimit,
+            maxRelationships: relationshipLimit
+          })
+        : await inspectWorkspace(config, guard, workspace);
+      const inScope = (filePath: string) => !prefix || filePath === prefix || filePath.startsWith(`${prefix}/`);
+      const areaInScope = (areaPath: string) => !prefix || areaPath === "." || inScope(areaPath) || prefix.startsWith(`${areaPath}/`);
       const scopedFiles = result.files.filter((file) => inScope(file.path));
       const scopedSymbols = result.symbols.filter((symbol) => inScope(symbol.path));
       const scopedRelationships = result.relationships.filter((relationship) => inScope(relationship.from) || inScope(relationship.to));
@@ -2374,6 +2429,8 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         schema_version: 1,
         workspace_id: workspace.id,
         root: workspace.root,
+        location: target.kind,
+        host_alias: target.kind === "remote" ? target.project.hostAlias : null,
         path: args.path ?? ".",
         languages: result.languages,
         project_types: result.projectTypes,
@@ -2860,7 +2917,7 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     {
       title: "Persistent Terminal",
       description:
-        "Use the private chat route's persistent shell. run waits for one command; start launches a long-running or interactive command; read returns new transcript output; write sends input in full bash mode; stop closes the route terminal. Shell cwd and environment changes persist between commands.",
+        "Use the private chat route's persistent shell in its selected local or approved SSH project. run waits for one command; start launches a long-running or interactive command; read returns new transcript output; write sends input in full bash mode; stop closes the route terminal. Shell cwd and environment changes persist between commands and never cross private routes.",
       inputSchema: {
         workspace_id: z.string().optional().describe("Workspace id bound to this private route."),
         action: z.enum(["run", "start", "read", "write", "stop"]),
@@ -2882,16 +2939,20 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     async (args) => {
       const routeId = invocationRouteId();
       if (!routeId) throw new CodexFlowError("terminal requires the private route_id returned by list_projects or select_project.");
-      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
       if (args.action === "run" || args.action === "start") {
-        const result = await persistentTerminals.run(config, guard, routeId, workspace, String(args.command ?? ""), {
+        const options = {
           cwd: args.cwd,
           timeoutMs: args.timeout_ms,
           wait: args.action === "run",
           bashSessionId: args.session_id
-        });
+        };
+        const result = target.kind === "remote"
+          ? await persistentTerminals.runRemote(config, routeId, target.project, String(args.command ?? ""), options)
+          : await persistentTerminals.run(config, guard, routeId, workspace, String(args.command ?? ""), options);
         const text = [
-          "# Persistent Terminal",
+          `# ${target.kind === "remote" ? "Remote " : ""}Persistent Terminal`,
           "",
           `Terminal: ${result.terminalId}`,
           `Command: ${result.commandId}`,
@@ -2899,11 +2960,19 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
           result.completed ? `Exit: ${result.exitCode ?? "unknown"}` : "Use terminal action=read with this route_id to collect output.",
           result.output ? `\n## Output\n\n${result.output}` : ""
         ].filter(Boolean).join("\n");
-        return textResult(text, { workspace_id: workspace.id, root: workspace.root, ...result });
+        return textResult(text, {
+          workspace_id: workspace.id,
+          root: workspace.root,
+          location: target.kind,
+          host_alias: target.kind === "remote" ? target.project.hostAlias : null,
+          ...result
+        });
       }
       if (args.action === "read") {
         if (args.wait_ms) await new Promise((resolve) => setTimeout(resolve, args.wait_ms));
-        const result = persistentTerminals.read(config, routeId, workspace, args.after_cursor ?? 0, args.session_id);
+        const result = target.kind === "remote"
+          ? persistentTerminals.readRemote(config, routeId, target.project, args.after_cursor ?? 0, args.session_id)
+          : persistentTerminals.read(config, routeId, workspace, args.after_cursor ?? 0, args.session_id);
         const text = [
           "# Terminal Output",
           "",
@@ -2912,13 +2981,23 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
           `Cursor: ${result.cursor}`,
           result.output ? `\n${result.output}` : "\nNo new output."
         ].join("\n");
-        return textResult(text, { workspace_id: workspace.id, root: workspace.root, ...result });
+        return textResult(text, {
+          workspace_id: workspace.id,
+          root: workspace.root,
+          location: target.kind,
+          host_alias: target.kind === "remote" ? target.project.hostAlias : null,
+          ...result
+        });
       }
       if (args.action === "write") {
-        const result = persistentTerminals.write(config, routeId, workspace, String(args.data ?? ""), args.session_id);
+        const result = target.kind === "remote"
+          ? persistentTerminals.writeRemote(config, routeId, target.project, String(args.data ?? ""), args.session_id)
+          : persistentTerminals.write(config, routeId, workspace, String(args.data ?? ""), args.session_id);
         return textResult(`# Terminal Input\n\nInput sent to ${result.terminalId}.`, {
           workspace_id: workspace.id,
           root: workspace.root,
+          location: target.kind,
+          host_alias: target.kind === "remote" ? target.project.hostAlias : null,
           ...result,
           input_sent: true
         });
@@ -2929,6 +3008,8 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
         return textResult(`# Terminal Stopped\n\n${stopped ? "The route terminal was closed." : "No route terminal was running."}`, {
           workspace_id: workspace.id,
           root: workspace.root,
+          location: target.kind,
+          host_alias: target.kind === "remote" ? target.project.hostAlias : null,
           stopped
         });
       }
@@ -3105,13 +3186,13 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
     server,
     "local_environment",
     {
-      title: "Local Environment",
-      description: "Discover and select the same version 1 .codex/environments/*.toml files used by Codex Desktop. Run their platform-aware setup, cleanup, or named toolbar actions in this route's project terminal.",
+      title: "Project Environment",
+      description: "Discover and select the same version 1 .codex/environments/*.toml files used by Codex Desktop in the route's local or approved SSH project. Run platform-aware setup, cleanup, or named toolbar actions in its isolated persistent terminal.",
       inputSchema: {
         workspace_id: z.string().optional().describe("Workspace id bound to this private route."),
         action: z.enum(["list", "select", "run", "setup", "cleanup"]),
         config_path: z.string().optional().describe("Absolute config path, environment name, or TOML filename. Required when more than one environment exists."),
-        action_name: z.string().max(120).optional().describe("Named local environment action for action=run."),
+        action_name: z.string().max(120).optional().describe("Named project environment action for action=run."),
         background: z.boolean().optional().describe("Run a named action in the persistent terminal without waiting. Default: false."),
         timeout_ms: z.number().int().min(1000).max(600000).optional().describe("Timeout for setup, cleanup, or a foreground action. Default: 600000 for setup/cleanup and 30000 for actions."),
         session_id: z.string().optional().describe(config.requireBashSession && config.bashSessionId ? `Required bash session id for this server: ${config.bashSessionId}.` : "Optional configured bash session guard.")
@@ -3119,21 +3200,115 @@ export function createCodexFlowServer(config: CodexFlowConfig, observer: CodexFl
       annotations: BASH_ANNOTATIONS,
       _meta: {
         ...toolCardMeta(),
-        "openai/toolInvocation/invoking": "Using local environment...",
-        "openai/toolInvocation/invoked": "Local environment updated"
+        "openai/toolInvocation/invoking": "Using project environment...",
+        "openai/toolInvocation/invoked": "Project environment updated"
       }
     },
     async (args) => {
-      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const target = projectTarget(args.workspace_id);
+      const workspace = target.workspace;
+      const routeId = invocationRouteId();
+      const selectedConfigPath = routeId ? routeStore.get(routeId)?.environmentConfigPath : undefined;
+
+      if (target.kind === "remote") {
+        if (args.action === "list") {
+          const catalog = await listRemoteEnvironments(config, target.project);
+          const summaries = catalog.environments.map((environment) => localEnvironmentSummary(environment, catalog.platform));
+          const rows = summaries.length
+            ? summaries.map((environment) => {
+                const selected = environment.config_path === selectedConfigPath ? "  selected" : "";
+                const actions = (environment.actions as Array<{ name: string }>).map((action) => action.name).join(", ") || "none";
+                return `- ${environment.name}${selected}\n  ${environment.config_path}\n  Actions: ${actions}`;
+              }).join("\n")
+            : "- No remote environments found.";
+          return textResult(`# Remote Project Environments\n\n${rows}`, {
+            workspace_id: workspace.id,
+            root: workspace.root,
+            location: "remote",
+            host_alias: target.project.hostAlias,
+            platform: catalog.platform,
+            selected_config_path: selectedConfigPath ?? null,
+            environments: summaries,
+            count: summaries.length
+          });
+        }
+
+        const selector = args.config_path ?? selectedConfigPath;
+        const { environment, platform } = await resolveRemoteEnvironment(config, target.project, selector);
+        const summary = localEnvironmentSummary(environment, platform);
+        if (args.action === "select") {
+          if (!routeId) throw new CodexFlowError("Selecting a remote environment requires the private route_id returned by list_projects or select_project.");
+          routeStore.selectEnvironment(routeId, environment.configPath);
+          return textResult(`# Remote Environment Selected\n\n${environment.name}\n\n${environment.configPath}`, {
+            workspace_id: workspace.id,
+            root: workspace.root,
+            location: "remote",
+            host_alias: target.project.hostAlias,
+            platform,
+            selected_config_path: environment.configPath,
+            environment: summary
+          });
+        }
+
+        if (!routeId) throw new CodexFlowError("Running a remote environment command requires a private route_id.");
+        if (args.action === "run" && !args.action_name) throw new CodexFlowError("action_name is required for action=run.");
+        const action = args.action === "run"
+          ? environmentActionForPlatform(environment, args.action_name!, platform)
+          : undefined;
+        const command = action?.command ?? environmentScriptForPlatform(environment, args.action, platform);
+        if (!command) {
+          return textResult(`# Remote Environment ${args.action}\n\n${environment.name} has no ${args.action} script for ${platform}.`, {
+            workspace_id: workspace.id,
+            root: workspace.root,
+            location: "remote",
+            host_alias: target.project.hostAlias,
+            platform,
+            environment: summary,
+            action: action?.name ?? args.action,
+            completed: true,
+            exitCode: 0,
+            output: ""
+          });
+        }
+        const result = await persistentTerminals.runRemote(
+          config,
+          routeId,
+          target.project,
+          environmentTerminalCommand(command, target.project.root, target.project.root),
+          {
+            timeoutMs: args.timeout_ms ?? (args.action === "run" ? 30_000 : 600_000),
+            wait: args.action === "run" ? !parseBool(args.background, false) : true,
+            bashSessionId: args.session_id,
+            trustedProjectCommand: true
+          }
+        );
+        return textResult([
+          `# Remote Environment ${action ? "Action" : args.action === "setup" ? "Setup" : "Cleanup"}`,
+          "",
+          `Environment: ${environment.name}`,
+          action ? `Action: ${action.name}` : "",
+          `State: ${result.completed ? "completed" : "running"}`,
+          result.completed ? `Exit: ${result.exitCode ?? "unknown"}` : "Use terminal action=read to follow output.",
+          result.output ? `\n## Output\n\n${result.output}` : ""
+        ].filter(Boolean).join("\n"), {
+          workspace_id: workspace.id,
+          root: workspace.root,
+          location: "remote",
+          host_alias: target.project.hostAlias,
+          platform,
+          environment: summary,
+          action: action?.name ?? args.action,
+          ...result
+        });
+      }
+
       const paths = managedWorktreePaths(config, workspace);
       const environmentWorkspace = paths.worktreeId
         ? workspaceManager.openWorkspace(paths.sourceWorkspacePath)
         : workspace;
-      const routeId = invocationRouteId();
-      const selectedConfigPath = routeId ? routeStore.get(routeId)?.environmentConfigPath : undefined;
       if (args.action === "list") {
         const environments = listLocalEnvironments(config, environmentWorkspace);
-        const summaries = environments.map(localEnvironmentSummary);
+        const summaries = environments.map((environment) => localEnvironmentSummary(environment));
         const rows = summaries.length
           ? summaries.map((environment) => {
               const selected = environment.config_path === selectedConfigPath ? "  selected" : "";
