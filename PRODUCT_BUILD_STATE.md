@@ -1,6 +1,6 @@
 # Product Build State
 
-Updated: 2026-07-15
+Updated: 2026-07-22
 
 ## Objective
 
@@ -19,7 +19,7 @@ For developers working through a remote AI chat, CodexFlow is the most direct, s
 
 ## Current phase
 
-Complete for 0.30.1: the ChatGPT picker/runtime correction, native telemetry correction, documentation, signed desktop bundle, package, and hosted product surface are verified.
+The 0.30.4 implementation, local release matrix, source release, and public-site deployments are complete. Durable private-route chat telemetry, new-chat discovery guidance, documentation, the signed desktop bundle, package contents, GitHub Pages, and the Flow7-hosted product site are verified. The obsolete `CodexFlow Local` ChatGPT connector has been removed. npm publication and a final live two-chat ChatGPT acceptance pass remain account-authenticated release checks.
 
 ## Product truth
 
@@ -87,15 +87,18 @@ Complete for 0.30.1: the ChatGPT picker/runtime correction, native telemetry cor
 
 ## Verification evidence
 
-- Root TypeScript build, the complete smoke suite, and stress suite pass for 0.30.1.
+- Root TypeScript build, the complete smoke suite, and stress suite pass for 0.30.4.
 - The dedicated project picker renders and selects a real project in an isolated browser harness without console errors; `list_projects` uses its cache-versioned resource while `select_project` is usable without an output template.
-- Runtime fixtures and API tests confirm raw MCP transport probes no longer inflate the active-chat count.
+- Runtime and HTTP regression tests confirm that multiple MCP transports sharing one private route aggregate into one GUI chat, simultaneous routes remain isolated, route-level calls/errors are accumulated correctly, and unbound discovery/picker transports stay hidden from chat telemetry.
 - The native app builds for `x86_64 arm64`, passes strict signature/plist/resource checks, launches in fixture mode, and refreshes a deliberately corrupted same-version installation.
 - A real private temporary broker was authenticated, stopped, started, policy-edited, restarted, and checked through the signed GUI; unauthorized HTTP remained 401 and the native log contained no credential.
-- npm dry-run packaging contains the complete signed 0.30.1 app and required resources in a 4.2 MB tarball; root and website audits report zero vulnerabilities.
-- The production website passes lint, build, and English/Chinese render tests. Static and production-rendered editions were visually checked at 1440×900 and 390×844 without horizontal overflow.
+- npm dry-run packaging contains the complete signed 0.30.4 app and required resources in a 4.3 MB tarball; root and website audits report zero vulnerabilities.
+- The public website passes lint, build, and English/Chinese rendered-output tests locally. GitHub Pages and the Flow7-hosted product site both publicly serve 0.30.4.
 - The Flow7 adoption checklist and Full Product Completion Contract were re-read after implementation; every local gate passes.
-- The merged source is live at `https://tarunspandit.github.io/codexflow/`; the exact validated hosted build is also deployed at `https://codexflow.tarunspandit.chatgpt.site/`. Both returned the native-app release copy in production.
+- The existing public URLs remain `https://tarunspandit.github.io/codexflow/` and `https://codexflow.tarunspandit.chatgpt.site/`; both were verified after the 0.30.4 source release.
+- Pull request 14 was squash-merged to `main` at commit `9e95eb0`; the corresponding GitHub Pages deployment completed successfully.
+- The permanent `https://codexflow.flow7.org` tunnel is reachable and correctly returns `401` for unauthenticated root and MCP requests.
+- The stale `CodexFlow Local` ChatGPT connector was uninstalled, leaving `CodexFlow` as the current connector.
 
 ## External prerequisites
 
@@ -103,8 +106,9 @@ Complete for 0.30.1: the ChatGPT picker/runtime correction, native telemetry cor
 
 ## Open blockers
 
-- npm registry publication requires a refreshed maintainer login (`npm whoami` currently returns E401). This does not block source, desktop, GitHub Pages, or Sites deployment.
+- npm registry publication requires a refreshed maintainer login (`npm whoami` returned E401 on 2026-07-22). This does not block source, desktop, GitHub Pages, Sites, or permanent-tunnel operation.
+- The final live two-chat ChatGPT acceptance pass requires an authenticated ChatGPT browser session. The equivalent broker-level concurrent-route regression test passes.
 
 ## Completion record
 
-Every required ledger row is verified. The Flow7 adoption checklist and completion contract were re-read, the full 0.30.1 release matrix passed, the signed app was installed into `~/Applications`, and the changed public surfaces were deployed and checked.
+Every required ledger row remains verified. The full 0.30.4 local release matrix passes, including build, complete smoke, stress, native bundle/signature checks, package dry-run, website lint/build/render tests, dependency audits, and concurrent-route telemetry regression coverage. Source, GitHub Pages, the Flow7-hosted site, and the permanent tunnel are live; npm publication and the account-authenticated ChatGPT acceptance pass are the only remaining release checks.
