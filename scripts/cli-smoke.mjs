@@ -216,7 +216,7 @@ try {
   const fallbackDuring = run(['app', '--root', root], {
     ...env,
     CODEXFLOW_DISABLE_DESKTOP: '1',
-    CODEXFLOW_BROWSER: fakeBrowser,
+    CODEXFLOW_BROWSER: `"${process.execPath}" "${fakeBrowser}"`,
     CODEXFLOW_BROWSER_OUTPUT: browserOutput
   });
   assert.equal(fallbackDuring.status, 0, fallbackDuring.stderr || fallbackDuring.stdout);
