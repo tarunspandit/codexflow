@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.35.0 (2026-07-22)
+
+- Added a first-class native Hosts workspace that discovers concrete aliases from the local OpenSSH config, resolves them through OpenSSH, and makes verification or revocation explicit without invoking the Codex CLI.
+- Added an authenticated remote-host lifecycle API with bounded non-interactive verification, strict existing-host-key trust, owner-only approval records, no key-path exposure, and automatic invalidation when an alias resolves to a different user, host, or port.
+- Added regression coverage for included SSH config files, wildcard rejection, unknown aliases, failed host-key verification, destination changes, private state permissions, authenticated host administration, and universal native-app compilation.
+- Kept the parity claim honest: remote project selection and remote file, Git, shell, terminal, worktree, and handoff routing remain unfinished.
+
 ## 0.34.0 (2026-07-22)
 
 - Added a first-class native Changes workspace with separate staged and unstaged lanes, changed-file navigation, branch context, selectable color-coded diffs, addition/deletion counts, and explicit file-level stage, unstage, and discard actions.

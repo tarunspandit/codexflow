@@ -7,6 +7,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case worktrees
     case changes
     case chats
+    case hosts
     case connection
     case policy
 
@@ -20,6 +21,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .worktrees: "Worktrees"
         case .changes: "Changes"
         case .chats: "Chats"
+        case .hosts: "Hosts"
         case .connection: "Connection"
         case .policy: "Policy"
         }
@@ -33,6 +35,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .worktrees: "arrow.triangle.branch"
         case .changes: "plus.forwardslash.minus"
         case .chats: "bubble.left.and.bubble.right"
+        case .hosts: "server.rack"
         case .connection: "point.3.connected.trianglepath.dotted"
         case .policy: "slider.horizontal.3"
         }
@@ -326,6 +329,38 @@ struct ChangesCommand: Encodable {
     let includeStaged: Bool?
 }
 
+struct RemoteHostOverview: Decodable, Identifiable, Hashable {
+    let alias: String
+    let hostname: String
+    let user: String
+    let port: Int
+    let source: String
+    let approved: Bool
+    let status: String
+    let verifiedAt: String?
+    let platform: String?
+    let home: String?
+    let hasNode: Bool?
+    let hasGit: Bool?
+
+    var id: String { alias }
+}
+
+struct RemoteConnectionsResponse: Decodable {
+    let ok: Bool
+    let configPath: String
+    let hosts: [RemoteHostOverview]
+    let approved: Int
+    let discovered: Int
+    let message: String?
+    let verifiedAlias: String?
+}
+
+struct RemoteConnectionCommand: Encodable {
+    let action: String
+    let alias: String
+}
+
 struct WorktreeCommand: Encodable {
     let action: String
     let worktreeId: String?
@@ -433,6 +468,7 @@ struct DesktopFixture: Decodable {
     let overview: Overview
     let profile: ProfileResponse?
     let changes: ChangesResponse?
+    let remotes: RemoteConnectionsResponse?
     let initialSection: String?
 }
 

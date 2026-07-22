@@ -126,10 +126,13 @@ codexflow app
 - **Worktrees**：创建、检查、显示和安全删除隔离 checkout。
 - **改动**：分开展示 staged 与 unstaged 文件，呈现有颜色和统计的受限 diff，并对明确文件执行 stage、unstage 或 discard。
 - **聊天**：真正使用工具的当前与最近关闭对话各自路由到哪个项目；后台 discovery 与组件请求不会伪装成聊天。
+- **Hosts**：从 `~/.ssh/config` 发现具体 aliases，在本机通过 OpenSSH 明确验证或撤销，并在 alias 改为其他目标时自动让批准失效。
 - **连接**：只在明确操作时复制私有 Server URL，并管理 broker 的启动、停止和重启。
 - **策略**：本次进程真正生效的写入、终端、工具、history、认证和 allowed-root 边界。
 
 应用可在 broker 离线时选择工作区并启动它，也可在多个近期或活跃的 workspace runtime 之间切换。旧的 token 保护浏览器页面只保留为紧急恢复和诊断入口；它会优先打开桌面应用，不再复制完整产品界面。
+
+SSH host 批准目前是远程能力的安全基础，并不代表远程执行已经达到 parity。CodexFlow 会忽略只有 wildcard 的 SSH entries，不返回或保存 private-key paths，要求 host key 已经被本机信任，也不会在远程 host 上安装或调用 Codex。远程项目选择与工具路由仍列在 `CODEX_DESKTOP_PARITY.md` 的未完成项中。
 
 会话遥测只存在于进程内存中，有数量上限，并会在会话关闭后很快过期。它只保存不可操作的显示指纹、已选项目、工具名称、结果和耗时；不会保存 prompts、工具 arguments、文件内容、命令输出、tokens 或可用的 MCP transport IDs。
 

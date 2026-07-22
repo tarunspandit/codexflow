@@ -39,6 +39,7 @@ import {
 import { persistentTerminals } from "./terminalOps.js";
 import { gitDiff, gitDiffStatus, gitStatus } from "./gitOps.js";
 import { runGitWorkflow } from "./gitWorkflow.js";
+import { disconnectRemoteConnection, listRemoteConnections, verifyRemoteConnection } from "./remoteConnections.js";
 
 const TUNNELS = ["cloudflare", "ngrok", "cloudflare-named", "tailscale", "none"] as const;
 const MODES = ["agent", "handoff", "pro"] as const;
@@ -111,6 +112,11 @@ const AdminChangesCommand = z.object({
   action: z.enum(["stage", "unstage", "discard"]),
   paths: z.array(z.string().trim().min(1).max(4096)).min(1).max(200),
   includeStaged: z.boolean().optional()
+}).strict();
+
+const AdminRemoteCommand = z.object({
+  action: z.enum(["verify", "disconnect"]),
+  alias: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
 }).strict();
 
 interface DesktopChangedFile {
@@ -922,6 +928,35 @@ async function main(): Promise<void> {
     jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/profile.");
   });
 
+  app.get("/admin/remotes", (_req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(redactStructured(listRemoteConnections()));
+    } catch (error) {
+      jsonError(res, 400, "remote_hosts_unavailable", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.post("/admin/remotes", adminRateLimit, adminBodyLimit, express.json({ limit: "32kb" }), (req, res) => {
+    const parsed = AdminRemoteCommand.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      jsonError(res, 400, "invalid_remote_command", "Choose a discovered SSH alias and a supported action.", parsed.error.flatten());
+      return;
+    }
+    try {
+      const result = parsed.data.action === "verify"
+        ? verifyRemoteConnection(parsed.data.alias)
+        : disconnectRemoteConnection(parsed.data.alias);
+      res.json(redactStructured(result));
+    } catch (error) {
+      jsonError(res, 400, "remote_action_failed", error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  app.all("/admin/remotes", (_req, res) => {
+    jsonError(res, 405, "method_not_allowed", "Use GET or POST for /admin/remotes.");
+  });
+
   app.get("/admin/changes", async (req, res) => {
     const parsed = AdminChangesQuery.safeParse(req.query);
     if (!parsed.success) {
@@ -1239,7 +1274,7 @@ async function main(): Promise<void> {
       });
       return;
     }
-    if (req.path === "/admin/profile" || req.path === "/admin/changes" || req.path === "/admin/environments" || req.path === "/admin/worktrees" || req.path === "/admin/chats") {
+    if (req.path === "/admin/profile" || req.path === "/admin/remotes" || req.path === "/admin/changes" || req.path === "/admin/environments" || req.path === "/admin/worktrees" || req.path === "/admin/chats") {
       jsonError(
         res,
         status,

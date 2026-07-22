@@ -46,6 +46,9 @@ Review changes against these failure modes before release:
 | Local Codex history is treated as ChatGPT memory | Codex session access is opt-in metadata/read mode and never attaches to a live Codex app session. |
 | Desktop or browser controls mutate live runtime unexpectedly | Profile changes apply on restart; active runtime policy stays stable for the current session. |
 | Native app becomes a prompt or source-content log | Session/activity telemetry is memory-only, bounded, expires shortly after close, and records only display fingerprints, project, tool name, outcome, and duration. |
+| A web request introduces an arbitrary SSH destination | Host administration accepts only concrete aliases already present in the computer's SSH config; wildcard-only and unknown aliases are rejected. |
+| An approved SSH alias is silently rerouted | Approval is tied to the resolved alias, host, user, and port fingerprint and becomes invalid when any of them changes. Verification is non-interactive, bounded, and requires an already trusted host key. |
+| SSH administration exposes private keys | CodexFlow never returns or stores identity-file paths or key material; the owner-only approval record contains only alias trust metadata and a one-way destination fingerprint. |
 | A displayed chat identifier can be replayed against MCP | The app exposes a one-way display fingerprint, never the random transport identifier used by the MCP endpoint. |
 | Remote MCP tool runs Codex/OpenCode/Pi directly | Agent execution remains a user-started CLI/watch process on the local machine. |
 | Autonomous loop drives ChatGPT Web or bypasses approvals | `loop-handoff` only runs local terminal commands over `.ai-bridge` files; it does not resume browser sessions, approve prompts, or expose a remote MCP executor. |
@@ -63,6 +66,7 @@ The main risks are:
 - leaking a `codexflow_token` or Cloudflare tunnel token
 - sharing the authenticated browser-fallback URL, which initially carries the same CodexFlow URL token used for local authentication
 - trusting a downloaded `cloudflared` binary without understanding where it came from
+- approving an SSH alias whose OpenSSH configuration, proxy command, or destination you do not control
 
 ## Safer Defaults
 
@@ -119,6 +123,7 @@ codexflow \
 - Do not treat MCP session ids or bash session labels as Codex conversation ids. CodexFlow does not execute inside a Codex app session.
 - Prefer a repo-specific `--root` instead of `--allow-home`.
 - Use `--no-install-cloudflared --cloudflared <path>` if your organization requires a managed Cloudflare Tunnel binary.
+- Verify SSH hosts only after normal `ssh <alias>` access works and the destination fingerprint is expected. Remove approval in the native Hosts view before changing an alias to a different machine.
 
 ## Cloudflare Binary Install
 
