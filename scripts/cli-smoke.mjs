@@ -176,11 +176,15 @@ let runtime;
 while (Date.now() < runtimeDeadline) {
   try {
     const files = (await fs.readdir(runtimePath)).filter((name) => name.endsWith('.json'));
-    if (files.length) {
-      runtimeFile = path.join(runtimePath, files[0]);
-      runtime = JSON.parse(await fs.readFile(runtimeFile, 'utf8'));
+    for (const file of files) {
+      const candidateFile = path.join(runtimePath, file);
+      const candidate = JSON.parse(await fs.readFile(candidateFile, 'utf8'));
+      if (await canonicalPath(candidate.root) !== await canonicalPath(root)) continue;
+      runtimeFile = candidateFile;
+      runtime = candidate;
       if (runtime.pid === child.pid) break;
     }
+    if (runtime?.pid === child.pid) break;
   } catch {
     // The launcher may not have created its runtime directory yet.
   }
