@@ -8,6 +8,7 @@ const read = (value) => fs.readFileSync(path.join(root, value), 'utf8');
 
 for (const file of [
   'desktop/windows/CodexFlow.Windows/CodexFlow.Windows.csproj',
+  'desktop/windows/CodexFlow.Windows/Program.cs',
   'desktop/windows/CodexFlow.Windows/MainWindow.xaml',
   'desktop/windows/CodexFlow.Windows/MainWindow.xaml.cs',
   'desktop/windows/CodexFlow.Windows/BrowserCoordinator.cs',
